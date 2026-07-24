@@ -65,8 +65,8 @@ public enum ConnectPrompt {
         curl -s "$BASE/v1/ping"
         curl -s -H "Authorization: Bearer $TOKEN" "$BASE/v1/schema"
         curl -s -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \\
-          -d '{"steps":[{"type":"say","text":"Connected! I can see you.","hold":4000},{"type":"trigger","name":"wave"}]}' \\
-          "$BASE/v1/script"
+          -d '{"items":[{"type":"say","text":"Connected! I can see you.","hold":4000},{"type":"trigger","name":"wave"}]}' \\
+          "$BASE/v1/queue"
         ```
 
         If the sprite waves and speaks, you're connected — tell me what you see in the
@@ -78,7 +78,9 @@ public enum ConnectPrompt {
           (`working` while busy, `waiting` for input, `review` when done, `failed` on errors).
         - `POST $BASE/v1/say` `{"text": "...", "ttl": <ms>}` — short speech bubbles (≤400 chars).
         - `POST $BASE/v1/trigger` `{"name": "..."}` — one-shot gestures.
-        - `POST $BASE/v1/script` `{"steps": [...]}` — queued sequences (any other command cancels).
+        - Direct verbs above play **next** (ahead of the queue); queued items continue after.
+        - `POST $BASE/v1/queue` `{"items": [...]}` — append ordered sequences; `GET` inspects,
+          `DELETE` flushes.
         - `GET $BASE/v1/events` — server-sent events stream.
 
         The schema is the source of truth for valid states/triggers; unknown names return

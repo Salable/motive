@@ -7,6 +7,15 @@ All notable changes to Motive are documented here. The format follows
 ## [Unreleased]
 
 ### Changed
+- **Queue-first interaction model.** Every action is now a queue item processed in
+  order. Direct verbs (`/v1/say`, `/v1/state`, `/v1/trigger` and the matching MCP
+  tools) play *next* — they cut the current item's remaining hold and everything
+  queued continues afterwards; nothing is dropped except by an explicit flush. New
+  `POST/GET/DELETE /v1/queue` (append / inspect / flush), `motive_enqueue` and
+  `motive_clear_queue` MCP tools, `queueDepth` in status, and SSE `queue` events.
+  `/v1/script` remains as "replace the queue" sugar (v0.1.0 wire shape unchanged).
+  Trigger items hold the queue for the gesture's length by default. `ScriptPlayer`
+  replaced by `ActionQueue` in MotiveCore.
 - Settings "Copy as curl" is now **Copy prompt**: a paste-into-any-agent connect
   prompt (`ConnectPrompt` in `MotiveAgents`) embedding the live port and token,
   proving the connection with a visible wave-and-say; public (0.0.0.0) binds ask the
