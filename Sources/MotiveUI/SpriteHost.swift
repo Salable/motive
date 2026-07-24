@@ -15,6 +15,9 @@ public final class SpriteHost: ObservableObject {
     /// True while the action queue is playing — from the first item starting
     /// until the queue drains or is flushed. Drives contextual queue controls.
     @Published public private(set) var queueActive = false
+    /// Live view of the queue: the running item, its remaining hold, and the
+    /// pending work behind it. Refreshed on every queue event.
+    @Published public private(set) var queue = QueueSnapshot(current: nil, currentRemaining: nil, pending: [])
 
     private var subscription: Task<Void, Never>?
 
@@ -34,13 +37,24 @@ public final class SpriteHost: ObservableObject {
                     if self.speech?.id == id { self.speech = nil }
                 case .queueItemStarted:
                     self.queueActive = true
+                    await self.refreshQueue()
                 case .queueItemFinished:
-                    break // the next item's start, or drained/flushed, follows
+                    // The next item's start, or drained/flushed, follows — but
+                    // pending shrinks now, so the queue view stays truthful.
+                    await self.refreshQueue()
                 case .queueDrained, .queueFlushed:
                     self.queueActive = false
+                    await self.refreshQueue()
                 }
             }
         }
+    }
+
+    /// Re-read the queue from the engine. Queue events do this automatically;
+    /// surfaces that render the current item's countdown (`QueueWindow`) call
+    /// it on their own display clock, between events.
+    public func refreshQueue() async {
+        queue = await engine.queueSnapshot()
     }
 
     /// Convenience: build the engine from the definition and start its clock.

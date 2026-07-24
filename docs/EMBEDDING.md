@@ -87,6 +87,27 @@ defaults to loopback on port 7877, falling back to an ephemeral port on
 collision; `start()` writes the port to `server.json` and rotates the bearer
 token (see [API.md](API.md) for the client side).
 
+## Recipe: show the queue
+
+Everything the sprite does — agent commands, scripts, REST calls — is a queue
+item, so the queue is the honest answer to "why is the pet doing that?".
+`QueueWindow` is a standalone window over it: the running item with its
+countdown, the pending items behind it, and skip / clear controls.
+
+```swift
+import MotiveUI
+
+let queue = QueueWindow(host: host, options: .init(title: "Winston — Queue"))
+menuItems.append(.init(title: "Queue…") { queue.show() })
+```
+
+It reads `SpriteHost.queue`, a `QueueSnapshot` republished from the engine on
+every queue event; the window adds a display tick (`refreshInterval`, default
+0.2s, running only while visible) so the current item's countdown moves. To
+render the queue in your own UI, observe that property and format entries with
+`QueueEntryPresentation(step:)` — kind, title, hold detail, and SF Symbol, with
+no UI types attached.
+
 ## Recipe: react to engine events
 
 The engine fans out typed events — drive your own UI (dock badges, sounds,

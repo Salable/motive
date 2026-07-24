@@ -23,7 +23,7 @@ Rather than shipping one bundled app, Motive is a component library: pick the pi
 | --- | --- |
 | `MotiveCore` | Pure, timer-free animation state machine, the `MotiveEngine` runtime, the `MotiveControl` command surface with a self-describing schema, and the capability registry. No UI dependencies. |
 | `MotiveSprite` | The sprite package model and pluggable format **runners**: `CodexRunner` (compatible with the Codex/Fido `pet.json` sprite-sheet contract) and `MotiveRunner` (the Motive-native `motive.json` format). |
-| `MotiveUI` | AppKit/SwiftUI surfaces: the sprite view, the sprite box window (speech bubbles, hover skip/clear queue controls, optional chat input and action buttons), the menu-bar notification menu, and the capability-driven settings window. |
+| `MotiveUI` | AppKit/SwiftUI surfaces: the sprite view, the sprite box window (speech bubbles, hover skip/clear queue controls, optional chat input and action buttons), the queue window (live view of what's playing and what's next), the menu-bar notification menu, and the capability-driven settings window. |
 | `MotiveHTTP` | A loopback REST control plane (token-authenticated, SSE events, self-describing schema) for driving the sprite from anything that can `curl`. |
 | `MotiveMCP` | An MCP server over the same command surface, plus the `motive-mcp` stdio shim for Claude Desktop / ChatGPT Desktop. |
 | `MotiveAgents` | Installers that teach agent CLIs (Claude Code, Codex, OpenCode) how to talk to your pet. |
@@ -42,7 +42,8 @@ swift run motive-demo
 desktop — just sprite and speech bubbles, no chrome — and walks through a queued
 onboarding tour of Motive's features. Hover over her during a scene for skip (⏭) and
 stop (✕) controls; stopping returns her to her default idle. A paw in the menu bar has
-Settings, tour replay, and Quit. Then drive the pup from a terminal:
+the queue window (what's playing and what's lined up behind it), Settings, tour replay,
+and Quit. Then drive the pup from a terminal:
 
 ```sh
 PORT=$(python3 -c "import json;print(json.load(open('$HOME/.motive/runtime/server.json'))['port'])")

@@ -7,6 +7,15 @@ All notable changes to Motive are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Queue window** (`MotiveUI.QueueWindow`) — a standalone window listing the
+  action queue live: the running item with its countdown, the pending items
+  numbered behind it, and Skip / Clear controls with the depth against the cap.
+  Backed by `SpriteHost.queue` (the engine's `QueueSnapshot`, republished on
+  every queue event) plus a display tick that runs only while the window is
+  visible; `QueueEntryPresentation(step:)` is the reusable, UI-free formatting
+  of a step into kind, title, hold detail, and symbol. The demo opens it from
+  the menu bar ("Queue…"), so the onboarding tour and any agent traffic can be
+  watched as it plays.
 - README hero and agent-state GIFs (`docs/images/`): Winston waving under a
   speech bubble, plus working / waiting / review / failed cards, generated
   deterministically from the sprite atlas by `scripts/make-readme-art.py`.
