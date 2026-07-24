@@ -47,7 +47,7 @@ let package = Package(
         // Skill / agent-config installers (Claude Code, Codex, OpenCode, desktop apps).
         .target(name: "MotiveAgents", dependencies: ["MotiveCore"]),
 
-        // Downloadable demo app bundling the Salli test sprite.
+        // Downloadable demo app bundling the Winston test sprite.
         .executableTarget(
             name: "MotiveDemo",
             dependencies: ["MotiveCore", "MotiveSprite", "MotiveUI", "MotiveHTTP", "MotiveAgents"]

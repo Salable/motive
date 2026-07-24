@@ -1,6 +1,9 @@
 # Contributing to Motive
 
-Thanks for your interest in Motive!
+Thanks for your interest in Motive! This is the path from checkout to merged
+PR; [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) explains the design rules the
+codebase follows, and [docs/RELEASING.md](docs/RELEASING.md) covers how merged
+work ships.
 
 ## Building and testing
 
@@ -9,7 +12,10 @@ Requires macOS 13+ and Swift 5.10+ (Xcode 15.3+).
 ```sh
 swift build
 swift test
+swift run motive-demo    # run the demo pet from the checkout
 ```
+
+CI runs `swift build` + `swift test` on macOS for every PR and push to `main`.
 
 ## Ground rules
 
@@ -40,11 +46,20 @@ MOTIVE_HOME=$(pwd)/.motive-home swift run motive-demo
 (Preferred-port collisions fall back to an ephemeral port automatically; each home's
 `runtime/server.json` records the actual one.)
 
-## Pull requests
+## Branches, commits, and pull requests
 
-- Keep PRs focused; one logical change per PR.
+- Branch from `main` as `feature/<name>` (what `scripts/worktree.sh new` does);
+  merge back via pull request with CI green.
+- Keep PRs focused; one logical change per PR. Larger efforts land as a series
+  of small commits with imperative subjects — see the git history for the
+  house style.
 - Add or update tests for behavior changes. `swift test` must pass.
-- Match the surrounding code style; no new dependencies without prior discussion in an issue.
+- Update the docs that describe what you changed (`docs/API.md` for control-plane
+  changes, `docs/FORMATS.md` for manifest changes, and so on), and add a line
+  to the `[Unreleased]` section of [CHANGELOG.md](CHANGELOG.md) for anything
+  user-visible.
+- Match the surrounding code style; no new dependencies without prior
+  discussion in an issue.
 
 ## Reporting issues
 
