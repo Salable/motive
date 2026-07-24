@@ -14,10 +14,14 @@ import NIOPosix
 /// Pipelining assistance is deliberately disabled: `/v1/events` holds an
 /// unterminated SSE response open, which the pipelining handler would treat
 /// as a stuck response and quiesce.
+/// Lifecycle note: `stop()` shuts down the event-loop group, so a stopped
+/// server cannot be restarted — build a fresh instance to rebind (settings
+/// flows do exactly this).
 public final class MotiveServer: @unchecked Sendable {
     public static let defaultPort = 7877
 
     public let paths: RuntimePaths
+    public let bindHost: String
     private let control: MotiveControl
     private let preferredPort: Int
     private let group: MultiThreadedEventLoopGroup
@@ -31,10 +35,12 @@ public final class MotiveServer: @unchecked Sendable {
         control: MotiveControl,
         paths: RuntimePaths = .standard,
         preferredPort: Int = MotiveServer.defaultPort,
+        bindHost: String = "127.0.0.1",
         rateLimiter: RateLimiter = RateLimiter()
     ) {
         self.control = control
         self.paths = paths
+        self.bindHost = bindHost
         self.preferredPort = preferredPort
         self.rateLimiter = rateLimiter
         self.group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
@@ -69,11 +75,11 @@ public final class MotiveServer: @unchecked Sendable {
 
         let bound: Channel
         do {
-            bound = try await bootstrap.bind(host: "127.0.0.1", port: preferredPort).get()
+            bound = try await bootstrap.bind(host: bindHost, port: preferredPort).get()
         } catch {
             // Preferred port taken: fall back to an ephemeral port;
             // server.json records the truth either way.
-            bound = try await bootstrap.bind(host: "127.0.0.1", port: 0).get()
+            bound = try await bootstrap.bind(host: bindHost, port: 0).get()
         }
         channel = bound
 
@@ -88,7 +94,8 @@ public final class MotiveServer: @unchecked Sendable {
             port: port,
             pid: ProcessInfo.processInfo.processIdentifier,
             version: MotiveVersion.current,
-            name: await control.displayName
+            name: await control.displayName,
+            host: bindHost
         )
         try info.write(to: paths.serverInfoURL)
 

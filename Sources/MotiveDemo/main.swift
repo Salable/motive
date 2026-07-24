@@ -51,8 +51,10 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
 
     var box: SpriteBoxWindow?
     var server: MotiveServer?
+    var control: MotiveControl?
     var menu: NotificationMenu?
     var settings: SettingsWindow?
+    private var serverRestartTask: Task<Void, Never>?
 
     init(definition: SpriteDefinition) {
         self.definition = definition
@@ -83,6 +85,21 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
             help: "Type below the sprite to make it speak.",
             kind: .toggle, defaultValue: .bool(true)
         ))
+        registry.register(CapabilityDescriptor(
+            id: "http.enabled", component: "Control Plane", title: "REST API",
+            help: "Local HTTP API for driving the sprite (curl, agents, the MCP shim).",
+            kind: .toggle, defaultValue: .bool(true)
+        ))
+        registry.register(CapabilityDescriptor(
+            id: "http.port", component: "Control Plane", title: "Port",
+            help: "Preferred port (1024–65535). If taken, an ephemeral port is used — Settings shows the actual one.",
+            kind: .text, defaultValue: .string(String(MotiveServer.defaultPort))
+        ))
+        registry.register(CapabilityDescriptor(
+            id: "http.public", component: "Control Plane", title: "Public (all interfaces)",
+            help: "Listen on 0.0.0.0 so other devices on your network can connect. The bearer token is still required for every request. Only enable on networks you trust; macOS may ask to allow incoming connections.",
+            kind: .toggle, defaultValue: .bool(false)
+        ))
 
         let box = SpriteBoxWindow(host: host, options: currentBoxOptions())
         box.actions = [
@@ -96,10 +113,14 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
         box.show()
         self.box = box
 
-        registry.observe { [weak self] _, _ in
+        registry.observe { [weak self] descriptor, _ in
             Task { @MainActor in
-                guard let self, let box = self.box else { return }
-                box.update(options: self.currentBoxOptions())
+                guard let self else { return }
+                if descriptor.id.hasPrefix("http.") {
+                    self.scheduleServerRestart()
+                } else {
+                    self.box?.update(options: self.currentBoxOptions())
+                }
             }
         }
 
@@ -117,8 +138,7 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
         ])
 
         let control = MotiveControl(engine: host.engine, displayName: name)
-        let server = MotiveServer(control: control)
-        self.server = server
+        self.control = control
 
         // First launch gets the full onboarding tour; after that, a short
         // greeting. Completion is marked when the tour *starts* — cancelling
@@ -134,18 +154,62 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
             } else {
                 await host.engine.say("Hi, I'm \(name)!", ttl: 6)
             }
-            do {
-                let info = try await server.start()
-                let tokenPath = server.paths.tokenURL.path
+            await self.startServerIfEnabled(announce: true)
+        }
+    }
+
+    // MARK: control-plane lifecycle
+
+    private func currentServerConfig() -> (enabled: Bool, port: Int, host: String) {
+        let enabled = registry.value(for: "http.enabled")?.boolValue ?? true
+        let portText = registry.value(for: "http.port")?.stringValue ?? ""
+        let port = Int(portText.trimmingCharacters(in: .whitespaces))
+            .map { min(65535, max(1024, $0)) } ?? MotiveServer.defaultPort
+        let isPublic = registry.value(for: "http.public")?.boolValue ?? false
+        return (enabled, port, isPublic ? "0.0.0.0" : "127.0.0.1")
+    }
+
+    /// A stopped server can't rebind (its event-loop group is gone), so a
+    /// config change means stop + fresh instance. Debounced and replaceable:
+    /// rapid toggles and port keystrokes collapse into one restart,
+    /// latest-wins.
+    func scheduleServerRestart() {
+        serverRestartTask?.cancel()
+        serverRestartTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            guard !Task.isCancelled else { return }
+            await self.startServerIfEnabled(announce: false)
+        }
+    }
+
+    private func startServerIfEnabled(announce: Bool) async {
+        guard let control else { return }
+        if let old = server {
+            server = nil
+            await old.stop()
+        }
+        let config = currentServerConfig()
+        guard config.enabled else {
+            print("motive-demo: control plane off")
+            return
+        }
+        let fresh = MotiveServer(control: control, preferredPort: config.port, bindHost: config.host)
+        do {
+            let info = try await fresh.start()
+            server = fresh
+            let tokenPath = fresh.paths.tokenURL.path
+            if announce {
                 print("""
-                motive-demo \(MotiveVersion.current): \(name) is on your desktop (menu-bar paw to quit).
-                Control plane: http://127.0.0.1:\(info.port)  (token: \(tokenPath))
+                motive-demo \(MotiveVersion.current): \(definition.metadata.displayName) is on your desktop (menu-bar paw to quit).
+                Control plane: http://\(info.host):\(info.port)  (token: \(tokenPath))
                 Try:  curl -H "Authorization: Bearer $(cat \(tokenPath))" \\
                            -d '{"state":"jumping"}' http://127.0.0.1:\(info.port)/v1/state
                 """)
-            } catch {
-                FileHandle.standardError.write(Data("motive-demo: control plane failed to start: \(error)\n".utf8))
+            } else {
+                print("motive-demo: control plane now on http://\(info.host):\(info.port) (token rotated)")
             }
+        } catch {
+            FileHandle.standardError.write(Data("motive-demo: control plane failed to start: \(error)\n".utf8))
         }
     }
 

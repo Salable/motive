@@ -257,8 +257,96 @@ final class MotiveServerTests: XCTestCase {
     }
 
     func testDiscoveryFilesWrittenAndCleanedUp() async throws {
-        XCTAssertNotNil(ServerInfo.load(from: server.paths.serverInfoURL))
+        let info = try XCTUnwrap(ServerInfo.load(from: server.paths.serverInfoURL))
+        XCTAssertEqual(info.host, "127.0.0.1")
         let attrs = try FileManager.default.attributesOfItem(atPath: server.paths.tokenURL.path)
         XCTAssertEqual((attrs[.posixPermissions] as? NSNumber)?.intValue, 0o600)
+    }
+
+    // MARK: M12 — bind host + lifecycle
+
+    private func makeServer(
+        preferredPort: Int = 0,
+        bindHost: String = "127.0.0.1",
+        paths: RuntimePaths? = nil
+    ) async throws -> (MotiveServer, ServerInfo, String) {
+        let runtime = paths ?? RuntimePaths(runtimeURL: FileManager.default.temporaryDirectory
+            .appendingPathComponent("motive-http-m12-\(UUID().uuidString)", isDirectory: true))
+        let engine = MotiveEngine(definition: BehaviorDefinition(
+            states: ["idle": StateBehavior(name: "idle", frameDurations: [0.1])]
+        ))
+        let control = MotiveControl(engine: engine, displayName: "Bindy")
+        let server = MotiveServer(control: control, paths: runtime, preferredPort: preferredPort, bindHost: bindHost)
+        let info = try await server.start()
+        let token = try XCTUnwrap(TokenManager.load(at: runtime.tokenURL))
+        return (server, info, token)
+    }
+
+    func testPublicBindReachableAndRecorded() async throws {
+        let (server, info, token) = try await makeServer(bindHost: "0.0.0.0")
+        defer { Task { await server.stop() } }
+        XCTAssertEqual(info.host, "0.0.0.0")
+        XCTAssertEqual(ServerInfo.load(from: server.paths.serverInfoURL)?.host, "0.0.0.0")
+
+        var request = URLRequest(url: URL(string: "http://127.0.0.1:\(info.port)/v1/status")!)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let (_, response) = try await URLSession.shared.data(for: request)
+        XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
+    }
+
+    func testRestartCycleRotatesTokenOnSamePaths() async throws {
+        let paths = RuntimePaths(runtimeURL: FileManager.default.temporaryDirectory
+            .appendingPathComponent("motive-http-restart-\(UUID().uuidString)", isDirectory: true))
+        let (first, firstInfo, firstToken) = try await makeServer(paths: paths)
+        await first.stop()
+        XCTAssertNil(ServerInfo.load(from: paths.serverInfoURL), "stop() should remove discovery files")
+
+        // Restart = fresh instance on the same paths (stop() killed the ELG).
+        let (second, secondInfo, secondToken) = try await makeServer(paths: paths)
+        defer { Task { await second.stop() } }
+        XCTAssertNotEqual(firstToken, secondToken, "token must rotate per boot")
+        _ = firstInfo
+
+        var request = URLRequest(url: URL(string: "http://127.0.0.1:\(secondInfo.port)/v1/status")!)
+        request.setValue("Bearer \(firstToken)", forHTTPHeaderField: "Authorization")
+        let (_, stale) = try await URLSession.shared.data(for: request)
+        XCTAssertEqual((stale as? HTTPURLResponse)?.statusCode, 401, "old token must not survive a restart")
+    }
+
+    func testPortCollisionFallsBackToEphemeral() async throws {
+        let (first, firstInfo, _) = try await makeServer(preferredPort: 0)
+        defer { Task { await first.stop() } }
+        let (second, secondInfo, _) = try await makeServer(preferredPort: firstInfo.port)
+        defer { Task { await second.stop() } }
+        XCTAssertNotEqual(secondInfo.port, firstInfo.port)
+        XCTAssertEqual(ServerInfo.load(from: second.paths.serverInfoURL)?.port, secondInfo.port)
+    }
+
+    func testSSETerminatesOnStop() async throws {
+        let (server, info, token) = try await makeServer()
+        var request = URLRequest(url: URL(string: "http://127.0.0.1:\(info.port)/v1/events")!)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let (bytes, _) = try await URLSession.shared.bytes(for: request)
+
+        Task {
+            try? await Task.sleep(nanoseconds: 200_000_000)
+            await server.stop()
+        }
+        // The stream must end (not hang) once the server stops.
+        var lines = 0
+        do {
+            for try await _ in bytes.lines { lines += 1 }
+        } catch {
+            // A connection-reset error is an acceptable form of termination.
+        }
+        XCTAssertLessThan(lines, 1_000)
+    }
+
+    func testLegacyServerInfoWithoutHostDecodes() throws {
+        let legacy = #"{"name":"Old","pid":1,"port":1234,"startedAt":"2026-07-24T00:00:00Z","version":"0.1.0"}"#
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let info = try decoder.decode(ServerInfo.self, from: Data(legacy.utf8))
+        XCTAssertEqual(info.host, "127.0.0.1")
     }
 }

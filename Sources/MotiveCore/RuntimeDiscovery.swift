@@ -40,13 +40,27 @@ public struct ServerInfo: Codable, Equatable, Sendable {
     public let version: String
     public let startedAt: Date
     public let name: String
+    /// Bind host. Decoded with a loopback default so pre-host server.json
+    /// files (and old readers ignoring the key) stay compatible.
+    public let host: String
 
-    public init(port: Int, pid: Int32, version: String, startedAt: Date = Date(), name: String) {
+    public init(port: Int, pid: Int32, version: String, startedAt: Date = Date(), name: String, host: String = "127.0.0.1") {
         self.port = port
         self.pid = pid
         self.version = version
         self.startedAt = startedAt
         self.name = name
+        self.host = host
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        port = try container.decode(Int.self, forKey: .port)
+        pid = try container.decode(Int32.self, forKey: .pid)
+        version = try container.decode(String.self, forKey: .version)
+        startedAt = try container.decode(Date.self, forKey: .startedAt)
+        name = try container.decode(String.self, forKey: .name)
+        host = try container.decodeIfPresent(String.self, forKey: .host) ?? "127.0.0.1"
     }
 
     public static func load(from url: URL) -> ServerInfo? {
