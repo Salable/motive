@@ -60,6 +60,7 @@ let package = Package(
         .testTarget(name: "MotiveSpriteTests", dependencies: ["MotiveSprite"]),
         .testTarget(name: "MotiveHTTPTests", dependencies: ["MotiveHTTP"]),
         .testTarget(name: "MotiveMCPTests", dependencies: ["MotiveMCP", "MotiveHTTP"]),
+        .testTarget(name: "MotiveAgentsTests", dependencies: ["MotiveAgents"]),
     ],
     swiftLanguageVersions: [.v5]
 )
