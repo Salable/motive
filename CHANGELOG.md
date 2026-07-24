@@ -7,6 +7,11 @@ All notable changes to Motive are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- README hero and agent-state GIFs (`docs/images/`): Winston waving under a
+  speech bubble, plus working / waiting / review / failed cards, generated
+  deterministically from the sprite atlas by `scripts/make-readme-art.py`.
+
+### Added
 - **`skip` verb** — the single-item counterpart of clear-queue: the current
   queue item ends immediately and the next pending item plays; pending is
   preserved, and a skipped `say`'s bubble is dismissed. Full command surface:

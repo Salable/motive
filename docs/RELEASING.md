@@ -42,6 +42,11 @@ The bundle embeds the Winston sprite package and the `motive-mcp` shim
 without a checkout. `Resources/AppIcon.icns` is committed; the script only
 regenerates it (via `scripts/make-icon.py`, needs Pillow) when it's missing.
 
+The README's Winston GIFs (`docs/images/`) are committed too, and are not part
+of any build: rerun `scripts/make-readme-art.py` (needs Pillow) manually
+whenever the Winston atlas or `pet.json` changes — it is deterministic, so an
+unchanged sprite produces byte-identical files.
+
 Signing is ad-hoc by default — downloaders right-click → Open, or
 `xattr -cr MotiveDemo.app`. Set `MOTIVE_SIGN_IDENTITY` to a Developer ID for
 distribution-grade signing; the app is not yet notarized.
