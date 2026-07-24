@@ -1,6 +1,8 @@
 .DS_Store
 .build/
 dist/
+.worktrees/
+.motive-home/
 *.xcodeproj
 xcuserdata/
 .swiftpm/
