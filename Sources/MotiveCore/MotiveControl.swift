@@ -8,10 +8,32 @@ public struct ControlStatus: Codable, Equatable, Sendable {
     public let version: String
     public let state: String
     public let speech: SpeechInfo?
+    public let queueDepth: Int
 
     public struct SpeechInfo: Codable, Equatable, Sendable {
         public let id: String
         public let text: String
+    }
+}
+
+/// Wire shape of `GET /v1/queue`.
+public struct QueueStatus: Codable, Equatable, Sendable {
+    public struct Item: Codable, Equatable, Sendable {
+        public let id: String
+        public let step: ScriptStep
+    }
+
+    public let depth: Int
+    public let current: Item?
+    /// Seconds until the current item's hold elapses.
+    public let currentRemaining: Double?
+    public let pending: [Item]
+
+    public init(snapshot: QueueSnapshot) {
+        self.depth = snapshot.depth
+        self.current = snapshot.current.map { Item(id: $0.id, step: $0.step) }
+        self.currentRemaining = snapshot.currentRemaining
+        self.pending = snapshot.pending.map { Item(id: $0.id, step: $0.step) }
     }
 }
 
@@ -25,13 +47,30 @@ public struct ControlReceipt: Codable, Equatable, Sendable {
     public let speechID: String?
     /// Set by `play-script`.
     public let scriptID: String?
+    /// Set by `enqueue` and `play-script`: the admitted items' ids, in order.
+    public let itemIDs: [String]?
+    /// Queue depth after the command.
+    public let queueDepth: Int?
+    /// Set by `clear-queue`: pending items dropped.
+    public let dropped: Int?
 
-    init(state: String, scheduled: Bool? = nil, speechID: String? = nil, scriptID: String? = nil) {
+    init(
+        state: String,
+        scheduled: Bool? = nil,
+        speechID: String? = nil,
+        scriptID: String? = nil,
+        itemIDs: [String]? = nil,
+        queueDepth: Int? = nil,
+        dropped: Int? = nil
+    ) {
         self.ok = true
         self.state = state
         self.scheduled = scheduled
         self.speechID = speechID
         self.scriptID = scriptID
+        self.itemIDs = itemIDs
+        self.queueDepth = queueDepth
+        self.dropped = dropped
     }
 }
 
@@ -106,13 +145,26 @@ public struct ControlSchema: Codable, Equatable, Sendable {
             description: "Dismiss the current speech bubble."
         ),
         VerbInfo(
+            name: "enqueue", method: "POST", path: "/v1/queue",
+            params: ["items": "array of item objects {type: say|setState|trigger|pause, text|name|ms, hold} (required, ≤64 total depth)"],
+            description: "Append items to the action queue; they play in order after everything already queued. All-or-nothing validation."
+        ),
+        VerbInfo(
+            name: "queue", method: "GET", path: "/v1/queue", params: [:],
+            description: "Inspect the queue: depth, current item (with remaining hold), pending items."
+        ),
+        VerbInfo(
+            name: "clear-queue", method: "DELETE", path: "/v1/queue", params: [:],
+            description: "Flush the queue: drop all pending items and stop waiting on the current one."
+        ),
+        VerbInfo(
             name: "play-script", method: "POST", path: "/v1/script",
             params: ["steps": "array of step objects {type: say|setState|trigger|pause, text|name|ms, hold} (required, ≤64)"],
-            description: "Play a queued sequence of say/state/trigger/pause steps. Latest-wins: replaces a running script; any other command cancels it."
+            description: "Replace the queue with this sequence (flush, then enqueue in order)."
         ),
         VerbInfo(
             name: "cancel-script", method: "DELETE", path: "/v1/script", params: [:],
-            description: "Cancel the running script, if any."
+            description: "Alias of clear-queue."
         ),
         VerbInfo(
             name: "events", method: "GET", path: "/v1/events", params: [:],
@@ -136,11 +188,13 @@ public actor MotiveControl {
     public func status() async -> ControlStatus {
         let directive = await engine.currentDirective
         let speech = await engine.speech
+        let depth = await engine.queueDepth
         return ControlStatus(
             name: displayName,
             version: MotiveVersion.current,
             state: directive.stateName,
-            speech: speech.map { ControlStatus.SpeechInfo(id: $0.id, text: $0.text) }
+            speech: speech.map { ControlStatus.SpeechInfo(id: $0.id, text: $0.text) },
+            queueDepth: depth
         )
     }
 
@@ -206,21 +260,58 @@ public actor MotiveControl {
         return ControlReceipt(state: current)
     }
 
-    /// Validates fail-fast — nothing plays when any step names unknown
-    /// vocabulary.
+    /// Append items to the queue (tail). All-or-nothing validation — nothing
+    /// enqueues when any item names unknown vocabulary or the batch would
+    /// exceed the depth cap.
+    public func enqueue(_ steps: [ScriptStep]) async -> Result<ControlReceipt, ControlFailure> {
+        let items = steps.map(QueueItem.init(step:))
+        switch await engine.enqueue(items, at: .tail) {
+        case .failure(let failure):
+            return .failure(failure)
+        case .success(let receipt):
+            let current = await engine.machine.currentStateName
+            return .success(ControlReceipt(
+                state: current,
+                itemIDs: receipt.itemIDs,
+                queueDepth: receipt.queueDepth
+            ))
+        }
+    }
+
+    public func queueStatus() async -> QueueStatus {
+        QueueStatus(snapshot: await engine.queueSnapshot())
+    }
+
+    public func clearQueue() async -> ControlReceipt {
+        let dropped = await engine.flushQueue()
+        let current = await engine.machine.currentStateName
+        let depth = await engine.queueDepth
+        return ControlReceipt(state: current, queueDepth: depth, dropped: dropped)
+    }
+
+    /// Compat sugar for `/v1/script`: replace the queue with these steps.
     public func playScript(_ run: ScriptRun) async -> Result<ControlReceipt, ControlFailure> {
         let definition = await engine.machine.definition
         if let failure = run.validate(against: definition) {
             return .failure(failure)
         }
-        await engine.playScript(run)
+        _ = await engine.flushQueue()
+        let result = await engine.enqueue(run.steps.map(QueueItem.init(step:)), at: .tail)
         let current = await engine.machine.currentStateName
-        return .success(ControlReceipt(state: current, scriptID: run.id))
+        switch result {
+        case .failure(let failure):
+            return .failure(failure)
+        case .success(let receipt):
+            return .success(ControlReceipt(
+                state: current,
+                scriptID: run.id,
+                itemIDs: receipt.itemIDs,
+                queueDepth: receipt.queueDepth
+            ))
+        }
     }
 
     public func cancelScript() async -> ControlReceipt {
-        await engine.flushQueue()
-        let current = await engine.machine.currentStateName
-        return ControlReceipt(state: current)
+        await clearQueue()
     }
 }

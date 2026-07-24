@@ -166,6 +166,77 @@ final class MotiveServerTests: XCTestCase {
         XCTAssertEqual(after, 0)
     }
 
+    // MARK: queue routes
+
+    func testEnqueueAppendsAndReportsIDs() async throws {
+        let body = #"{"items":[{"type":"say","text":"one","hold":5000},{"type":"say","text":"two","hold":5000}]}"#
+        let (status, json) = try await request("POST", "/v1/queue", body: body)
+        XCTAssertEqual(status, 200)
+        XCTAssertEqual((json["itemIDs"] as? [String])?.count, 2)
+        XCTAssertEqual(json["queueDepth"] as? Int, 2)
+        // First item is already playing.
+        let speech = await engine.speech
+        XCTAssertEqual(speech?.text, "one")
+    }
+
+    func testEnqueueAcceptsStepsAlias() async throws {
+        let (status, _) = try await request("POST", "/v1/queue", body: #"{"steps":[{"type":"say","text":"hi"}]}"#)
+        XCTAssertEqual(status, 200)
+    }
+
+    func testEnqueueValidatesAllOrNothing() async throws {
+        let body = #"{"items":[{"type":"say","text":"fine"},{"type":"setState","name":"zooming"}]}"#
+        let (status, json) = try await request("POST", "/v1/queue", body: body)
+        XCTAssertEqual(status, 400)
+        XCTAssertEqual(json["error"] as? String, "unknown_state")
+        XCTAssertNotNil(json["valid"] as? [String])
+        let depth = await engine.queueDepth
+        XCTAssertEqual(depth, 0, "rejected batch must leave the queue untouched")
+    }
+
+    func testQueueStatusShowsCurrentAndPending() async throws {
+        _ = try await request("POST", "/v1/queue", body: #"{"items":[{"type":"say","text":"now","hold":30000},{"type":"trigger","name":"jump"}]}"#)
+        let (status, json) = try await request("GET", "/v1/queue")
+        XCTAssertEqual(status, 200)
+        XCTAssertEqual(json["depth"] as? Int, 2)
+        let current = try XCTUnwrap(json["current"] as? [String: Any])
+        XCTAssertEqual((current["step"] as? [String: Any])?["text"] as? String, "now")
+        XCTAssertNotNil(json["currentRemaining"] as? Double)
+        let pending = try XCTUnwrap(json["pending"] as? [[String: Any]])
+        XCTAssertEqual(pending.count, 1)
+    }
+
+    func testClearQueueReportsDropped() async throws {
+        _ = try await request("POST", "/v1/queue", body: #"{"items":[{"type":"say","text":"a","hold":30000},{"type":"say","text":"b"},{"type":"say","text":"c"}]}"#)
+        let (status, json) = try await request("DELETE", "/v1/queue")
+        XCTAssertEqual(status, 200)
+        XCTAssertEqual(json["dropped"] as? Int, 2)
+        XCTAssertEqual(json["queueDepth"] as? Int, 0)
+    }
+
+    func testDirectSayHeadEnqueuesAheadOfFlow() async throws {
+        _ = try await request("POST", "/v1/queue", body: #"{"items":[{"type":"say","text":"flow 1","hold":30000},{"type":"say","text":"flow 2"}]}"#)
+        let (status, _) = try await request("POST", "/v1/say", body: #"{"text":"urgent"}"#)
+        XCTAssertEqual(status, 200)
+        let speech = await engine.speech
+        XCTAssertEqual(speech?.text, "urgent", "direct say plays next, cutting the current hold")
+        let depth = await engine.queueDepth
+        XCTAssertEqual(depth, 2, "flow item 2 still queued — nothing dropped")
+    }
+
+    func testV010ScriptWireShapeStillDecodesAsReplace() async throws {
+        // The exact /v1/script body shape shipped in v0.1.0 keeps working,
+        // now meaning "replace the queue".
+        _ = try await request("POST", "/v1/queue", body: #"{"items":[{"type":"say","text":"old","hold":30000}]}"#)
+        let body = #"{"steps":[{"type":"say","text":"hi","hold":2000},{"type":"trigger","name":"jump"},{"type":"pause","ms":1000},{"type":"setState","name":"idle"}]}"#
+        let (status, json) = try await request("POST", "/v1/script", body: body)
+        XCTAssertEqual(status, 200)
+        XCTAssertNotNil(json["scriptID"] as? String)
+        XCTAssertEqual((json["itemIDs"] as? [String])?.count, 4)
+        let speech = await engine.speech
+        XCTAssertEqual(speech?.text, "hi", "script replaced the old queue content")
+    }
+
     func testSchemaVerbHonesty() async throws {
         // Every verb the schema advertises must answer on its route — never
         // 404/501. This is the no-aspirational-API regression test.

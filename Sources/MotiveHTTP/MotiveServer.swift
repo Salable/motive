@@ -378,6 +378,39 @@ final class MotiveHTTPHandler: ChannelInboundHandler, @unchecked Sendable {
                 Self.respondJSON(channel: channel, status: .ok, json: MotiveServer.encode(await control.dismissSpeech()))
             }
 
+        case (.POST, "/v1/queue"):
+            guard allowMutation(context: context) else { return }
+            struct EnqueueRequest: Decodable {
+                let items: [ScriptStep]?
+                let steps: [ScriptStep]?
+            }
+            let steps: [ScriptStep]
+            do {
+                let decoded = try JSONDecoder().decode(EnqueueRequest.self, from: body.isEmpty ? Data("{}".utf8) : body)
+                guard let list = decoded.items ?? decoded.steps else {
+                    respondJSON(context: context, status: .badRequest, json: #"{"ok":false,"error":"missing_items"}"#)
+                    return
+                }
+                steps = list
+            } catch {
+                respondJSON(context: context, status: .badRequest, json: #"{"ok":false,"error":"invalid_items"}"#)
+                return
+            }
+            Task { [control] in
+                Self.respond(channel: channel, result: await control.enqueue(steps))
+            }
+
+        case (.GET, "/v1/queue"):
+            Task { [control] in
+                Self.respondJSON(channel: channel, status: .ok, json: MotiveServer.encode(await control.queueStatus()))
+            }
+
+        case (.DELETE, "/v1/queue"):
+            guard allowMutation(context: context) else { return }
+            Task { [control] in
+                Self.respondJSON(channel: channel, status: .ok, json: MotiveServer.encode(await control.clearQueue()))
+            }
+
         case (.POST, "/v1/script"):
             guard allowMutation(context: context) else { return }
             let run: ScriptRun
