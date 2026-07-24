@@ -1,13 +1,60 @@
 # Agent Integrations
 
-Lands in milestones M6–M7. Motive integrates with agents two ways:
+Motive integrates with agents two ways, both over the same command surface:
 
-- **REST** — anything that can `curl` (Claude Code, Codex, OpenCode hooks/skills) drives
-  the sprite via the control plane; see [API.md](API.md).
-- **MCP** — the `motive-mcp` stdio executable proxies MCP tool calls
-  (`motive_set_state`, `motive_say`, `motive_trigger`, `motive_status`) to a running
-  Motive app discovered via `~/.motive/runtime/`. Register it in Claude Desktop's
-  `claude_desktop_config.json` or ChatGPT Desktop's connector settings.
+- **REST** — anything that can `curl` drives the sprite via the loopback control
+  plane; see [API.md](API.md). Discovery: `~/.motive/runtime/server.json` (port) and
+  `~/.motive/runtime/token` (bearer token). Best for CLI agents (Claude Code, Codex,
+  OpenCode) via skills/hooks.
+- **MCP** — the `motive-mcp` executable is a stdio MCP server that proxies tool calls
+  to the running Motive app's REST plane. It discovers the app the same way (honors
+  `MOTIVE_HOME`), re-discovering on every call so it survives app restarts. Best for
+  desktop hosts (Claude Desktop, ChatGPT Desktop).
 
-`MotiveAgents` provides installers that write the appropriate skill/config files for each
-agent (merge-with-backup, uninstallable).
+## MCP tools
+
+| Tool | Arguments | Effect |
+| --- | --- | --- |
+| `motive_status` | — | Current state + speech bubble. |
+| `motive_set_state` | `state`, `duration?` (ms) | Change animation state (auto-revert with `duration`). |
+| `motive_trigger` | `name` | One-shot gesture, then return. |
+| `motive_say` | `text`, `ttl?` (ms) | Speech bubble (≤400 chars). |
+
+Tool descriptions are generated from the live `/v1/schema`, so they name the loaded
+sprite's actual states and triggers.
+
+## Claude Desktop
+
+Build the shim (`swift build -c release`) and add to
+`~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "motive": { "command": "/path/to/motive/.build/release/motive-mcp" }
+  }
+}
+```
+
+Restart Claude Desktop, start your Motive app (e.g. `swift run motive-demo`), and ask
+Claude to make the sprite jump.
+
+## ChatGPT Desktop
+
+ChatGPT's custom connectors are remote-server oriented and account-tier dependent; where
+stdio MCP servers are supported (developer mode), register the same `motive-mcp` binary.
+Otherwise use the REST plane directly.
+
+## CLI agents (Claude Code, Codex, OpenCode)
+
+`MotiveAgents` provides installers that write the appropriate skill/config files
+(merge-with-backup, uninstallable) teaching each agent the REST verbs. The skill text is
+generated from the live schema. See milestone M7.
+
+## Implementation note
+
+The MCP stdio protocol here is newline-delimited JSON-RPC 2.0, implemented directly in
+`MotiveMCP` (initialize / ping / tools/list / tools/call). The official MCP swift-sdk is
+not used: at 0.9.0 it fails to compile under current strict-concurrency toolchains, and
+the needed surface is small. `MCPServer` accepts any `MotiveCommandTransport`, so an
+in-process MCP server (no REST hop) is also available to embedding apps.

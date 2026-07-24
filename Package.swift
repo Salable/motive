@@ -39,6 +39,9 @@ let package = Package(
         ),
 
         // MCP tool layer (shares the MotiveControl surface with MotiveHTTP).
+        // The MCP stdio protocol is hand-rolled newline-delimited JSON-RPC:
+        // the official swift-sdk (0.9.0) does not compile under current
+        // strict-concurrency toolchains, and the surface we need is small.
         .target(name: "MotiveMCP", dependencies: ["MotiveCore"]),
 
         // Skill / agent-config installers (Claude Code, Codex, OpenCode, desktop apps).
@@ -56,6 +59,7 @@ let package = Package(
         .testTarget(name: "MotiveCoreTests", dependencies: ["MotiveCore"]),
         .testTarget(name: "MotiveSpriteTests", dependencies: ["MotiveSprite"]),
         .testTarget(name: "MotiveHTTPTests", dependencies: ["MotiveHTTP"]),
+        .testTarget(name: "MotiveMCPTests", dependencies: ["MotiveMCP", "MotiveHTTP"]),
     ],
     swiftLanguageVersions: [.v5]
 )
