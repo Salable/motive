@@ -6,6 +6,8 @@ All notable changes to Motive are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-24
+
 ### Changed
 - **Winston replaces Salli** as the bundled demo sprite: a black labradoodle puppy
   (WebP atlas) with a fully declared vocabulary — four one-shot triggers (`wave`,
