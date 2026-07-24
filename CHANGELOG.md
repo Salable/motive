@@ -7,6 +7,23 @@ All notable changes to Motive are documented here. The format follows
 ## [Unreleased]
 
 ### Added
-- Initial package scaffolding: `MotiveCore`, `MotiveSprite`, `MotiveUI`, `MotiveHTTP`,
-  `MotiveMCP`, `MotiveAgents`, the `motive-demo` app, and the `motive-mcp` shim.
-- Salli, the bundled test sprite (`Sprites/salli`).
+- `MotiveCore`: pure timer-free `ActorStateMachine` (interruption policies, crossfade
+  transitions, one-shot triggers, then-chains, duration auto-revert), the `MotiveEngine`
+  actor (tick clock, speech bubbles, typed event fan-out), the `MotiveControl` command
+  surface with a self-describing schema, the `CapabilityRegistry`, and runtime discovery
+  under `~/.motive/runtime/`.
+- `MotiveSprite`: normalized `SpriteDefinition`, pluggable `SpriteRunner` registry,
+  `CodexRunner` (`pet.json`, Codex/Fido-compatible) and `MotiveRunner` (`motive.json`,
+  the motive/1 format — explicit frame layouts incl. cells and rects, multi-atlas
+  states, duration shorthand, metadata block). Tolerant decode, loud validation.
+- `MotiveUI`: `SpriteView` atlas renderer, `SpriteBoxWindow` (chat input, action
+  buttons, speech bubbles), `NotificationMenu` menu-bar component, capability-driven
+  `SettingsWindow`.
+- `MotiveHTTP`: hardened loopback REST control plane (per-boot 0600 token,
+  constant-time compare, rate limit, 64KB cap, SSE events, schema verb-honesty).
+- `MotiveMCP` + `motive-mcp`: stdio MCP server (initialize/ping/tools/list/tools/call)
+  with in-process and REST-proxy transports for Claude Desktop / ChatGPT Desktop.
+- `MotiveAgents`: motive-companion skill installers for Claude Code, Codex, OpenCode,
+  and a Claude Desktop MCP config merger — write-with-backup, uninstallable.
+- `motive-demo` app bundling Salli, `scripts/build-demo-app.sh` packaging, release
+  workflow attaching `MotiveDemo-<version>.zip` to tags.
