@@ -11,6 +11,8 @@ public protocol MotiveCommandTransport: Sendable {
     func fireTrigger(_ name: String) async throws -> ControlReceipt
     func say(_ text: String, ttlMS: Int?) async throws -> ControlReceipt
     func playScript(_ run: ScriptRun) async throws -> ControlReceipt
+    func enqueue(_ steps: [ScriptStep]) async throws -> ControlReceipt
+    func clearQueue() async throws -> ControlReceipt
 }
 
 public struct TransportError: Error, CustomStringConvertible {
@@ -59,6 +61,14 @@ public struct LocalCommandTransport: MotiveCommandTransport {
 
     public func playScript(_ run: ScriptRun) async throws -> ControlReceipt {
         try unwrap(await control.playScript(run))
+    }
+
+    public func enqueue(_ steps: [ScriptStep]) async throws -> ControlReceipt {
+        try unwrap(await control.enqueue(steps))
+    }
+
+    public func clearQueue() async throws -> ControlReceipt {
+        await control.clearQueue()
     }
 
     private func unwrap(_ result: Result<ControlReceipt, ControlFailure>) throws -> ControlReceipt {
@@ -126,6 +136,16 @@ public struct RESTCommandTransport: MotiveCommandTransport {
     public func playScript(_ run: ScriptRun) async throws -> ControlReceipt {
         let data = try JSONEncoder().encode(run)
         return try await send(request(path: "/v1/script", method: "POST", body: data))
+    }
+
+    public func enqueue(_ steps: [ScriptStep]) async throws -> ControlReceipt {
+        struct Payload: Encodable { let items: [ScriptStep] }
+        let data = try JSONEncoder().encode(Payload(items: steps))
+        return try await send(request(path: "/v1/queue", method: "POST", body: data))
+    }
+
+    public func clearQueue() async throws -> ControlReceipt {
+        try await send(request(path: "/v1/queue", method: "DELETE", body: nil))
     }
 
     // MARK: internals

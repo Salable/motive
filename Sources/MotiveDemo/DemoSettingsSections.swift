@@ -155,6 +155,9 @@ final class ServerStatusModel: ObservableObject {
     @Published private(set) var info: ServerInfo?
     @Published private(set) var tokenPath = ""
     @Published private(set) var copiedAt: Date?
+    @Published private(set) var queueDepth: Int?
+    /// Supplied by the host app (live engine query).
+    var queueDepthProvider: (() async -> Int)?
     private var token: String?
 
     func refresh() {
@@ -162,6 +165,11 @@ final class ServerStatusModel: ObservableObject {
         info = ServerInfo.load(from: paths.serverInfoURL)
         tokenPath = paths.tokenURL.path
         token = TokenManager.load(at: paths.tokenURL)
+        if let provider = queueDepthProvider {
+            Task { @MainActor in
+                self.queueDepth = await provider()
+            }
+        }
     }
 
     var displayURL: String {
@@ -194,6 +202,11 @@ struct ServerStatusSection: View {
         }
         LabeledContent("Token") {
             Text(model.tokenPath).textSelection(.enabled).font(.caption).monospaced()
+        }
+        if let depth = model.queueDepth {
+            LabeledContent("Action queue") {
+                Text(depth == 0 ? "idle" : "\(depth) item\(depth == 1 ? "" : "s")").monospacedDigit()
+            }
         }
         VStack(alignment: .leading, spacing: 6) {
             HStack {

@@ -48,7 +48,7 @@ public final class MCPServer: @unchecked Sendable {
             ),
             ToolSpec(
                 name: "motive_set_state",
-                description: "Change \(spriteName)'s animation state.\(stateList)",
+                description: "Change \(spriteName)'s animation state. Plays next (ahead of the queue); queued items continue after.\(stateList)",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -60,7 +60,7 @@ public final class MCPServer: @unchecked Sendable {
             ),
             ToolSpec(
                 name: "motive_trigger",
-                description: "Play a one-shot gesture, then return to the prior state.\(triggerList)",
+                description: "Play a one-shot gesture, then return to the prior state. Plays next (ahead of the queue); queued items continue after.\(triggerList)",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -70,34 +70,23 @@ public final class MCPServer: @unchecked Sendable {
                 ]
             ),
             ToolSpec(
+                name: "motive_enqueue",
+                description: "Append actions to \(spriteName)'s queue — they play in order after everything already queued. Use for tours and multi-beat flows.\(stateList)\(triggerList)",
+                inputSchema: Self.stepsSchema(key: "items", description: "Items appended to the queue in order.")
+            ),
+            ToolSpec(
+                name: "motive_clear_queue",
+                description: "Flush \(spriteName)'s action queue: drop all pending items and stop waiting on the current one.",
+                inputSchema: ["type": "object", "properties": [String: Any](), "required": [String]()]
+            ),
+            ToolSpec(
                 name: "motive_play_script",
-                description: "Play a queued sequence of steps (speech, state changes, gestures, pauses) — \(spriteName) walks through them in order. Any other command cancels the script.\(stateList)\(triggerList)",
-                inputSchema: [
-                    "type": "object",
-                    "properties": [
-                        "steps": [
-                            "type": "array",
-                            "maxItems": 64,
-                            "description": "Steps executed in order.",
-                            "items": [
-                                "type": "object",
-                                "properties": [
-                                    "type": ["type": "string", "enum": ["say", "setState", "trigger", "pause"]],
-                                    "text": ["type": "string", "description": "say: bubble text."],
-                                    "name": ["type": "string", "description": "setState/trigger: target name."],
-                                    "ms": ["type": "number", "description": "pause: milliseconds."],
-                                    "hold": ["type": "number", "description": "say/setState: milliseconds to hold before the next step (say default 4000)."],
-                                ],
-                                "required": ["type"],
-                            ],
-                        ],
-                    ],
-                    "required": ["steps"],
-                ]
+                description: "Replace \(spriteName)'s queue with this sequence (flush, then play these steps in order).\(stateList)\(triggerList)",
+                inputSchema: Self.stepsSchema(key: "steps", description: "Steps executed in order.")
             ),
             ToolSpec(
                 name: "motive_say",
-                description: "Show a speech bubble next to \(spriteName) (max 400 chars).",
+                description: "Show a speech bubble next to \(spriteName) (max 400 chars). Plays next (ahead of the queue); queued items continue after.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -107,6 +96,32 @@ public final class MCPServer: @unchecked Sendable {
                     "required": ["text"],
                 ]
             ),
+        ]
+    }
+
+    /// Shared items/steps array schema for queue-shaped tools.
+    static func stepsSchema(key: String, description: String) -> [String: Any] {
+        [
+            "type": "object",
+            "properties": [
+                key: [
+                    "type": "array",
+                    "maxItems": 64,
+                    "description": description,
+                    "items": [
+                        "type": "object",
+                        "properties": [
+                            "type": ["type": "string", "enum": ["say", "setState", "trigger", "pause"]],
+                            "text": ["type": "string", "description": "say: bubble text."],
+                            "name": ["type": "string", "description": "setState/trigger: target name."],
+                            "ms": ["type": "number", "description": "pause: milliseconds."],
+                            "hold": ["type": "number", "description": "say/setState: milliseconds to hold before the next item (say default 4000; triggers default to the gesture's length)."],
+                        ],
+                        "required": ["type"],
+                    ],
+                ],
+            ],
+            "required": [key],
         ]
     }
 
@@ -180,15 +195,19 @@ public final class MCPServer: @unchecked Sendable {
                 payload = encodeJSON(try await transport.fireTrigger(trigger))
 
             case "motive_play_script":
-                guard let steps = arguments["steps"] else {
-                    return toolFailure(id: id, message: "missing required argument: steps")
-                }
-                // Round-trip the loose JSON arguments through the Codable model.
-                guard let data = try? JSONSerialization.data(withJSONObject: ["steps": steps]),
-                      let run = try? JSONDecoder().decode(ScriptRun.self, from: data) else {
-                    return toolFailure(id: id, message: "invalid steps: each needs a type of say|setState|trigger|pause with its fields")
+                guard let run = decodeRun(arguments["steps"]) else {
+                    return toolFailure(id: id, message: "invalid or missing steps: each needs a type of say|setState|trigger|pause with its fields")
                 }
                 payload = encodeJSON(try await transport.playScript(run))
+
+            case "motive_enqueue":
+                guard let run = decodeRun(arguments["items"] ?? arguments["steps"]) else {
+                    return toolFailure(id: id, message: "invalid or missing items: each needs a type of say|setState|trigger|pause with its fields")
+                }
+                payload = encodeJSON(try await transport.enqueue(run.steps))
+
+            case "motive_clear_queue":
+                payload = encodeJSON(try await transport.clearQueue())
 
             case "motive_say":
                 guard let text = arguments["text"] as? String else {
@@ -209,6 +228,16 @@ public final class MCPServer: @unchecked Sendable {
         } catch {
             return toolFailure(id: id, message: "\(error)")
         }
+    }
+
+    /// Round-trip loose JSON tool arguments through the Codable model.
+    private func decodeRun(_ steps: Any?) -> ScriptRun? {
+        guard let steps,
+              let data = try? JSONSerialization.data(withJSONObject: ["steps": steps]),
+              let run = try? JSONDecoder().decode(ScriptRun.self, from: data) else {
+            return nil
+        }
+        return run
     }
 
     private func toolFailure(id: Any, message: String) -> String {

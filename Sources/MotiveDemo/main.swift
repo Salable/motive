@@ -156,6 +156,7 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
 
         let control = MotiveControl(engine: host.engine, displayName: name)
         self.control = control
+        statusModel.queueDepthProvider = { await host.engine.queueDepth }
 
         // First launch gets the full onboarding tour; after that, a short
         // greeting. Completion is marked when the tour *starts* — cancelling
