@@ -12,6 +12,9 @@ public final class SpriteHost: ObservableObject {
 
     @Published public private(set) var directive: RenderDirective?
     @Published public private(set) var speech: SpeechBubble?
+    /// True while the action queue is playing — from the first item starting
+    /// until the queue drains or is flushed. Drives contextual queue controls.
+    @Published public private(set) var queueActive = false
 
     private var subscription: Task<Void, Never>?
 
@@ -29,8 +32,12 @@ public final class SpriteHost: ObservableObject {
                     self.speech = bubble
                 case .speechDismissed(let id):
                     if self.speech?.id == id { self.speech = nil }
-                case .queueItemStarted, .queueItemFinished, .queueDrained, .queueFlushed:
-                    break // rendering follows the state/speech events queue items produce
+                case .queueItemStarted:
+                    self.queueActive = true
+                case .queueItemFinished:
+                    break // the next item's start, or drained/flushed, follows
+                case .queueDrained, .queueFlushed:
+                    self.queueActive = false
                 }
             }
         }

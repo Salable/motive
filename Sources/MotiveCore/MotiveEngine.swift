@@ -133,6 +133,21 @@ public actor MotiveEngine {
         return dropped
     }
 
+    /// Skip the current queue item: it finishes immediately and the next
+    /// pending item starts (or the queue drains). Pending items are preserved.
+    /// A skipped `say`'s bubble is dismissed. Returns the skipped item's id,
+    /// or nil when the queue was idle (no-op).
+    @discardableResult
+    public func skipCurrent(now: Date = Date()) -> String? {
+        guard let current = queue.snapshot(now: now).current else { return nil }
+        if case .say = current.step {
+            // Before applying effects: the next item may post a fresh bubble.
+            dismissSpeech(now: now)
+        }
+        applyQueueEffects(queue.skip(now: now), now: now)
+        return current.id
+    }
+
     public var queueDepth: Int { queue.depth }
 
     public func queueSnapshot(now: Date = Date()) -> QueueSnapshot {

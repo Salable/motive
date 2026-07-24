@@ -53,6 +53,8 @@ public struct ControlReceipt: Codable, Equatable, Sendable {
     public let queueDepth: Int?
     /// Set by `clear-queue`: pending items dropped.
     public let dropped: Int?
+    /// Set by `skip`: the id of the item that was skipped, when one was playing.
+    public let skippedID: String?
 
     init(
         state: String,
@@ -61,7 +63,8 @@ public struct ControlReceipt: Codable, Equatable, Sendable {
         scriptID: String? = nil,
         itemIDs: [String]? = nil,
         queueDepth: Int? = nil,
-        dropped: Int? = nil
+        dropped: Int? = nil,
+        skippedID: String? = nil
     ) {
         self.ok = true
         self.state = state
@@ -71,6 +74,7 @@ public struct ControlReceipt: Codable, Equatable, Sendable {
         self.itemIDs = itemIDs
         self.queueDepth = queueDepth
         self.dropped = dropped
+        self.skippedID = skippedID
     }
 }
 
@@ -156,6 +160,10 @@ public struct ControlSchema: Codable, Equatable, Sendable {
         VerbInfo(
             name: "clear-queue", method: "DELETE", path: "/v1/queue", params: [:],
             description: "Flush the queue: drop all pending items and stop waiting on the current one."
+        ),
+        VerbInfo(
+            name: "skip", method: "DELETE", path: "/v1/queue/current", params: [:],
+            description: "Skip the current queue item: it ends now and the next pending item plays immediately. Pending items are preserved."
         ),
         VerbInfo(
             name: "play-script", method: "POST", path: "/v1/script",
@@ -287,6 +295,15 @@ public actor MotiveControl {
         let current = await engine.machine.currentStateName
         let depth = await engine.queueDepth
         return ControlReceipt(state: current, queueDepth: depth, dropped: dropped)
+    }
+
+    /// Skip the current queue item; pending items are preserved. Idempotent —
+    /// skipping an idle queue is an ok no-op.
+    public func skip() async -> ControlReceipt {
+        let skippedID = await engine.skipCurrent()
+        let current = await engine.machine.currentStateName
+        let depth = await engine.queueDepth
+        return ControlReceipt(state: current, queueDepth: depth, skippedID: skippedID)
     }
 
     /// Compat sugar for `/v1/script`: replace the queue with these steps.

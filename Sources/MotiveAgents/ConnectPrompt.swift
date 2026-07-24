@@ -80,7 +80,8 @@ public enum ConnectPrompt {
         - `POST $BASE/v1/trigger` `{"name": "..."}` — one-shot gestures.
         - Direct verbs above play **next** (ahead of the queue); queued items continue after.
         - `POST $BASE/v1/queue` `{"items": [...]}` — append ordered sequences; `GET` inspects,
-          `DELETE` flushes.
+          `DELETE` flushes; `DELETE $BASE/v1/queue/current` skips just the current item
+          (pending continues).
         - `GET $BASE/v1/events` — server-sent events stream.
 
         The schema is the source of truth for valid states/triggers; unknown names return

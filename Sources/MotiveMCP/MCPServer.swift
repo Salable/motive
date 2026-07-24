@@ -80,6 +80,11 @@ public final class MCPServer: @unchecked Sendable {
                 inputSchema: ["type": "object", "properties": [String: Any](), "required": [String]()]
             ),
             ToolSpec(
+                name: "motive_skip",
+                description: "Skip \(spriteName)'s current queue item — it ends now and the next queued item plays immediately. Pending items are preserved (motive_clear_queue drops everything).",
+                inputSchema: ["type": "object", "properties": [String: Any](), "required": [String]()]
+            ),
+            ToolSpec(
                 name: "motive_play_script",
                 description: "Replace \(spriteName)'s queue with this sequence (flush, then play these steps in order).\(stateList)\(triggerList)",
                 inputSchema: Self.stepsSchema(key: "steps", description: "Steps executed in order.")
@@ -208,6 +213,9 @@ public final class MCPServer: @unchecked Sendable {
 
             case "motive_clear_queue":
                 payload = encodeJSON(try await transport.clearQueue())
+
+            case "motive_skip":
+                payload = encodeJSON(try await transport.skip())
 
             case "motive_say":
                 guard let text = arguments["text"] as? String else {

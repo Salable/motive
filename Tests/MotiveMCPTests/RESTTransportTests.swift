@@ -38,6 +38,17 @@ final class RESTTransportTests: XCTestCase {
         let rawStatus = await mcp.handle(line: statusLine)
         let statusResponse = try XCTUnwrap(rawStatus)
         XCTAssertTrue(statusResponse.contains("ShimPet"))
+
+        // Skip over the same path: enqueue two long items, skip the first —
+        // proves the DELETE-with-subpath proxying end to end.
+        let enqueueLine = #"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"motive_enqueue","arguments":{"items":[{"type":"say","text":"a","hold":30000},{"type":"say","text":"b","hold":30000}]}}}"#
+        _ = await mcp.handle(line: enqueueLine)
+        let skipLine = #"{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"motive_skip","arguments":{}}}"#
+        let rawSkip = await mcp.handle(line: skipLine)
+        let skipResponse = try XCTUnwrap(rawSkip)
+        XCTAssertTrue(skipResponse.contains("skippedID"), "unexpected response: \(skipResponse)")
+        let depth = await engine.queueDepth
+        XCTAssertEqual(depth, 1, "pending survives a skip over the shim path")
     }
 
     func testDiscoveryFailsHelpfullyWhenNoApp() {

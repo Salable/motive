@@ -6,6 +6,20 @@ All notable changes to Motive are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **`skip` verb** — the single-item counterpart of clear-queue: the current
+  queue item ends immediately and the next pending item plays; pending is
+  preserved, and a skipped `say`'s bubble is dismissed. Full command surface:
+  `MotiveEngine.skipCurrent()` / `MotiveControl.skip()`,
+  `DELETE /v1/queue/current`, the `motive_skip` MCP tool, declared in
+  `standardVerbs` (auto-documented in generated agent skills), `skippedID` in
+  receipts.
+- **Hover queue controls on the sprite box**: while the queue is playing and
+  the pointer is over the box, skip (⏭) and stop-scene (✕) buttons appear in a
+  fixed-height slot (no reflow); invisible otherwise, so the box stays
+  chrome-free. `SpriteBoxWindow.Options.queueControlsEnabled` (default true)
+  and `SpriteHost.queueActive` for embedders.
+
 ### Changed
 - The demo sprite box is chrome-free: the Wave/Jump/Dash action buttons and the
   chat input (and its Settings toggle) are gone — Winston is sprite + speech

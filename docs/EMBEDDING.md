@@ -81,8 +81,8 @@ try await server.start()
 ```
 
 `SpriteBoxWindow(host:options:)` takes `Options` (sprite size, always-on-top,
-pixelated rendering, chat on/off) and exposes `onChatSubmit` and an `actions`
-array for buttons under the sprite. `MotiveServer(control:paths:preferredPort:bindHost:)`
+pixelated rendering, chat on/off, hover skip/clear queue controls on/off) and
+exposes `onChatSubmit` and an `actions` array for buttons under the sprite. `MotiveServer(control:paths:preferredPort:bindHost:)`
 defaults to loopback on port 7877, falling back to an ephemeral port on
 collision; `start()` writes the port to `server.json` and rotates the bearer
 token (see [API.md](API.md) for the client side).

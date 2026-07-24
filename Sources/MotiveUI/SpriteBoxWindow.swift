@@ -27,17 +27,21 @@ public final class SpriteBoxWindow {
         public var alwaysOnTop: Bool
         public var pixelated: Bool
         public var chatEnabled: Bool
+        /// Hover-visible skip/clear controls while the action queue is playing.
+        public var queueControlsEnabled: Bool
 
         public init(
             spriteSize: CGFloat = 160,
             alwaysOnTop: Bool = true,
             pixelated: Bool = false,
-            chatEnabled: Bool = false
+            chatEnabled: Bool = false,
+            queueControlsEnabled: Bool = true
         ) {
             self.spriteSize = spriteSize
             self.alwaysOnTop = alwaysOnTop
             self.pixelated = pixelated
             self.chatEnabled = chatEnabled
+            self.queueControlsEnabled = queueControlsEnabled
         }
     }
 
@@ -45,6 +49,7 @@ public final class SpriteBoxWindow {
         @Published var spriteSize: CGFloat = 160
         @Published var pixelated = false
         @Published var chatEnabled = false
+        @Published var queueControlsEnabled = true
         @Published var actions: [Action] = []
         var onChatSubmit: ((String) -> Void)?
     }
@@ -101,6 +106,7 @@ public final class SpriteBoxWindow {
         model.spriteSize = options.spriteSize
         model.pixelated = options.pixelated
         model.chatEnabled = options.chatEnabled
+        model.queueControlsEnabled = options.queueControlsEnabled
         panel.level = options.alwaysOnTop ? .floating : .normal
         let size = NSSize(
             width: max(options.spriteSize + 16, 260),
@@ -138,6 +144,7 @@ struct SpriteBoxContent: View {
     @ObservedObject var host: SpriteHost
     @ObservedObject var model: SpriteBoxWindow.Model
     @State private var chatText = ""
+    @State private var hovering = false
 
     var body: some View {
         VStack(spacing: 6) {
@@ -150,6 +157,35 @@ struct SpriteBoxContent: View {
 
             SpriteView(host: host, pixelated: model.pixelated)
                 .frame(width: model.spriteSize, height: model.spriteSize)
+
+            if model.queueControlsEnabled {
+                // Fixed-height slot: the buttons appear inside it on hover, so
+                // the sprite never reflows in the bottom-aligned stack.
+                HStack(spacing: 6) {
+                    if hovering && host.queueActive {
+                        Button {
+                            Task { await host.engine.skipCurrent() }
+                        } label: {
+                            Image(systemName: "forward.fill")
+                        }
+                        .help("Skip this step")
+                        Button {
+                            Task {
+                                await host.engine.flushQueue()
+                                await host.engine.dismissSpeech()
+                            }
+                        } label: {
+                            Image(systemName: "xmark")
+                        }
+                        .help("Stop the scene")
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .frame(height: 26)
+                .animation(.easeInOut(duration: 0.15), value: hovering)
+                .animation(.easeInOut(duration: 0.15), value: host.queueActive)
+            }
 
             if !model.actions.isEmpty {
                 HStack(spacing: 6) {
@@ -177,6 +213,7 @@ struct SpriteBoxContent: View {
         .animation(.spring(duration: 0.25), value: host.speech)
         .padding(8)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .onHover { hovering = $0 }
     }
 }
 

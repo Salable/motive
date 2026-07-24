@@ -411,6 +411,12 @@ final class MotiveHTTPHandler: ChannelInboundHandler, @unchecked Sendable {
                 Self.respondJSON(channel: channel, status: .ok, json: MotiveServer.encode(await control.clearQueue()))
             }
 
+        case (.DELETE, "/v1/queue/current"):
+            guard allowMutation(context: context) else { return }
+            Task { [control] in
+                Self.respondJSON(channel: channel, status: .ok, json: MotiveServer.encode(await control.skip()))
+            }
+
         case (.POST, "/v1/script"):
             guard allowMutation(context: context) else { return }
             let run: ScriptRun

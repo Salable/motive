@@ -213,6 +213,39 @@ final class ActionQueueTests: XCTestCase {
         XCTAssertEqual(queue.flush(now: t0), [])
     }
 
+    // MARK: skip
+
+    func testSkipEndsCurrentAndStartsNextPreservingPending() throws {
+        var queue = makeQueue()
+        let a = QueueItem(action: .say(text: "a"), holdMS: 5000)
+        let b = QueueItem(action: .say(text: "b"), holdMS: 1000)
+        _ = try queue.enqueue([a, b], now: t0).get()
+
+        let effects = queue.skip(now: t0.addingTimeInterval(1))
+        XCTAssertEqual(effects, [
+            .emit(.itemFinished(id: a.id)),
+            .emit(.itemStarted(id: b.id, remaining: 0)),
+            .perform(.say(text: "b", ttl: 1)),
+        ])
+        XCTAssertEqual(queue.depth, 1, "pending survives a skip")
+    }
+
+    func testSkipLastItemDrains() throws {
+        var queue = makeQueue()
+        let only = QueueItem(action: .say(text: "solo"), holdMS: 5000)
+        _ = try queue.enqueue([only], now: t0).get()
+        XCTAssertEqual(queue.skip(now: t0.addingTimeInterval(1)), [
+            .emit(.itemFinished(id: only.id)),
+            .emit(.drained),
+        ])
+        XCTAssertFalse(queue.isActive)
+    }
+
+    func testSkipWhenIdleIsQuiet() {
+        var queue = makeQueue()
+        XCTAssertEqual(queue.skip(now: t0), [])
+    }
+
     func testSnapshotShowsCurrentRemainingAndPending() throws {
         var queue = makeQueue()
         let a = QueueItem(action: .say(text: "a"), holdMS: 4000)

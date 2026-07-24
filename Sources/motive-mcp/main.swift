@@ -48,4 +48,8 @@ struct LazyDiscoveryTransport: MotiveCommandTransport {
     func clearQueue() async throws -> ControlReceipt {
         try await RESTCommandTransport.discover().clearQueue()
     }
+
+    func skip() async throws -> ControlReceipt {
+        try await RESTCommandTransport.discover().skip()
+    }
 }
