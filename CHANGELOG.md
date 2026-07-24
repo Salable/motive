@@ -6,6 +6,8 @@ All notable changes to Motive are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-07-24
+
 ### Added
 - `MotiveCore`: pure timer-free `ActorStateMachine` (interruption policies, crossfade
   transitions, one-shot triggers, then-chains, duration auto-revert), the `MotiveEngine`
