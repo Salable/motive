@@ -6,6 +6,8 @@ All notable changes to Motive are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-24
+
 ### Changed
 - **Queue-first interaction model.** Every action is now a queue item processed in
   order. Direct verbs (`/v1/say`, `/v1/state`, `/v1/trigger` and the matching MCP
