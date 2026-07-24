@@ -6,7 +6,7 @@ import MotiveCore
 /// demonstrating states and messages live, and pointing people at
 /// github.com/Salable/motive.
 ///
-/// Uses only the Salli vocabulary; play-time validation catches drift if
+/// Uses only the Winston vocabulary; play-time validation catches drift if
 /// the sprite changes. The tour is interruptible by design: chat or any
 /// direct command plays next and the tour carries on (queue semantics).
 func onboardingScript(name: String) -> ScriptRun {
@@ -25,7 +25,7 @@ func onboardingScript(name: String) -> ScriptRun {
 
     // Welcome
     steps += [
-        say("Hi, I'm \(name)! 👋 Give me two minutes and I'll show you what I am and what I can do."),
+        say("Woof! I'm \(name) — a labradoodle pup, and your desktop companion. 🐶 Give me two minutes and I'll show you around."),
         .trigger(name: "wave"),
     ]
 
@@ -39,7 +39,7 @@ func onboardingScript(name: String) -> ScriptRun {
     // Components
     steps += [
         say("This floating window is the sprite box. The text field under me is chat — type and I'll say it back."),
-        say("The Wave and Jump buttons play gestures. My animations come from a sprite sheet — swap in your own character."),
+        say("The Wave, Jump, and Dash buttons play gestures. My animations come from a sprite sheet — swap in your own character."),
         say("The paw in the menu bar is my notification menu: show/hide me, Settings, and replaying this tour."),
         say("Settings is where the interesting switches live — my REST API, agent skills, and how I look."),
     ]
@@ -59,6 +59,15 @@ func onboardingScript(name: String) -> ScriptRun {
         say("…and back to idle. States auto-revert too, if you set them with a duration."),
     ]
 
+    // Triggers demo — one-shot gestures that change state and return.
+    steps += [
+        say("Some moves are triggers: they play once and I return to what I was doing. Like dashing —"),
+        .trigger(name: "dash-left"),
+        .trigger(name: "dash-right"),
+        say("Those were the “dash-left” and “dash-right” triggers — agents fire them by name, same as “wave” and “jump.”"),
+        .trigger(name: "jump"),
+    ]
+
     // Messages & the queue
     steps += [
         say("Everything you've just watched — every bubble, every state — was an item on my action queue, played in order."),
@@ -75,7 +84,7 @@ func onboardingScript(name: String) -> ScriptRun {
     steps += [
         say("Motive is open source — MIT, ready to build on. Star it, fork it, or bring your own sprite: github.com/Salable/motive"),
         say("The paw menu has a “View on GitHub” shortcut — that's the whole framework, docs and all.", extraMS: 500),
-        .trigger(name: "jump"),
+        .trigger(name: "wave"),
     ]
 
     // Sign-off

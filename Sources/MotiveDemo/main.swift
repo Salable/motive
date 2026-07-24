@@ -4,11 +4,11 @@ import MotiveHTTP
 import MotiveSprite
 import MotiveUI
 
-/// The Motive demo: loads the bundled Salli sprite and puts her on the
+/// The Motive demo: loads the bundled Winston sprite and puts her on the
 /// desktop with the full component set — sprite box (chat + action buttons),
 /// menu-bar notification menu, capability-driven settings window, and the
 /// REST control plane. Sprite package lookup order: $MOTIVE_SPRITE, a path
-/// argument, ./Sprites/salli (running from a checkout), the app bundle.
+/// argument, ./Sprites/winston (running from a checkout), the app bundle.
 func locateSpritePackage() -> URL? {
     var candidates: [URL] = []
     if let env = ProcessInfo.processInfo.environment["MOTIVE_SPRITE"] {
@@ -17,8 +17,8 @@ func locateSpritePackage() -> URL? {
     if CommandLine.arguments.count > 1 {
         candidates.append(URL(fileURLWithPath: CommandLine.arguments[1]))
     }
-    candidates.append(URL(fileURLWithPath: "Sprites/salli"))
-    if let bundled = Bundle.main.resourceURL?.appendingPathComponent("salli") {
+    candidates.append(URL(fileURLWithPath: "Sprites/winston"))
+    if let bundled = Bundle.main.resourceURL?.appendingPathComponent("winston") {
         candidates.append(bundled)
     }
     return candidates.first { FileManager.default.fileExists(atPath: $0.appendingPathComponent("pet.json").path) }
@@ -110,6 +110,12 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
             },
             SpriteBoxWindow.Action(title: "Jump") {
                 Task { await host.engine.fireTrigger("jump") }
+            },
+            SpriteBoxWindow.Action(title: "◀ Dash") {
+                Task { await host.engine.fireTrigger("dash-left") }
+            },
+            SpriteBoxWindow.Action(title: "Dash ▶") {
+                Task { await host.engine.fireTrigger("dash-right") }
             },
         ]
         box.show()

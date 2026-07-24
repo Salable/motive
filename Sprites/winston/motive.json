@@ -1,0 +1,32 @@
+{
+  "format": "motive/1",
+  "metadata": {
+    "id": "winston",
+    "name": "Winston",
+    "description": "A cute black short-haired labradoodle puppy with shaggy fur and warm eyes.",
+    "license": "MIT",
+    "version": "1.0.0"
+  },
+  "atlases": {
+    "sprite": { "path": "spritesheet.webp", "cell": [192, 208], "grid": [25, 9] }
+  },
+  "states": {
+    "idle":          { "frames": { "row": 0, "count": 25 }, "ms": 100, "purpose": "resting loop, tail wags and blinks" },
+    "running-right": { "frames": { "row": 1, "count": 25 }, "ms": 60,  "purpose": "dashing to the right" },
+    "running-left":  { "frames": { "row": 2, "count": 25 }, "ms": 60,  "purpose": "dashing to the left" },
+    "waving":        { "frames": { "row": 3, "count": 25 }, "ms": 80,  "interrupt": "after-loop", "purpose": "friendly greeting wave" },
+    "jumping":       { "frames": { "row": 4, "count": 25 }, "ms": 70,  "interrupt": "after-loop", "purpose": "excited bounce" },
+    "failed":        { "frames": { "row": 5, "count": 25 }, "ms": 90,  "purpose": "something went wrong: droopy ears" },
+    "waiting":       { "frames": { "row": 6, "count": 25 }, "ms": 120, "purpose": "expectant puppy eyes, needs your input" },
+    "review":        { "frames": { "row": 7, "count": 25 }, "ms": 70,  "purpose": "proud tail-wag, work finished" },
+    "running":       { "frames": { "row": 8, "count": 25 }, "ms": 80,  "purpose": "hard at work" }
+  },
+  "aliases": { "working": "running", "done": "review", "error": "failed" },
+  "triggers": {
+    "wave":       { "state": "waving", "once": true, "purpose": "play the waving gesture once, then return" },
+    "jump":       { "state": "jumping", "once": true, "purpose": "play the jump once, then return" },
+    "dash-left":  { "state": "running-left", "once": true, "purpose": "dash left across one loop, then return" },
+    "dash-right": { "state": "running-right", "once": true, "purpose": "dash right across one loop, then return" }
+  },
+  "transitions": [{ "from": "*", "to": "*", "ms": 180 }]
+}

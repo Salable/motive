@@ -2,14 +2,14 @@ import XCTest
 @testable import MotiveSprite
 
 final class CodexRunnerTests: XCTestCase {
-    // MARK: Salli (the bundled happy-path sprite)
+    // MARK: Winston (the bundled happy-path sprite)
 
-    func testLoadsSalli() throws {
-        // Direct: Salli also carries motive.json, which the registry prefers.
-        let definition = try CodexRunner().load(Fixtures.salli)
+    func testLoadsWinston() throws {
+        // Direct: Winston also carries motive.json, which the registry prefers.
+        let definition = try CodexRunner().load(Fixtures.winston)
         XCTAssertEqual(definition.format, "codex/1")
-        XCTAssertEqual(definition.metadata.id, "salli")
-        XCTAssertEqual(definition.metadata.displayName, "Salli")
+        XCTAssertEqual(definition.metadata.id, "winston")
+        XCTAssertEqual(definition.metadata.displayName, "Winston")
 
         let atlas = try XCTUnwrap(definition.atlases["sprite"])
         XCTAssertEqual(atlas.pixelWidth, 4800)
@@ -23,19 +23,22 @@ final class CodexRunnerTests: XCTestCase {
         XCTAssertEqual(idle.frames[1].rect.x, 192)
         XCTAssertTrue(idle.loop)
 
-        // Codex vocabulary defaults are synthesized.
+        // Winston declares his full vocabulary, incl. the dash gestures.
         XCTAssertEqual(definition.aliases["working"], "running")
         XCTAssertEqual(definition.triggers["wave"]?.state, "waving")
         XCTAssertEqual(definition.triggers["jump"]?.state, "jumping")
+        XCTAssertEqual(definition.triggers["dash-left"]?.state, "running-left")
+        XCTAssertEqual(definition.triggers["dash-right"]?.state, "running-right")
+        XCTAssertEqual(definition.triggers["dash-left"]?.once, true)
     }
 
-    func testSalliValidatesClean() {
-        let findings = CodexRunner().validate(Fixtures.salli)
+    func testWinstonValidatesClean() {
+        let findings = CodexRunner().validate(Fixtures.winston)
         XCTAssertTrue(findings.isEmpty, "unexpected findings: \(findings)")
     }
 
-    func testSalliBehaviorDefinitionFeedsStateMachine() throws {
-        let definition = try SpriteRunnerRegistry.standard.load(Fixtures.salli)
+    func testWinstonBehaviorDefinitionFeedsStateMachine() throws {
+        let definition = try SpriteRunnerRegistry.standard.load(Fixtures.winston)
         let t0 = Date(timeIntervalSince1970: 0)
         var machine = ActorStateMachine(definition: definition.behaviorDefinition, now: t0)
         XCTAssertEqual(machine.currentStateName, "idle")
