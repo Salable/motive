@@ -28,7 +28,7 @@ surface:
 | `motive_trigger` | `name` | One-shot gesture, then return. |
 | `motive_say` | `text`, `ttl?` (ms) | Speech bubble (≤400 chars). |
 | `motive_enqueue` | `items` (array of `{type: say\|setState\|trigger\|pause, …}`) | Append to the action queue; plays in order after existing items. |
-| `motive_clear_queue` | — | Flush the queue. |
+| `motive_clear_queue` | — | Flush the queue and return to the default state. |
 | `motive_skip` | — | Skip the current queue item; pending preserved. |
 | `motive_play_script` | `steps` (same shape) | Replace the queue with this sequence. |
 
