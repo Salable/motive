@@ -214,6 +214,35 @@ final class MotiveServerTests: XCTestCase {
         XCTAssertEqual(json["queueDepth"] as? Int, 0)
     }
 
+    func testClearQueueRevertsToDefaultState() async throws {
+        // A scene leaves the sprite in "running"; clear must bring it home.
+        _ = try await request("POST", "/v1/queue", body: #"{"items":[{"type":"setState","name":"running"},{"type":"say","text":"narrating","hold":30000},{"type":"say","text":"more"}]}"#)
+        let state = await engine.machine.currentStateName
+        XCTAssertEqual(state, "running")
+
+        let (status, json) = try await request("DELETE", "/v1/queue")
+        XCTAssertEqual(status, 200)
+        XCTAssertEqual(json["state"] as? String, "idle", "clear returns to the default state")
+    }
+
+    func testSkipCurrentQueueItemAdvancesAndPreservesPending() async throws {
+        _ = try await request("POST", "/v1/queue", body: #"{"items":[{"type":"say","text":"a","hold":30000},{"type":"say","text":"b","hold":30000},{"type":"say","text":"c"}]}"#)
+        let (status, json) = try await request("DELETE", "/v1/queue/current")
+        XCTAssertEqual(status, 200)
+        XCTAssertNotNil(json["skippedID"] as? String)
+        XCTAssertEqual(json["queueDepth"] as? Int, 2)
+        let speech = await engine.speech
+        XCTAssertEqual(speech?.text, "b", "the next item plays immediately")
+    }
+
+    func testSkipOnIdleQueueIsOkNoOp() async throws {
+        let (status, json) = try await request("DELETE", "/v1/queue/current")
+        XCTAssertEqual(status, 200)
+        XCTAssertEqual(json["ok"] as? Bool, true)
+        XCTAssertNil(json["skippedID"])
+        XCTAssertEqual(json["queueDepth"] as? Int, 0)
+    }
+
     func testDirectSayHeadEnqueuesAheadOfFlow() async throws {
         _ = try await request("POST", "/v1/queue", body: #"{"items":[{"type":"say","text":"flow 1","hold":30000},{"type":"say","text":"flow 2"}]}"#)
         let (status, _) = try await request("POST", "/v1/say", body: #"{"text":"urgent"}"#)

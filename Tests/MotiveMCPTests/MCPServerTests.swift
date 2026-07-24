@@ -50,7 +50,7 @@ final class MCPServerTests: XCTestCase {
         XCTAssertEqual(
             Set(tools.compactMap { $0["name"] as? String }),
             ["motive_status", "motive_set_state", "motive_trigger", "motive_say",
-             "motive_play_script", "motive_enqueue", "motive_clear_queue"]
+             "motive_play_script", "motive_enqueue", "motive_clear_queue", "motive_skip"]
         )
         let setState = try XCTUnwrap(tools.first { $0["name"] as? String == "motive_set_state" })
         let description = try XCTUnwrap(setState["description"] as? String)
@@ -139,6 +139,23 @@ final class MCPServerTests: XCTestCase {
         XCTAssertEqual(clearResult["isError"] as? Bool, false)
         depth = await engine.queueDepth
         XCTAssertEqual(depth, 0)
+    }
+
+    func testSkipToolAdvancesQueue() async throws {
+        let (server, engine) = makeServer()
+        let enqueue = #"{"jsonrpc":"2.0","id":30,"method":"tools/call","params":{"name":"motive_enqueue","arguments":{"items":[{"type":"say","text":"a","hold":30000},{"type":"say","text":"b","hold":30000}]}}}"#
+        _ = await server.handle(line: enqueue)
+
+        let skip = #"{"jsonrpc":"2.0","id":31,"method":"tools/call","params":{"name":"motive_skip","arguments":{}}}"#
+        let response = try json(await server.handle(line: skip))
+        let result = try XCTUnwrap(response["result"] as? [String: Any])
+        XCTAssertEqual(result["isError"] as? Bool, false)
+        let text = try XCTUnwrap((result["content"] as? [[String: Any]])?.first?["text"] as? String)
+        XCTAssertTrue(text.contains("skippedID"), "receipt should name the skipped item: \(text)")
+        let depth = await engine.queueDepth
+        XCTAssertEqual(depth, 1, "pending survives a skip")
+        let speech = await engine.speech
+        XCTAssertEqual(speech?.text, "b")
     }
 
     func testStatusToolReportsQueueDepth() async throws {

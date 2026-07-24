@@ -40,7 +40,8 @@ curl -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
 | `DELETE /v1/speech` | Dismiss the current bubble. |
 | `POST /v1/queue` | `{"items": […]}` — append to the action queue (tail). |
 | `GET /v1/queue` | Inspect: depth, current item + remaining hold, pending items. |
-| `DELETE /v1/queue` | Flush the queue. |
+| `DELETE /v1/queue` | Flush the queue and return to the default state. |
+| `DELETE /v1/queue/current` | Skip the current item: it ends now, the next pending item plays. Pending preserved. |
 | `POST /v1/script` | Compat sugar: **replace** the queue with these steps (v0.1.0 wire shape). |
 | `DELETE /v1/script` | Same as `DELETE /v1/queue`. |
 
@@ -65,6 +66,19 @@ afterwards. Nothing is dropped except by an explicit flush.
 Validation is all-or-nothing; total depth is capped at 64. Per-item `hold`
 defaults: `say` 4000 ms (== bubble time), `setState` 0, `trigger` = the
 gesture's length.
+
+**Skip** (`DELETE /v1/queue/current`) is the single-item counterpart of flush:
+the current item ends immediately and the next pending item plays. It doesn't
+rewind on-screen state (a skipped trigger's gesture completes on its own),
+except a skipped `say`'s bubble is dismissed. The receipt carries `skippedID`;
+skipping an idle queue is an ok no-op.
+
+**Clear** (`DELETE /v1/queue`) returns the sprite to its **default state** —
+the engine's initial state (`idle` in the demo). Stopping a scene never leaves
+the sprite stuck in a state that a dropped item would have cleaned up. States
+set directly (`POST /v1/state`, no duration) persist until changed — natural
+queue drain does not force a revert, so an agent's `working` mood survives its
+own says and gestures; scenes that end themselves choose their final state.
 
 ## Events
 

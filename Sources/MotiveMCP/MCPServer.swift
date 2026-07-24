@@ -76,7 +76,12 @@ public final class MCPServer: @unchecked Sendable {
             ),
             ToolSpec(
                 name: "motive_clear_queue",
-                description: "Flush \(spriteName)'s action queue: drop all pending items and stop waiting on the current one.",
+                description: "Flush \(spriteName)'s action queue: drop all pending items, stop waiting on the current one, and return to the default state.",
+                inputSchema: ["type": "object", "properties": [String: Any](), "required": [String]()]
+            ),
+            ToolSpec(
+                name: "motive_skip",
+                description: "Skip \(spriteName)'s current queue item — it ends now and the next queued item plays immediately. Pending items are preserved (motive_clear_queue drops everything).",
                 inputSchema: ["type": "object", "properties": [String: Any](), "required": [String]()]
             ),
             ToolSpec(
@@ -208,6 +213,9 @@ public final class MCPServer: @unchecked Sendable {
 
             case "motive_clear_queue":
                 payload = encodeJSON(try await transport.clearQueue())
+
+            case "motive_skip":
+                payload = encodeJSON(try await transport.skip())
 
             case "motive_say":
                 guard let text = arguments["text"] as? String else {

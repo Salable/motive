@@ -6,9 +6,13 @@ import MotiveCore
 /// demonstrating states and messages live, and pointing people at
 /// github.com/Salable/motive.
 ///
+/// The tour is itself the feature showcase: one queued multi-step run that
+/// exercises says (length-paced holds), zero-hold state changes, one-shot
+/// triggers, and a pause beat — the full ScriptStep vocabulary.
+///
 /// Uses only the Winston vocabulary; play-time validation catches drift if
-/// the sprite changes. The tour is interruptible by design: chat or any
-/// direct command plays next and the tour carries on (queue semantics).
+/// the sprite changes. The tour is interruptible by design: any direct
+/// command plays next and the tour carries on (queue semantics).
 func onboardingScript(name: String) -> ScriptRun {
     /// Length-proportional bubble pacing: ~55 ms per character, clamped so
     /// short beats don't flash and long ones don't drag.
@@ -38,8 +42,8 @@ func onboardingScript(name: String) -> ScriptRun {
 
     // Components
     steps += [
-        say("This floating window is the sprite box. The text field under me is chat — type and I'll say it back."),
-        say("The Wave, Jump, and Dash buttons play gestures. My animations come from a sprite sheet — swap in your own character."),
+        say("This floating window is the sprite box — just me and my speech bubbles. No buttons, no chrome: everything happens through my control plane."),
+        say("My animations come from a sprite sheet — swap in your own character and I'll wear it."),
         say("The paw in the menu bar is my notification menu: show/hide me, Settings, and replaying this tour."),
         say("Settings is where the interesting switches live — my REST API, agent skills, and how I look."),
     ]
@@ -70,14 +74,18 @@ func onboardingScript(name: String) -> ScriptRun {
 
     // Messages & the queue
     steps += [
-        say("Everything you've just watched — every bubble, every state — was an item on my action queue, played in order."),
-        say("Agents queue whole flows like this over my REST API or MCP. And you can interrupt me any time: I'll say your thing next, then carry on."),
+        say("Everything you've just watched — every bubble, every state, every gesture — was an item on my action queue, played strictly in order."),
+        say("Queues can hold a beat, too. Watch me do nothing for a moment —"),
+        .pause(ms: 1800),
+        say("…that was a queued pause. Says, states, triggers, pauses: agents compose them into whole performances."),
+        say("And direct commands cut in politely: they play next, then the rest of the queue carries on. Nothing is dropped."),
     ]
 
-    // Agents
+    // Agents & the control plane
     steps += [
         say("Want an agent driving me right now? Menu bar → Settings → “Copy prompt”, and paste it into Claude, Codex, or any agent chat."),
         say("There are one-click skills for Claude Code, Codex, and OpenCode in Settings too — plus an MCP shim for Claude Desktop."),
+        say("Prefer a terminal? I speak plain HTTP — anything that can curl can drive me. The launch console printed an example."),
     ]
 
     // GitHub
@@ -89,7 +97,7 @@ func onboardingScript(name: String) -> ScriptRun {
 
     // Sign-off
     steps += [
-        say("That's the tour! Talk to me, wire up an agent, or just let me keep you company. 🐾"),
+        say("That's the tour! Wire up an agent, curl me from a terminal, or just let me keep you company. 🐾"),
         state("idle"),
     ]
 

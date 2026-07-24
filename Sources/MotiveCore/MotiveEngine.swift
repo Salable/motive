@@ -56,6 +56,9 @@ public struct EnqueueReceipt: Equatable, Sendable {
 public actor MotiveEngine {
     public private(set) var machine: ActorStateMachine
     public private(set) var speech: SpeechBubble?
+    /// The "standard" resting state (the resolved initial state): duration'd
+    /// states auto-revert to it, and clearing the queue returns to it.
+    public let defaultState: String
     private var queue: ActionQueue
 
     private var observers: [UUID: AsyncStream<MotiveEvent>.Continuation] = [:]
@@ -63,7 +66,9 @@ public actor MotiveEngine {
     private let tickInterval: TimeInterval
 
     public init(definition: BehaviorDefinition, initialState: String = "idle", tickInterval: TimeInterval = 0.1) {
-        self.machine = ActorStateMachine(definition: definition, initialState: initialState)
+        let machine = ActorStateMachine(definition: definition, initialState: initialState)
+        self.machine = machine
+        self.defaultState = machine.defaultStateName
         self.queue = ActionQueue(definition: definition)
         self.tickInterval = tickInterval
     }
@@ -120,17 +125,38 @@ public actor MotiveEngine {
         }
     }
 
-    /// Wipe pending items and stop waiting on the current one. Returns the
-    /// number of pending items dropped.
+    /// Wipe pending items, stop waiting on the current one, and return to the
+    /// default state — clearing a scene never leaves the sprite stuck in a
+    /// state a dropped item would have cleaned up. `revertToDefault: false`
+    /// is for queue *replacement* (playScript), where the incoming items set
+    /// their own state and a reset would flash. Returns the dropped count.
     @discardableResult
-    public func flushQueue(now: Date = Date()) -> Int {
+    public func flushQueue(now: Date = Date(), revertToDefault: Bool = true) -> Int {
         let effects = queue.flush(now: now)
         let dropped = effects.compactMap { effect -> Int? in
             if case .emit(.flushed(let count)) = effect { return count }
             return nil
         }.first ?? 0
         applyQueueEffects(effects, now: now)
+        if revertToDefault {
+            applyState(defaultState, duration: nil, now: now)
+        }
         return dropped
+    }
+
+    /// Skip the current queue item: it finishes immediately and the next
+    /// pending item starts (or the queue drains). Pending items are preserved.
+    /// A skipped `say`'s bubble is dismissed. Returns the skipped item's id,
+    /// or nil when the queue was idle (no-op).
+    @discardableResult
+    public func skipCurrent(now: Date = Date()) -> String? {
+        guard let current = queue.snapshot(now: now).current else { return nil }
+        if case .say = current.step {
+            // Before applying effects: the next item may post a fresh bubble.
+            dismissSpeech(now: now)
+        }
+        applyQueueEffects(queue.skip(now: now), now: now)
+        return current.id
     }
 
     public var queueDepth: Int { queue.depth }
@@ -141,7 +167,7 @@ public actor MotiveEngine {
 
     /// Compat sugar for `/v1/script`: replace the queue with these steps.
     public func playScript(_ run: ScriptRun, now: Date = Date()) {
-        _ = flushQueue(now: now)
+        _ = flushQueue(now: now, revertToDefault: false)
         _ = enqueue(run.steps.map(QueueItem.init(step:)), at: .tail, now: now)
     }
 

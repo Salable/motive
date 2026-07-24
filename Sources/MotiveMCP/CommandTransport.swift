@@ -13,6 +13,7 @@ public protocol MotiveCommandTransport: Sendable {
     func playScript(_ run: ScriptRun) async throws -> ControlReceipt
     func enqueue(_ steps: [ScriptStep]) async throws -> ControlReceipt
     func clearQueue() async throws -> ControlReceipt
+    func skip() async throws -> ControlReceipt
 }
 
 public struct TransportError: Error, CustomStringConvertible {
@@ -69,6 +70,10 @@ public struct LocalCommandTransport: MotiveCommandTransport {
 
     public func clearQueue() async throws -> ControlReceipt {
         await control.clearQueue()
+    }
+
+    public func skip() async throws -> ControlReceipt {
+        await control.skip()
     }
 
     private func unwrap(_ result: Result<ControlReceipt, ControlFailure>) throws -> ControlReceipt {
@@ -146,6 +151,10 @@ public struct RESTCommandTransport: MotiveCommandTransport {
 
     public func clearQueue() async throws -> ControlReceipt {
         try await send(request(path: "/v1/queue", method: "DELETE", body: nil))
+    }
+
+    public func skip() async throws -> ControlReceipt {
+        try await send(request(path: "/v1/queue/current", method: "DELETE", body: nil))
     }
 
     // MARK: internals

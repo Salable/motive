@@ -160,6 +160,102 @@ final class MotiveEngineTests: XCTestCase {
         XCTAssertNotEqual(speech?.text, "b")
     }
 
+    func testClearRevertsToDefaultState() async throws {
+        let engine = makeEngine()
+        // A scene sets a persistent state, then keeps talking; clearing it
+        // mid-say must not leave the sprite stuck in "running".
+        _ = try await engine.enqueue([
+            QueueItem(action: .setState(name: "running", durationMS: nil)),
+            QueueItem(action: .say(text: "narrating"), holdMS: 30_000),
+            QueueItem(action: .say(text: "never plays"), holdMS: 1000),
+        ], now: t0).get()
+        let midState = await engine.machine.currentStateName
+        XCTAssertEqual(midState, "running")
+
+        await engine.flushQueue(now: t0.addingTimeInterval(1))
+        let cleared = await engine.machine.currentStateName
+        XCTAssertEqual(cleared, "idle", "clear returns to the default state")
+        let depth = await engine.queueDepth
+        XCTAssertEqual(depth, 0)
+    }
+
+    func testPlayScriptReplacesWithoutDefaultStateFlash() async throws {
+        let engine = makeEngine()
+        _ = try await engine.enqueue([
+            QueueItem(action: .setState(name: "running", durationMS: nil)),
+            QueueItem(action: .say(text: "old scene"), holdMS: 30_000),
+        ], now: t0).get()
+
+        // Replacement flushes without the revert: the incoming steps own the
+        // state; "running" stands until they change it.
+        await engine.playScript(ScriptRun(id: "r", steps: [
+            .say(text: "new scene", holdMS: 1000),
+        ]), now: t0.addingTimeInterval(1))
+        let state = await engine.machine.currentStateName
+        XCTAssertEqual(state, "running")
+    }
+
+    func testDefaultStateFollowsInitialState() async {
+        let engine = MotiveEngine(definition: BehaviorDefinition(
+            states: [
+                "idle": StateBehavior(name: "idle", frameDurations: [0.1]),
+                "perched": StateBehavior(name: "perched", frameDurations: [0.1]),
+            ]
+        ), initialState: "perched")
+        let defaultState = await engine.defaultState
+        XCTAssertEqual(defaultState, "perched")
+
+        // Duration auto-revert targets the default state, not hardcoded idle.
+        await engine.requestState("idle", duration: 1, now: t0)
+        await engine.tick(now: t0.addingTimeInterval(1.1))
+        let state = await engine.machine.currentStateName
+        XCTAssertEqual(state, "perched")
+    }
+
+    func testSkipCurrentAdvancesAndPreservesPending() async throws {
+        let engine = makeEngine()
+        let receipt = try await engine.enqueue([
+            QueueItem(action: .say(text: "a"), holdMS: 10_000),
+            QueueItem(action: .say(text: "b"), holdMS: 1000),
+        ], now: t0).get()
+
+        let skipped = await engine.skipCurrent(now: t0.addingTimeInterval(1))
+        XCTAssertEqual(skipped, receipt.itemIDs[0])
+        let speech = await engine.speech
+        XCTAssertEqual(speech?.text, "b", "the next item plays immediately")
+        let depth = await engine.queueDepth
+        XCTAssertEqual(depth, 1)
+    }
+
+    func testSkipCurrentDismissesSkippedSayBubble() async throws {
+        let engine = makeEngine()
+        let collector = await collectEvents(engine, count: 6)
+        // events() replays current state (1). Then: itemStarted (2),
+        // speechPosted (3); skip dismisses the bubble (4) BEFORE the item
+        // finishes (5) and the queue drains (6).
+        let receipt = try await engine.enqueue([
+            QueueItem(action: .say(text: "solo"), holdMS: 10_000),
+        ], now: t0).get()
+        await engine.skipCurrent(now: t0.addingTimeInterval(1))
+
+        let events = await collector.value
+        guard case .speechDismissed = events[3] else {
+            return XCTFail("expected the skipped say's bubble dismissed before itemFinished, got \(events[3])")
+        }
+        XCTAssertEqual(events[4], .queueItemFinished(id: receipt.itemIDs[0]))
+        XCTAssertEqual(events[5], .queueDrained)
+        let speech = await engine.speech
+        XCTAssertNil(speech)
+    }
+
+    func testSkipCurrentWhenIdleIsNoOp() async {
+        let engine = makeEngine()
+        let skipped = await engine.skipCurrent(now: t0)
+        XCTAssertNil(skipped)
+        let depth = await engine.queueDepth
+        XCTAssertEqual(depth, 0)
+    }
+
     func testQueueEventsBroadcast() async throws {
         let engine = makeEngine()
         let collector = await collectEvents(engine, count: 6)

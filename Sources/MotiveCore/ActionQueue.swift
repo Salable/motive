@@ -203,6 +203,16 @@ public struct ActionQueue: Sendable {
         return effects
     }
 
+    /// End the current item now and let the queue advance — the single-item
+    /// counterpart of `flush`: pending items are preserved and the next one
+    /// starts immediately (or the queue drains). Quiet no-op when idle.
+    public mutating func skip(now: Date) -> [Effect] {
+        guard var running = current else { return [] }
+        running.deadline = now
+        current = running
+        return advanceIfDue(now: now)
+    }
+
     // MARK: clock
 
     public mutating func tick(now: Date) -> [Effect] {

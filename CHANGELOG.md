@@ -6,6 +6,40 @@ All notable changes to Motive are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **`skip` verb** — the single-item counterpart of clear-queue: the current
+  queue item ends immediately and the next pending item plays; pending is
+  preserved, and a skipped `say`'s bubble is dismissed. Full command surface:
+  `MotiveEngine.skipCurrent()` / `MotiveControl.skip()`,
+  `DELETE /v1/queue/current`, the `motive_skip` MCP tool, declared in
+  `standardVerbs` (auto-documented in generated agent skills), `skippedID` in
+  receipts.
+- **Default ("standard") state** as a first-class concept: the machine
+  remembers its resolved initial state (`ActorStateMachine.defaultStateName`,
+  `MotiveEngine.defaultState`), duration auto-revert targets it instead of a
+  hardcoded `idle`, and **clearing the queue now returns the sprite to it** —
+  stopping a scene can no longer leave the pet stuck in a state a dropped item
+  would have cleaned up. Queue replacement (`play-script`) flushes without the
+  reset, and natural drain still doesn't force a revert, so persistent direct
+  states (an agent's `working`) survive.
+- **Hover queue controls on the sprite box**: while the queue is playing and
+  the pointer is over the box, skip (⏭) and stop-scene (✕) buttons appear in a
+  fixed-height slot (no reflow); invisible otherwise, so the box stays
+  chrome-free. `SpriteBoxWindow.Options.queueControlsEnabled` (default true)
+  and `SpriteHost.queueActive` for embedders.
+
+### Changed
+- The demo sprite box is chrome-free: the Wave/Jump/Dash action buttons and the
+  chat input (and its Settings toggle) are gone — Winston is sprite + speech
+  bubbles only, driven entirely through the control plane. `SpriteBoxWindow`
+  keeps `actions`/`chatEnabled` for embedders that want them.
+- Onboarding tour v3: reworked as the feature showcase for the chrome-free box.
+  One queued multi-step run now exercises the full `ScriptStep` vocabulary —
+  length-paced says, zero-hold state changes under narration, one-shot triggers,
+  and a demonstrated pause beat — and reframes interruption and the closing
+  chapters around the control plane (agents, MCP, curl) instead of the removed
+  chat/buttons.
+
 ## [0.3.0] - 2026-07-24
 
 ### Changed
