@@ -1,6 +1,14 @@
 # Agent Integrations
 
-Motive integrates with agents two ways, both over the same command surface:
+The fastest first connection is the **connect prompt**: Settings → Control Plane
+Status → *Copy prompt* produces markdown you paste into any agent chat. It embeds the
+live port and bearer token, walks the agent through ping → schema → a visible
+wave-and-say, and — when the server is bound publicly (0.0.0.0) — tells the agent
+that you will provide the machine's base address. Re-copy after any server restart
+(tokens rotate).
+
+Beyond that, Motive integrates with agents two ways, both over the same command
+surface:
 
 - **REST** — anything that can `curl` drives the sprite via the loopback control
   plane; see [API.md](API.md). Discovery: `~/.motive/runtime/server.json` (port) and

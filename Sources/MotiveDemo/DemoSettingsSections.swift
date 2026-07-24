@@ -154,11 +154,14 @@ struct AgentSkillsSection: View {
 final class ServerStatusModel: ObservableObject {
     @Published private(set) var info: ServerInfo?
     @Published private(set) var tokenPath = ""
+    @Published private(set) var copiedAt: Date?
+    private var token: String?
 
     func refresh() {
         let paths = RuntimePaths.standard
         info = ServerInfo.load(from: paths.serverInfoURL)
         tokenPath = paths.tokenURL.path
+        token = TokenManager.load(at: paths.tokenURL)
     }
 
     var displayURL: String {
@@ -167,19 +170,18 @@ final class ServerStatusModel: ObservableObject {
         return "http://\(hostLabel):\(info.port)"
     }
 
-    var curlExample: String? {
-        guard let info else { return nil }
-        return """
-        curl -H "Authorization: Bearer $(cat \(tokenPath))" \
-        -H "Content-Type: application/json" \
-        -d '{"state":"jumping"}' http://127.0.0.1:\(info.port)/v1/state
-        """
+    var connectPrompt: String? {
+        guard let info, let token else { return nil }
+        return ConnectPrompt.markdown(info: info, token: token)
     }
 
-    func copyCurl() {
-        guard let curlExample else { return }
+    /// Copy the paste-into-any-agent connect prompt (embeds the live token
+    /// and port; for a public bind it asks the user for the base address).
+    func copyPrompt() {
+        guard let connectPrompt else { return }
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(curlExample, forType: .string)
+        NSPasteboard.general.setString(connectPrompt, forType: .string)
+        copiedAt = Date()
     }
 }
 
@@ -193,13 +195,17 @@ struct ServerStatusSection: View {
         LabeledContent("Token") {
             Text(model.tokenPath).textSelection(.enabled).font(.caption).monospaced()
         }
-        HStack {
-            Text("Tokens rotate every time the server restarts.")
-                .font(.caption).foregroundStyle(.secondary)
-            Spacer()
-            Button("Refresh") { model.refresh() }
-            Button("Copy as curl") { model.copyCurl() }
-                .disabled(model.curlExample == nil)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Paste the prompt into any agent chat to connect it to the sprite.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Button("Refresh") { model.refresh() }
+                Button(model.copiedAt == nil ? "Copy prompt" : "Copied ✓") { model.copyPrompt() }
+                    .disabled(model.connectPrompt == nil)
+            }
+            Text("The prompt embeds the current token and rotates with every restart — re-copy after changing server settings.")
+                .font(.caption2).foregroundStyle(.tertiary)
         }
     }
 }

@@ -6,6 +6,12 @@ All notable changes to Motive are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- Settings "Copy as curl" is now **Copy prompt**: a paste-into-any-agent connect
+  prompt (`ConnectPrompt` in `MotiveAgents`) embedding the live port and token,
+  proving the connection with a visible wave-and-say; public (0.0.0.0) binds ask the
+  user to supply the base address.
+
 ## [0.1.0] - 2026-07-24
 
 ### Added
