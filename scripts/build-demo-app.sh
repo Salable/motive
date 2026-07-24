@@ -29,8 +29,20 @@ done
 cd "$PROJECT_DIR"
 
 if [[ $UNIVERSAL -eq 1 ]]; then
-  swift build -c release --arch arm64 --arch x86_64
-  PRODUCTS="$PROJECT_DIR/.build/apple/Products/Release"
+  # Per-arch builds + lipo: the combined `--arch arm64 --arch x86_64` mode
+  # goes through xcbuild, which exits nonzero on GitHub's macOS runners
+  # even after printing "Build complete!".
+  swift build -c release --triple arm64-apple-macosx
+  swift build -c release --triple x86_64-apple-macosx
+  PRODUCTS="$PROJECT_DIR/.build/universal-products"
+  rm -rf "$PRODUCTS"
+  mkdir -p "$PRODUCTS"
+  for bin in motive-demo motive-mcp; do
+    lipo -create \
+      "$PROJECT_DIR/.build/arm64-apple-macosx/release/$bin" \
+      "$PROJECT_DIR/.build/x86_64-apple-macosx/release/$bin" \
+      -output "$PRODUCTS/$bin"
+  done
 else
   swift build -c release
   PRODUCTS="$PROJECT_DIR/.build/release"
