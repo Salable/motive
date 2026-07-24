@@ -1,5 +1,6 @@
 import AppKit
 import MotiveCore
+import MotiveHTTP
 import MotiveSprite
 import MotiveUI
 
@@ -44,6 +45,7 @@ app.setActivationPolicy(.accessory)
 final class DemoDelegate: NSObject, NSApplicationDelegate {
     let definition: SpriteDefinition
     var box: SpriteBoxWindow?
+    var server: MotiveServer?
 
     init(definition: SpriteDefinition) {
         self.definition = definition
@@ -56,10 +58,35 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
         self.box = box
 
         let name = definition.metadata.displayName
+        let control = MotiveControl(engine: host.engine, displayName: name)
+        let server = MotiveServer(control: control)
+        self.server = server
+
         Task {
             await host.engine.say("Hi, I'm \(name)!", ttl: 6)
+            do {
+                let info = try await server.start()
+                let tokenPath = server.paths.tokenURL.path
+                print("""
+                motive-demo \(MotiveVersion.current): \(name) is on your desktop (⌃C to quit).
+                Control plane: http://127.0.0.1:\(info.port)  (token: \(tokenPath))
+                Try:  curl -H "Authorization: Bearer $(cat \(tokenPath))" \\
+                           -d '{"state":"jumping"}' http://127.0.0.1:\(info.port)/v1/state
+                """)
+            } catch {
+                FileHandle.standardError.write(Data("motive-demo: control plane failed to start: \(error)\n".utf8))
+            }
         }
-        print("motive-demo \(MotiveVersion.current): \(name) is on your desktop (⌃C to quit).")
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        let server = self.server
+        let semaphore = DispatchSemaphore(value: 0)
+        Task.detached {
+            await server?.stop()
+            semaphore.signal()
+        }
+        _ = semaphore.wait(timeout: .now() + 2)
     }
 }
 

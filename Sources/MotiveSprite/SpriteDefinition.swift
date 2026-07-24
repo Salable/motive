@@ -78,7 +78,8 @@ public struct SpriteState: Equatable, Sendable {
             frameDurations: frames.map(\.duration),
             loop: loop,
             interrupt: interrupt,
-            then: then
+            then: then,
+            purpose: purpose
         )
     }
 }

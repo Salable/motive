@@ -20,6 +20,8 @@ public struct StateBehavior: Equatable, Sendable {
     public let interrupt: InterruptPolicy
     /// Optional follow-on state entered when a non-looping state finishes.
     public let then: String?
+    /// Human/agent-readable description of what the state expresses.
+    public let purpose: String?
 
     public var frameCount: Int { frameDurations.count }
     public var loopDuration: TimeInterval { frameDurations.reduce(0, +) }
@@ -29,13 +31,15 @@ public struct StateBehavior: Equatable, Sendable {
         frameDurations: [TimeInterval],
         loop: Bool = true,
         interrupt: InterruptPolicy = .immediate,
-        then: String? = nil
+        then: String? = nil,
+        purpose: String? = nil
     ) {
         self.name = name
         self.frameDurations = frameDurations
         self.loop = loop
         self.interrupt = interrupt
         self.then = then
+        self.purpose = purpose
     }
 
     public func frame(at elapsed: TimeInterval, reducedMotion: Bool = false) -> Int {
