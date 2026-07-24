@@ -76,7 +76,7 @@ public final class MCPServer: @unchecked Sendable {
             ),
             ToolSpec(
                 name: "motive_clear_queue",
-                description: "Flush \(spriteName)'s action queue: drop all pending items and stop waiting on the current one.",
+                description: "Flush \(spriteName)'s action queue: drop all pending items, stop waiting on the current one, and return to the default state.",
                 inputSchema: ["type": "object", "properties": [String: Any](), "required": [String]()]
             ),
             ToolSpec(

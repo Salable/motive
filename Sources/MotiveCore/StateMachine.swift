@@ -206,6 +206,10 @@ public struct ActorStateMachine: Sendable {
     private var pending: (name: String, duration: TimeInterval?, promoteAt: Date)?
     private var triggerReturnState: String?
 
+    /// The resolved initial state — the "standard" state the machine returns
+    /// to on duration auto-revert (and the engine on queue clear).
+    public let defaultStateName: String
+
     public init(definition: BehaviorDefinition, initialState: String = "idle", now: Date = Date()) {
         self.definition = definition
         let name = definition.resolveAlias(initialState)
@@ -213,6 +217,7 @@ public struct ActorStateMachine: Sendable {
             ?? definition.states["idle"]
             ?? definition.states.values.sorted { $0.name < $1.name }.first
             ?? StateBehavior(name: "idle", frameDurations: [1])
+        self.defaultStateName = self.currentState.name
         self.enteredAt = now
     }
 
@@ -270,8 +275,8 @@ public struct ActorStateMachine: Sendable {
 
         if let revertAt, now >= revertAt {
             self.revertAt = nil
-            if let idle = definition.states[definition.resolveAlias("idle")] {
-                enter(idle, duration: nil, now: now)
+            if let standard = definition.states[defaultStateName] {
+                enter(standard, duration: nil, now: now)
                 return .changed(directive(now: now))
             }
         }

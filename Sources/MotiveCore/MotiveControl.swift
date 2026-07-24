@@ -159,7 +159,7 @@ public struct ControlSchema: Codable, Equatable, Sendable {
         ),
         VerbInfo(
             name: "clear-queue", method: "DELETE", path: "/v1/queue", params: [:],
-            description: "Flush the queue: drop all pending items and stop waiting on the current one."
+            description: "Flush the queue: drop all pending items, stop waiting on the current one, and return to the default state."
         ),
         VerbInfo(
             name: "skip", method: "DELETE", path: "/v1/queue/current", params: [:],
@@ -312,7 +312,7 @@ public actor MotiveControl {
         if let failure = run.validate(against: definition) {
             return .failure(failure)
         }
-        _ = await engine.flushQueue()
+        _ = await engine.flushQueue(revertToDefault: false)
         let result = await engine.enqueue(run.steps.map(QueueItem.init(step:)), at: .tail)
         let current = await engine.machine.currentStateName
         switch result {
