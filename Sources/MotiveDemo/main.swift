@@ -108,6 +108,9 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
             NotificationMenu.Item(title: "Show \(name)") { [weak self] in self?.box?.show() },
             NotificationMenu.Item(title: "Hide \(name)") { [weak self] in self?.box?.close() },
             .separator,
+            NotificationMenu.Item(title: "Replay onboarding") {
+                Task { await host.engine.playScript(onboardingScript(name: name)) }
+            },
             NotificationMenu.Item(title: "Settings…", keyEquivalent: ",") { [weak self] in self?.settings?.show() },
             .separator,
             NotificationMenu.Item(title: "Quit", keyEquivalent: "q") { NSApp.terminate(nil) },
@@ -117,8 +120,20 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
         let server = MotiveServer(control: control)
         self.server = server
 
+        // First launch gets the full onboarding tour; after that, a short
+        // greeting. Completion is marked when the tour *starts* — cancelling
+        // it (typing, driving the sprite) is choosing to skip, not a reason
+        // to replay it every launch. Replay lives in the menu.
+        let onboardingKey = "motive.demo.onboarding-completed"
+        let needsOnboarding = !UserDefaults.standard.bool(forKey: onboardingKey)
+
         Task {
-            await host.engine.say("Hi, I'm \(name)!", ttl: 6)
+            if needsOnboarding {
+                UserDefaults.standard.set(true, forKey: onboardingKey)
+                await host.engine.playScript(onboardingScript(name: name))
+            } else {
+                await host.engine.say("Hi, I'm \(name)!", ttl: 6)
+            }
             do {
                 let info = try await server.start()
                 let tokenPath = server.paths.tokenURL.path
