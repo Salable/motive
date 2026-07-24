@@ -1,0 +1,13 @@
+.DS_Store
+.build/
+dist/
+*.xcodeproj
+xcuserdata/
+.swiftpm/
+Package.resolved
+
+# Pre-rewrite reference material, not part of the published repo.
+FIRST_ATTEMPT/
+SPRITE_EXAMPLES/
+SPEC.md
+.claude/
