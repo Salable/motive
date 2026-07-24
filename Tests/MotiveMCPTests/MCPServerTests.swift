@@ -49,7 +49,8 @@ final class MCPServerTests: XCTestCase {
         let tools = try XCTUnwrap(result["tools"] as? [[String: Any]])
         XCTAssertEqual(
             Set(tools.compactMap { $0["name"] as? String }),
-            ["motive_status", "motive_set_state", "motive_trigger", "motive_say", "motive_play_script"]
+            ["motive_status", "motive_set_state", "motive_trigger", "motive_say",
+             "motive_play_script", "motive_enqueue", "motive_clear_queue"]
         )
         let setState = try XCTUnwrap(tools.first { $0["name"] as? String == "motive_set_state" })
         let description = try XCTUnwrap(setState["description"] as? String)
@@ -114,6 +115,41 @@ final class MCPServerTests: XCTestCase {
         XCTAssertEqual(result["isError"] as? Bool, true)
         let text = try XCTUnwrap((result["content"] as? [[String: Any]])?.first?["text"] as? String)
         XCTAssertTrue(text.contains("jump"), "error should list valid triggers: \(text)")
+    }
+
+    func testEnqueueAndClearQueueTools() async throws {
+        let (server, engine) = makeServer()
+        let list = try json(await server.handle(line: #"{"jsonrpc":"2.0","id":20,"method":"tools/list"}"#))
+        let tools = try XCTUnwrap((list["result"] as? [String: Any])?["tools"] as? [[String: Any]])
+        let names = Set(tools.compactMap { $0["name"] as? String })
+        XCTAssertTrue(names.isSuperset(of: ["motive_enqueue", "motive_clear_queue"]))
+
+        let enqueue = #"{"jsonrpc":"2.0","id":21,"method":"tools/call","params":{"name":"motive_enqueue","arguments":{"items":[{"type":"say","text":"a","hold":30000},{"type":"say","text":"b"}]}}}"#
+        let response = try json(await server.handle(line: enqueue))
+        let result = try XCTUnwrap(response["result"] as? [String: Any])
+        XCTAssertEqual(result["isError"] as? Bool, false)
+        let text = try XCTUnwrap((result["content"] as? [[String: Any]])?.first?["text"] as? String)
+        XCTAssertTrue(text.contains("itemIDs"), "receipt should carry item ids: \(text)")
+        var depth = await engine.queueDepth
+        XCTAssertEqual(depth, 2)
+
+        let clear = #"{"jsonrpc":"2.0","id":22,"method":"tools/call","params":{"name":"motive_clear_queue","arguments":{}}}"#
+        let clearResponse = try json(await server.handle(line: clear))
+        let clearResult = try XCTUnwrap(clearResponse["result"] as? [String: Any])
+        XCTAssertEqual(clearResult["isError"] as? Bool, false)
+        depth = await engine.queueDepth
+        XCTAssertEqual(depth, 0)
+    }
+
+    func testStatusToolReportsQueueDepth() async throws {
+        let (server, engine) = makeServer()
+        _ = await engine.enqueue([QueueItem(action: .say(text: "x"), holdMS: 30000)], now: Date())
+        let response = try json(await server.handle(
+            line: #"{"jsonrpc":"2.0","id":23,"method":"tools/call","params":{"name":"motive_status","arguments":{}}}"#
+        ))
+        let result = try XCTUnwrap(response["result"] as? [String: Any])
+        let text = try XCTUnwrap((result["content"] as? [[String: Any]])?.first?["text"] as? String)
+        XCTAssertTrue(text.contains(#""queueDepth":1"#), "status should report queue depth: \(text)")
     }
 
     func testUnknownMethodIsJSONRPCError() async throws {

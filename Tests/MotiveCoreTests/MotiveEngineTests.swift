@@ -27,10 +27,15 @@ final class MotiveEngineTests: XCTestCase {
         var iterator = await engine.events().makeAsyncIterator()
         _ = await iterator.next() // initial state
         await engine.requestState("running", now: t0)
-        guard case .stateChanged(let directive) = await iterator.next() else {
-            return XCTFail("expected state change event")
+        // Queue lifecycle events (itemStarted/finished/drained) surround the
+        // state change; scan to it.
+        for _ in 0..<4 {
+            if case .stateChanged(let directive) = await iterator.next() {
+                XCTAssertEqual(directive.stateName, "running")
+                return
+            }
         }
-        XCTAssertEqual(directive.stateName, "running")
+        XCTFail("expected a state change event")
     }
 
     func testSpeechPostAndTTLExpiry() async {
@@ -55,7 +60,7 @@ final class MotiveEngineTests: XCTestCase {
         XCTAssertEqual(bubble.text.count, SpeechBubble.maxLength)
     }
 
-    // MARK: scripts
+    // MARK: queue
 
     private func collectEvents(_ engine: MotiveEngine, count: Int) async -> Task<[MotiveEvent], Never> {
         let stream = await engine.events()
@@ -69,98 +74,135 @@ final class MotiveEngineTests: XCTestCase {
         }
     }
 
-    func testScriptPlaysThroughOnTicks() async {
+    func testQueuedFlowPlaysThroughOnTicks() async throws {
         let engine = makeEngine()
-        await engine.playScript(ScriptRun(id: "s", steps: [
-            .say(text: "step one", holdMS: 1000),
-            .setState(name: "running", holdMS: nil),
-        ]), now: t0)
+        let receipt = try await engine.enqueue([
+            QueueItem(action: .say(text: "step one"), holdMS: 1000),
+            QueueItem(action: .setState(name: "running", durationMS: nil)),
+        ], now: t0).get()
+        XCTAssertEqual(receipt.itemIDs.count, 2)
 
         let speech = await engine.speech
         XCTAssertEqual(speech?.text, "step one")
-        let running = await engine.isScriptRunning
-        XCTAssertTrue(running)
 
         // Before the hold elapses: nothing moves.
         await engine.tick(now: t0.addingTimeInterval(0.5))
         let midState = await engine.machine.currentStateName
         XCTAssertEqual(midState, "idle")
 
-        // At the hold boundary: bubble expires and the next step runs, in
-        // the same tick, in that order.
+        // At the hold boundary: bubble expires and the next item runs in the
+        // same tick.
         await engine.tick(now: t0.addingTimeInterval(1))
         let endState = await engine.machine.currentStateName
         XCTAssertEqual(endState, "running")
-        let done = await engine.isScriptRunning
-        XCTAssertFalse(done)
+        let depth = await engine.queueDepth
+        XCTAssertEqual(depth, 0)
     }
 
-    func testScriptDoesNotCancelItself() async {
-        // Regression: script-originated say/setState must bypass the
-        // cancel-on-mutation hook.
+    func testDirectSayInterjectsAndFlowContinues() async throws {
+        // The queue-first contract: a direct command plays next, and every
+        // queued item still flows through — nothing is dropped.
         let engine = makeEngine()
-        await engine.playScript(ScriptRun(id: "s", steps: [
-            .say(text: "a", holdMS: 1000),
-            .say(text: "b", holdMS: 1000),
-            .setState(name: "running", holdMS: 500),
-            .say(text: "c", holdMS: 1000),
-        ]), now: t0)
+        _ = try await engine.enqueue([
+            QueueItem(action: .say(text: "tour part 1"), holdMS: 10_000),
+            QueueItem(action: .say(text: "tour part 2"), holdMS: 1000),
+        ], now: t0).get()
 
-        await engine.tick(now: t0.addingTimeInterval(1))
-        var stillRunning = await engine.isScriptRunning
-        XCTAssertTrue(stillRunning, "second say-step cancelled the script")
-
-        await engine.tick(now: t0.addingTimeInterval(2))
-        await engine.tick(now: t0.addingTimeInterval(2.5))
-        stillRunning = await engine.isScriptRunning
-        XCTAssertTrue(stillRunning, "setState step cancelled the script")
-        let speech = await engine.speech
-        XCTAssertEqual(speech?.text, "c")
-    }
-
-    func testExternalCommandCancelsScript() async {
-        let engine = makeEngine()
-        await engine.playScript(ScriptRun(id: "s", steps: [
-            .say(text: "onboarding...", holdMS: 10_000),
-            .say(text: "never shown", holdMS: 1000),
-        ]), now: t0)
-
-        // User (or agent) speaks over it — script cancels, command wins.
-        await engine.say("user message", ttl: 5, now: t0.addingTimeInterval(1))
-        let running = await engine.isScriptRunning
-        XCTAssertFalse(running)
+        // User speaks 1s in: interjection lands immediately.
+        await engine.say("user message", ttl: 1, now: t0.addingTimeInterval(1))
         let speech = await engine.speech
         XCTAssertEqual(speech?.text, "user message")
+        let depth = await engine.queueDepth
+        XCTAssertEqual(depth, 2, "interjection is current; tour part 2 still pending")
 
-        // The dead script's pending step never fires.
-        await engine.tick(now: t0.addingTimeInterval(11))
-        let after = await engine.speech
-        XCTAssertNotEqual(after?.text, "never shown")
+        // After the interjection's hold, the tour resumes.
+        await engine.tick(now: t0.addingTimeInterval(2))
+        let resumed = await engine.speech
+        XCTAssertEqual(resumed?.text, "tour part 2")
     }
 
-    func testScriptEventsBroadcast() async {
+    func testDirectStateChangeAppliesSynchronously() async {
+        let engine = makeEngine()
+        let outcome = await engine.requestState("running", now: t0)
+        guard case .changed(let directive) = outcome else {
+            return XCTFail("expected synchronous state change, got \(outcome)")
+        }
+        XCTAssertEqual(directive.stateName, "running")
+        let state = await engine.machine.currentStateName
+        XCTAssertEqual(state, "running")
+    }
+
+    func testDirectVerbsRejectUnknownVocabulary() async {
+        let engine = makeEngine()
+        guard case .rejected(let validStates) = await engine.requestState("zooming", now: t0) else {
+            return XCTFail("expected rejection")
+        }
+        XCTAssertTrue(validStates.contains("idle"))
+        guard case .rejected = await engine.fireTrigger("moonwalk", now: t0) else {
+            return XCTFail("expected rejection")
+        }
+    }
+
+    func testFlushDropsPendingAndReportsCount() async throws {
+        let engine = makeEngine()
+        _ = try await engine.enqueue([
+            QueueItem(action: .say(text: "a"), holdMS: 5000),
+            QueueItem(action: .say(text: "b"), holdMS: 5000),
+            QueueItem(action: .say(text: "c"), holdMS: 5000),
+        ], now: t0).get()
+        let dropped = await engine.flushQueue(now: t0.addingTimeInterval(1))
+        XCTAssertEqual(dropped, 2)
+        let depth = await engine.queueDepth
+        XCTAssertEqual(depth, 0)
+        // The flushed items never play.
+        await engine.tick(now: t0.addingTimeInterval(20))
+        let speech = await engine.speech
+        XCTAssertNotEqual(speech?.text, "b")
+    }
+
+    func testQueueEventsBroadcast() async throws {
         let engine = makeEngine()
         let collector = await collectEvents(engine, count: 6)
-        // events() replays current state first (1). Script: started (2),
-        // step 0 (3), speech (4), cancelled via external command (5) +
-        // speech posted by that command (6).
-        await engine.playScript(ScriptRun(id: "sx", steps: [.say(text: "hi", holdMS: 5000)]), now: t0)
-        await engine.say("interrupt", now: t0.addingTimeInterval(1))
+        // events() replays current state (1). Then: itemStarted (2),
+        // speechPosted (3); the boundary tick expires the bubble (4) and
+        // finishes + drains the queue (5, 6).
+        let receipt = try await engine.enqueue([
+            QueueItem(action: .say(text: "hi"), holdMS: 1000),
+        ], now: t0).get()
+        await engine.tick(now: t0.addingTimeInterval(1))
 
         let events = await collector.value
-        XCTAssertEqual(events[1], .scriptStarted(id: "sx", stepCount: 1))
-        XCTAssertEqual(events[2], .scriptStepChanged(id: "sx", index: 0))
-        XCTAssertEqual(events[4], .scriptCancelled(id: "sx"))
+        let id = receipt.itemIDs[0]
+        XCTAssertEqual(events[1], .queueItemStarted(id: id, remaining: 0))
+        XCTAssertEqual(events[4], .queueItemFinished(id: id))
+        XCTAssertEqual(events[5], .queueDrained)
     }
 
-    func testReplayOverRunningScriptRestarts() async {
+    func testPlayScriptReplacesQueue() async throws {
         let engine = makeEngine()
-        await engine.playScript(ScriptRun(id: "first", steps: [.pause(ms: 10_000)]), now: t0)
-        await engine.playScript(ScriptRun(id: "second", steps: [.say(text: "again", holdMS: 1000)]), now: t0.addingTimeInterval(1))
+        _ = try await engine.enqueue([
+            QueueItem(action: .say(text: "old flow"), holdMS: 10_000),
+        ], now: t0).get()
+        await engine.playScript(ScriptRun(id: "s", steps: [
+            .say(text: "new flow", holdMS: 1000),
+        ]), now: t0.addingTimeInterval(1))
         let speech = await engine.speech
-        XCTAssertEqual(speech?.text, "again")
-        let running = await engine.isScriptRunning
-        XCTAssertTrue(running)
+        XCTAssertEqual(speech?.text, "new flow")
+        let depth = await engine.queueDepth
+        XCTAssertEqual(depth, 1)
+    }
+
+    func testDismissSpeechDoesNotTouchQueue() async throws {
+        let engine = makeEngine()
+        _ = try await engine.enqueue([
+            QueueItem(action: .say(text: "a"), holdMS: 5000),
+            QueueItem(action: .say(text: "b"), holdMS: 5000),
+        ], now: t0).get()
+        await engine.dismissSpeech(now: t0.addingTimeInterval(1))
+        let speech = await engine.speech
+        XCTAssertNil(speech)
+        let depth = await engine.queueDepth
+        XCTAssertEqual(depth, 2, "dismiss is bubble control, not queue control")
     }
 
     func testDismissSpeechBroadcasts() async {

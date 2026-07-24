@@ -27,7 +27,12 @@ surface:
 | `motive_set_state` | `state`, `duration?` (ms) | Change animation state (auto-revert with `duration`). |
 | `motive_trigger` | `name` | One-shot gesture, then return. |
 | `motive_say` | `text`, `ttl?` (ms) | Speech bubble (≤400 chars). |
-| `motive_play_script` | `steps` (array of `{type: say\|setState\|trigger\|pause, …}`) | Play a queued sequence in flow; any other command cancels it. |
+| `motive_enqueue` | `items` (array of `{type: say\|setState\|trigger\|pause, …}`) | Append to the action queue; plays in order after existing items. |
+| `motive_clear_queue` | — | Flush the queue. |
+| `motive_play_script` | `steps` (same shape) | Replace the queue with this sequence. |
+
+Direct tools (`motive_say`/`motive_set_state`/`motive_trigger`) play **next**, ahead
+of the queue; queued items continue afterwards.
 
 Tool descriptions are generated from the live `/v1/schema`, so they name the loaded
 sprite's actual states and triggers.
