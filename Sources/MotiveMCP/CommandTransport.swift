@@ -10,6 +10,7 @@ public protocol MotiveCommandTransport: Sendable {
     func setState(_ name: String, durationMS: Int?) async throws -> ControlReceipt
     func fireTrigger(_ name: String) async throws -> ControlReceipt
     func say(_ text: String, ttlMS: Int?) async throws -> ControlReceipt
+    func playScript(_ run: ScriptRun) async throws -> ControlReceipt
 }
 
 public struct TransportError: Error, CustomStringConvertible {
@@ -54,6 +55,10 @@ public struct LocalCommandTransport: MotiveCommandTransport {
 
     public func say(_ text: String, ttlMS: Int?) async throws -> ControlReceipt {
         try unwrap(await control.say(text, ttlMS: ttlMS))
+    }
+
+    public func playScript(_ run: ScriptRun) async throws -> ControlReceipt {
+        try unwrap(await control.playScript(run))
     }
 
     private func unwrap(_ result: Result<ControlReceipt, ControlFailure>) throws -> ControlReceipt {
@@ -116,6 +121,11 @@ public struct RESTCommandTransport: MotiveCommandTransport {
         var body: [String: Any] = ["text": text]
         if let ttlMS { body["ttl"] = ttlMS }
         return try await post("/v1/say", body: body)
+    }
+
+    public func playScript(_ run: ScriptRun) async throws -> ControlReceipt {
+        let data = try JSONEncoder().encode(run)
+        return try await send(request(path: "/v1/script", method: "POST", body: data))
     }
 
     // MARK: internals

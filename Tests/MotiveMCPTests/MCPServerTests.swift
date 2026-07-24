@@ -49,7 +49,7 @@ final class MCPServerTests: XCTestCase {
         let tools = try XCTUnwrap(result["tools"] as? [[String: Any]])
         XCTAssertEqual(
             Set(tools.compactMap { $0["name"] as? String }),
-            ["motive_status", "motive_set_state", "motive_trigger", "motive_say"]
+            ["motive_status", "motive_set_state", "motive_trigger", "motive_say", "motive_play_script"]
         )
         let setState = try XCTUnwrap(tools.first { $0["name"] as? String == "motive_set_state" })
         let description = try XCTUnwrap(setState["description"] as? String)
@@ -90,6 +90,30 @@ final class MCPServerTests: XCTestCase {
         let result = try XCTUnwrap(response["result"] as? [String: Any])
         let text = try XCTUnwrap((result["content"] as? [[String: Any]])?.first?["text"] as? String)
         XCTAssertTrue(text.contains(#""text":"hi""#), "status should include the speech bubble: \(text)")
+    }
+
+    func testPlayScriptToolListedAndExecutes() async throws {
+        let (server, engine) = makeServer()
+        let list = try json(await server.handle(line: #"{"jsonrpc":"2.0","id":10,"method":"tools/list"}"#))
+        let tools = try XCTUnwrap((list["result"] as? [String: Any])?["tools"] as? [[String: Any]])
+        XCTAssertTrue(tools.contains { $0["name"] as? String == "motive_play_script" })
+
+        let call = #"{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"motive_play_script","arguments":{"steps":[{"type":"setState","name":"jumping"},{"type":"say","text":"hi","hold":3000}]}}}"#
+        let response = try json(await server.handle(line: call))
+        let result = try XCTUnwrap(response["result"] as? [String: Any])
+        XCTAssertEqual(result["isError"] as? Bool, false)
+        let state = await engine.machine.currentStateName
+        XCTAssertEqual(state, "jumping")
+    }
+
+    func testPlayScriptToolRejectsUnknownVocabulary() async throws {
+        let (server, _) = makeServer()
+        let call = #"{"jsonrpc":"2.0","id":12,"method":"tools/call","params":{"name":"motive_play_script","arguments":{"steps":[{"type":"trigger","name":"moonwalk"}]}}}"#
+        let response = try json(await server.handle(line: call))
+        let result = try XCTUnwrap(response["result"] as? [String: Any])
+        XCTAssertEqual(result["isError"] as? Bool, true)
+        let text = try XCTUnwrap((result["content"] as? [[String: Any]])?.first?["text"] as? String)
+        XCTAssertTrue(text.contains("jump"), "error should list valid triggers: \(text)")
     }
 
     func testUnknownMethodIsJSONRPCError() async throws {

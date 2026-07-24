@@ -124,6 +124,48 @@ final class MotiveServerTests: XCTestCase {
         XCTAssertNil(after["speech"])
     }
 
+    func testPlayScriptExecutesAndReturnsID() async throws {
+        let body = #"{"steps":[{"type":"setState","name":"jumping"},{"type":"say","text":"weee","hold":2000}]}"#
+        let (status, json) = try await request("POST", "/v1/script", body: body)
+        XCTAssertEqual(status, 200)
+        XCTAssertNotNil(json["scriptID"] as? String)
+        let state = await engine.machine.currentStateName
+        XCTAssertEqual(state, "jumping")
+        let speech = await engine.speech
+        XCTAssertEqual(speech?.text, "weee")
+    }
+
+    func testPlayScriptValidatesFailFast() async throws {
+        let body = #"{"steps":[{"type":"say","text":"never shown"},{"type":"setState","name":"zooming"}]}"#
+        let (status, json) = try await request("POST", "/v1/script", body: body)
+        XCTAssertEqual(status, 400)
+        XCTAssertEqual(json["error"] as? String, "unknown_state")
+        XCTAssertNotNil(json["valid"] as? [String])
+        // Nothing half-played.
+        let speech = await engine.speech
+        XCTAssertNil(speech)
+    }
+
+    func testPlayScriptRejectsMalformedAndEmpty() async throws {
+        let (badStatus, badJSON) = try await request("POST", "/v1/script", body: #"{"steps":[{"type":"dance"}]}"#)
+        XCTAssertEqual(badStatus, 400)
+        XCTAssertEqual(badJSON["error"] as? String, "invalid_steps")
+
+        let (emptyStatus, emptyJSON) = try await request("POST", "/v1/script", body: #"{"steps":[]}"#)
+        XCTAssertEqual(emptyStatus, 400)
+        XCTAssertEqual(emptyJSON["error"] as? String, "empty_script")
+    }
+
+    func testCancelScriptRoute() async throws {
+        _ = try await request("POST", "/v1/script", body: #"{"steps":[{"type":"pause","ms":20000},{"type":"say","text":"later"}]}"#)
+        let running = await engine.isScriptRunning
+        XCTAssertTrue(running)
+        let (status, _) = try await request("DELETE", "/v1/script")
+        XCTAssertEqual(status, 200)
+        let after = await engine.isScriptRunning
+        XCTAssertFalse(after)
+    }
+
     func testSchemaVerbHonesty() async throws {
         // Every verb the schema advertises must answer on its route — never
         // 404/501. This is the no-aspirational-API regression test.

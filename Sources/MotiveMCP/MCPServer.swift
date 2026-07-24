@@ -70,6 +70,32 @@ public final class MCPServer: @unchecked Sendable {
                 ]
             ),
             ToolSpec(
+                name: "motive_play_script",
+                description: "Play a queued sequence of steps (speech, state changes, gestures, pauses) — \(spriteName) walks through them in order. Any other command cancels the script.\(stateList)\(triggerList)",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "steps": [
+                            "type": "array",
+                            "maxItems": 64,
+                            "description": "Steps executed in order.",
+                            "items": [
+                                "type": "object",
+                                "properties": [
+                                    "type": ["type": "string", "enum": ["say", "setState", "trigger", "pause"]],
+                                    "text": ["type": "string", "description": "say: bubble text."],
+                                    "name": ["type": "string", "description": "setState/trigger: target name."],
+                                    "ms": ["type": "number", "description": "pause: milliseconds."],
+                                    "hold": ["type": "number", "description": "say/setState: milliseconds to hold before the next step (say default 4000)."],
+                                ],
+                                "required": ["type"],
+                            ],
+                        ],
+                    ],
+                    "required": ["steps"],
+                ]
+            ),
+            ToolSpec(
                 name: "motive_say",
                 description: "Show a speech bubble next to \(spriteName) (max 400 chars).",
                 inputSchema: [
@@ -152,6 +178,17 @@ public final class MCPServer: @unchecked Sendable {
                     return toolFailure(id: id, message: "missing required argument: name")
                 }
                 payload = encodeJSON(try await transport.fireTrigger(trigger))
+
+            case "motive_play_script":
+                guard let steps = arguments["steps"] else {
+                    return toolFailure(id: id, message: "missing required argument: steps")
+                }
+                // Round-trip the loose JSON arguments through the Codable model.
+                guard let data = try? JSONSerialization.data(withJSONObject: ["steps": steps]),
+                      let run = try? JSONDecoder().decode(ScriptRun.self, from: data) else {
+                    return toolFailure(id: id, message: "invalid steps: each needs a type of say|setState|trigger|pause with its fields")
+                }
+                payload = encodeJSON(try await transport.playScript(run))
 
             case "motive_say":
                 guard let text = arguments["text"] as? String else {

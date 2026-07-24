@@ -36,4 +36,8 @@ struct LazyDiscoveryTransport: MotiveCommandTransport {
     func say(_ text: String, ttlMS: Int?) async throws -> ControlReceipt {
         try await RESTCommandTransport.discover().say(text, ttlMS: ttlMS)
     }
+
+    func playScript(_ run: ScriptRun) async throws -> ControlReceipt {
+        try await RESTCommandTransport.discover().playScript(run)
+    }
 }

@@ -23,12 +23,15 @@ public struct ControlReceipt: Codable, Equatable, Sendable {
     public let scheduled: Bool?
     /// Set by `say`.
     public let speechID: String?
+    /// Set by `play-script`.
+    public let scriptID: String?
 
-    init(state: String, scheduled: Bool? = nil, speechID: String? = nil) {
+    init(state: String, scheduled: Bool? = nil, speechID: String? = nil, scriptID: String? = nil) {
         self.ok = true
         self.state = state
         self.scheduled = scheduled
         self.speechID = speechID
+        self.scriptID = scriptID
     }
 }
 
@@ -101,6 +104,15 @@ public struct ControlSchema: Codable, Equatable, Sendable {
         VerbInfo(
             name: "dismiss-speech", method: "DELETE", path: "/v1/speech", params: [:],
             description: "Dismiss the current speech bubble."
+        ),
+        VerbInfo(
+            name: "play-script", method: "POST", path: "/v1/script",
+            params: ["steps": "array of step objects {type: say|setState|trigger|pause, text|name|ms, hold} (required, ≤64)"],
+            description: "Play a queued sequence of say/state/trigger/pause steps. Latest-wins: replaces a running script; any other command cancels it."
+        ),
+        VerbInfo(
+            name: "cancel-script", method: "DELETE", path: "/v1/script", params: [:],
+            description: "Cancel the running script, if any."
         ),
         VerbInfo(
             name: "events", method: "GET", path: "/v1/events", params: [:],
@@ -190,6 +202,24 @@ public actor MotiveControl {
 
     public func dismissSpeech() async -> ControlReceipt {
         await engine.dismissSpeech()
+        let current = await engine.machine.currentStateName
+        return ControlReceipt(state: current)
+    }
+
+    /// Validates fail-fast — nothing plays when any step names unknown
+    /// vocabulary.
+    public func playScript(_ run: ScriptRun) async -> Result<ControlReceipt, ControlFailure> {
+        let definition = await engine.machine.definition
+        if let failure = run.validate(against: definition) {
+            return .failure(failure)
+        }
+        await engine.playScript(run)
+        let current = await engine.machine.currentStateName
+        return .success(ControlReceipt(state: current, scriptID: run.id))
+    }
+
+    public func cancelScript() async -> ControlReceipt {
+        await engine.cancelScript()
         let current = await engine.machine.currentStateName
         return ControlReceipt(state: current)
     }

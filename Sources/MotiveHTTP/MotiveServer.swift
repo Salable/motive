@@ -370,6 +370,25 @@ final class MotiveHTTPHandler: ChannelInboundHandler, @unchecked Sendable {
                 Self.respondJSON(channel: channel, status: .ok, json: MotiveServer.encode(await control.dismissSpeech()))
             }
 
+        case (.POST, "/v1/script"):
+            guard allowMutation(context: context) else { return }
+            let run: ScriptRun
+            do {
+                run = try JSONDecoder().decode(ScriptRun.self, from: body.isEmpty ? Data("{}".utf8) : body)
+            } catch {
+                respondJSON(context: context, status: .badRequest, json: #"{"ok":false,"error":"invalid_steps"}"#)
+                return
+            }
+            Task { [control] in
+                Self.respond(channel: channel, result: await control.playScript(run))
+            }
+
+        case (.DELETE, "/v1/script"):
+            guard allowMutation(context: context) else { return }
+            Task { [control] in
+                Self.respondJSON(channel: channel, status: .ok, json: MotiveServer.encode(await control.cancelScript()))
+            }
+
         default:
             respondJSON(context: context, status: .notFound, json: #"{"ok":false,"error":"not_found"}"#)
         }
