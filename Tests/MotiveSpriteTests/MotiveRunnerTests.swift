@@ -2,11 +2,11 @@ import XCTest
 @testable import MotiveSprite
 
 final class MotiveRunnerTests: XCTestCase {
-    // MARK: Salli dual-format equivalence
+    // MARK: Winston dual-format equivalence
 
-    func testSalliMotiveAndCodexRunnersAgree() throws {
-        let codex = try CodexRunner().load(Fixtures.salli)
-        let motive = try MotiveRunner().load(Fixtures.salli)
+    func testWinstonMotiveAndCodexRunnersAgree() throws {
+        let codex = try CodexRunner().load(Fixtures.winston)
+        let motive = try MotiveRunner().load(Fixtures.winston)
 
         XCTAssertEqual(motive.format, "motive/1")
         XCTAssertEqual(Set(codex.states.keys), Set(motive.states.keys))
@@ -30,14 +30,14 @@ final class MotiveRunnerTests: XCTestCase {
     }
 
     func testRegistryPrefersMotiveFormat() throws {
-        // Salli has both manifests; motive/1 wins detection.
-        let definition = try SpriteRunnerRegistry.standard.load(Fixtures.salli)
+        // Winston has both manifests; motive/1 wins detection.
+        let definition = try SpriteRunnerRegistry.standard.load(Fixtures.winston)
         XCTAssertEqual(definition.format, "motive/1")
         XCTAssertEqual(definition.metadata.license, "MIT")
     }
 
-    func testSalliMotiveValidatesClean() {
-        let findings = MotiveRunner().validate(Fixtures.salli)
+    func testWinstonMotiveValidatesClean() {
+        let findings = MotiveRunner().validate(Fixtures.winston)
         XCTAssertTrue(findings.isEmpty, "unexpected findings: \(findings)")
     }
 

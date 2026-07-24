@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate Resources/AppIcon.icns from Salli's first idle frame.
+"""Generate Resources/AppIcon.icns from Winston's first idle frame.
 
 Deterministic: crops cell (0,0) of the sprite atlas, pads to square on a
 rounded-rect background, and emits every icns size via iconutil.
@@ -12,7 +12,7 @@ import tempfile
 from PIL import Image, ImageDraw
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-SHEET = ROOT / "Sprites/salli/spritesheet.png"
+SHEET = ROOT / "Sprites/winston/spritesheet.webp"
 OUT = ROOT / "Resources/AppIcon.icns"
 CELL = (192, 208)
 BACKGROUND = (245, 236, 224, 255)  # warm paper

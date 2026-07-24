@@ -7,6 +7,12 @@ All notable changes to Motive are documented here. The format follows
 ## [Unreleased]
 
 ### Changed
+- **Winston replaces Salli** as the bundled demo sprite: a black labradoodle puppy
+  (WebP atlas) with a fully declared vocabulary — four one-shot triggers (`wave`,
+  `jump`, and new `dash-left`/`dash-right` for the directional running states) in
+  both `pet.json` and a canonical `motive.json`. The tour gains a triggers chapter
+  demonstrating the dashes; the sprite box gains Dash buttons; the app icon is
+  regenerated from Winston's idle frame.
 - Onboarding tour v2: a chaptered ~25-item queued flow that tells the Motive story
   (what it is, the components, a narrated live states demo, messages & the queue,
   agent hookups) and points at github.com/Salable/motive; bubble holds now pace to

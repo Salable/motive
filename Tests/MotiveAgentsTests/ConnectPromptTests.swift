@@ -3,14 +3,14 @@ import XCTest
 
 final class ConnectPromptTests: XCTestCase {
     private func makeInfo(host: String) -> ServerInfo {
-        ServerInfo(port: 7877, pid: 42, version: "0.1.0", name: "Salli", host: host)
+        ServerInfo(port: 7877, pid: 42, version: "0.1.0", name: "Winston", host: host)
     }
 
     func testLoopbackPromptEmbedsAddressAndToken() {
         let prompt = ConnectPrompt.markdown(info: makeInfo(host: "127.0.0.1"), token: "tok123")
         XCTAssertTrue(prompt.contains("BASE=http://127.0.0.1:7877"))
         XCTAssertTrue(prompt.contains("TOKEN=tok123"))
-        XCTAssertTrue(prompt.contains("Connect to Salli"))
+        XCTAssertTrue(prompt.contains("Connect to Winston"))
         // Loopback prompts never ask the user for an address.
         XCTAssertFalse(prompt.contains("address-I-provide"))
     }

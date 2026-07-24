@@ -25,7 +25,7 @@ public enum SkillGenerator {
         through a loopback REST API — no files are modified.
 
         Use when the user asks the pet/sprite/companion to react, speak, or reflect \
-        progress ("make the pet jump", "have Salli say we're done", "show working").
+        progress ("make the pet jump", "have Winston say we're done", "show working").
 
         ## Connect
 

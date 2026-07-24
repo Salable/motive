@@ -25,8 +25,8 @@ Requires macOS 13+. Either download `MotiveDemo-<version>.zip` from Releases
 swift run motive-demo
 ```
 
-**Salli**, the bundled test sprite, appears on your desktop with a chat box and action
-buttons; a paw in the menu bar has Settings and Quit. Then drive her from a terminal:
+**Winston**, the bundled test sprite (a shaggy black labradoodle pup), appears on your desktop with a chat box and action
+buttons; a paw in the menu bar has Settings and Quit. Then drive the pup from a terminal:
 
 ```sh
 PORT=$(python3 -c "import json;print(json.load(open('$HOME/.motive/runtime/server.json'))['port'])")

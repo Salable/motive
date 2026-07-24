@@ -17,8 +17,8 @@ animation state occupies (part of) one row.
 
 ```jsonc
 {
-  "id": "salli",
-  "displayName": "Salli",
+  "id": "winston",
+  "displayName": "Winston",
   "description": "…",
   "atlases": {
     "sprite": { "path": "spritesheet.png", "cell": [192, 208], "grid": [25, 9] }
@@ -52,7 +52,7 @@ per state, duration shorthand, and a full metadata block.
 {
   "format": "motive/1",                            // required, exactly "motive/1"
   "metadata": {                                    // all fields optional
-    "id": "salli", "name": "Salli", "description": "…",
+    "id": "winston", "name": "Winston", "description": "…",
     "author": "…", "license": "MIT", "version": "1.0.0"
   },
   "atlases": {                                     // at least one required

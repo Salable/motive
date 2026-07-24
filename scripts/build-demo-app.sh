@@ -60,7 +60,7 @@ cp "$PRODUCTS/motive-mcp" "$CONTENTS_DIR/MacOS/motive-mcp"
 cp "$PROJECT_DIR/Resources/Info.plist" "$CONTENTS_DIR/Info.plist"
 cp "$PROJECT_DIR/Resources/AppIcon.icns" "$CONTENTS_DIR/Resources/AppIcon.icns"
 # Embedded sprite: the demo finds it via Bundle.main resources.
-cp -R "$PROJECT_DIR/Sprites/salli" "$CONTENTS_DIR/Resources/salli"
+cp -R "$PROJECT_DIR/Sprites/winston" "$CONTENTS_DIR/Resources/winston"
 chmod +x "$CONTENTS_DIR/MacOS/MotiveDemo" "$CONTENTS_DIR/MacOS/motive-mcp"
 
 IDENTITY="${MOTIVE_SIGN_IDENTITY:--}"
