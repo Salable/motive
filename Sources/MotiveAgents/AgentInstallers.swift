@@ -40,6 +40,25 @@ extension AgentInstaller {
     }
 }
 
+/// Locate the motive-mcp shim binary: sibling of the running executable
+/// (works for `swift run` builds and the packaged .app, which embeds the
+/// shim next to the app binary), else on PATH.
+public func resolveShimPath(near executable: URL?, path: String) -> String? {
+    if let dir = executable?.deletingLastPathComponent() {
+        let sibling = dir.appendingPathComponent("motive-mcp")
+        if FileManager.default.isExecutableFile(atPath: sibling.path) {
+            return sibling.path
+        }
+    }
+    for entry in path.split(separator: ":") where !entry.isEmpty {
+        let candidate = String(entry) + "/motive-mcp"
+        if FileManager.default.isExecutableFile(atPath: candidate) {
+            return candidate
+        }
+    }
+    return nil
+}
+
 enum InstallerFiles {
     /// Write atomically, backing up an existing different file as `.bak`.
     static func writeWithBackup(_ data: Data, to url: URL) throws {

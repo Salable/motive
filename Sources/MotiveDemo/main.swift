@@ -54,6 +54,8 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
     var control: MotiveControl?
     var menu: NotificationMenu?
     var settings: SettingsWindow?
+    let skillsModel = AgentSkillsModel()
+    let statusModel = ServerStatusModel()
     private var serverRestartTask: Task<Void, Never>?
 
     init(definition: SpriteDefinition) {
@@ -124,7 +126,18 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        settings = SettingsWindow(registry: registry, title: "\(name) — Motive Settings")
+        settings = SettingsWindow(
+            registry: registry,
+            title: "\(name) — Motive Settings",
+            extraSections: [
+                SettingsSection(title: "Control Plane Status") { [statusModel] in
+                    ServerStatusSection(model: statusModel)
+                },
+                SettingsSection(title: "Agent Skills") { [skillsModel] in
+                    AgentSkillsSection(model: skillsModel)
+                },
+            ]
+        )
         menu = NotificationMenu(accessibilityLabel: name, items: [
             NotificationMenu.Item(title: "Show \(name)") { [weak self] in self?.box?.show() },
             NotificationMenu.Item(title: "Hide \(name)") { [weak self] in self?.box?.close() },
@@ -132,7 +145,11 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
             NotificationMenu.Item(title: "Replay onboarding") {
                 Task { await host.engine.playScript(onboardingScript(name: name)) }
             },
-            NotificationMenu.Item(title: "Settings…", keyEquivalent: ",") { [weak self] in self?.settings?.show() },
+            NotificationMenu.Item(title: "Settings…", keyEquivalent: ",") { [weak self] in
+                self?.statusModel.refresh()
+                self?.skillsModel.refresh()
+                self?.settings?.show()
+            },
             .separator,
             NotificationMenu.Item(title: "Quit", keyEquivalent: "q") { NSApp.terminate(nil) },
         ])
@@ -211,6 +228,7 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
         } catch {
             FileHandle.standardError.write(Data("motive-demo: control plane failed to start: \(error)\n".utf8))
         }
+        statusModel.refresh()
     }
 
     private func currentBoxOptions() -> SpriteBoxWindow.Options {

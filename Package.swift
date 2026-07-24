@@ -50,7 +50,7 @@ let package = Package(
         // Downloadable demo app bundling the Salli test sprite.
         .executableTarget(
             name: "MotiveDemo",
-            dependencies: ["MotiveCore", "MotiveSprite", "MotiveUI", "MotiveHTTP"]
+            dependencies: ["MotiveCore", "MotiveSprite", "MotiveUI", "MotiveHTTP", "MotiveAgents"]
         ),
 
         // Stdio MCP shim that proxies to a running Motive app's REST plane.

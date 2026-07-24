@@ -27,3 +27,14 @@ All notable changes to Motive are documented here. The format follows
   and a Claude Desktop MCP config merger — write-with-backup, uninstallable.
 - `motive-demo` app bundling Salli, `scripts/build-demo-app.sh` packaging, release
   workflow attaching `MotiveDemo-<version>.zip` to tags.
+- Script system: `ScriptStep`/`ScriptRun`/`ScriptPlayer` (pure, timer-free step
+  sequencer — say/setState/trigger/pause with explicit holds, latest-wins
+  cancellation on any external command), `POST /v1/script` + SSE script events, and
+  the `motive_play_script` MCP tool. Demo plays a first-launch onboarding tour
+  (replayable from the menu).
+- Control-plane configurability: `MotiveServer` bind host (loopback or 0.0.0.0 with
+  token auth unchanged), `ServerInfo.host`, and demo settings for REST on/off, port,
+  and public bind with debounced live restart.
+- `SettingsWindow` custom `extraSections`; demo Settings gains Agent Skills
+  install/remove rows (Claude Code, Codex, OpenCode, Claude Desktop MCP) and a
+  Control Plane Status pane with copy-as-curl.

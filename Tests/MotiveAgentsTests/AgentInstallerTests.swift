@@ -96,6 +96,33 @@ final class AgentInstallerTests: XCTestCase {
         XCTAssertNotNil((after["mcpServers"] as? [String: Any])?["other"], "uninstall must not remove other servers")
     }
 
+    func testResolveShimPathPrefersSiblingThenPATH() throws {
+        let binDir = home.appendingPathComponent("bin", isDirectory: true)
+        let appDir = home.appendingPathComponent("app", isDirectory: true)
+        try FileManager.default.createDirectory(at: binDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: appDir, withIntermediateDirectories: true)
+
+        func makeExecutable(_ url: URL) throws {
+            try Data("#!/bin/sh\n".utf8).write(to: url)
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+        }
+
+        let fakeApp = appDir.appendingPathComponent("MotiveDemo")
+        // Nothing anywhere: nil.
+        XCTAssertNil(resolveShimPath(near: fakeApp, path: binDir.path))
+
+        // On PATH only: found via PATH.
+        try makeExecutable(binDir.appendingPathComponent("motive-mcp"))
+        XCTAssertEqual(resolveShimPath(near: fakeApp, path: binDir.path), binDir.appendingPathComponent("motive-mcp").path)
+
+        // Sibling exists: sibling wins over PATH.
+        try makeExecutable(appDir.appendingPathComponent("motive-mcp"))
+        XCTAssertEqual(resolveShimPath(near: fakeApp, path: binDir.path), appDir.appendingPathComponent("motive-mcp").path)
+
+        // No executable hint, empty PATH entries tolerated.
+        XCTAssertEqual(resolveShimPath(near: nil, path: ":\(binDir.path):"), binDir.appendingPathComponent("motive-mcp").path)
+    }
+
     func testUninstallWhenNotInstalledIsQuiet() {
         XCTAssertNoThrow(try ClaudeCodeInstaller().uninstall(home: home))
         XCTAssertNoThrow(try ClaudeDesktopMCPInstaller().uninstall(home: home))

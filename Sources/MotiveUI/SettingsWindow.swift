@@ -2,9 +2,23 @@ import AppKit
 import SwiftUI
 import MotiveCore
 
+/// A host-supplied settings pane rendered after the capability groups —
+/// for surfaces that need more than value controls (install buttons, live
+/// status, copy actions).
+public struct SettingsSection {
+    public let title: String
+    public let content: () -> AnyView
+
+    public init<Content: View>(title: String, @ViewBuilder content: @escaping () -> Content) {
+        self.title = title
+        self.content = { AnyView(content()) }
+    }
+}
+
 /// Standalone settings window rendered from a `CapabilityRegistry`: every
 /// component's registered capabilities appear grouped, with the control type
-/// chosen by the capability kind. Pass a filter to pick up only some of them.
+/// chosen by the capability kind. Pass a filter to pick up only some of
+/// them, and `extraSections` for custom host panes.
 @MainActor
 public final class SettingsWindow {
     private let window: NSWindow
@@ -13,18 +27,19 @@ public final class SettingsWindow {
     public init(
         registry: CapabilityRegistry,
         title: String = "Motive Settings",
-        include: @escaping (CapabilityDescriptor) -> Bool = { _ in true }
+        include: @escaping (CapabilityDescriptor) -> Bool = { _ in true },
+        extraSections: [SettingsSection] = []
     ) {
         model = SettingsModel(registry: registry, include: include)
         window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 420, height: 480),
+            contentRect: NSRect(x: 0, y: 0, width: 460, height: 560),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
         )
         window.title = title
         window.isReleasedWhenClosed = false
-        window.contentView = NSHostingView(rootView: SettingsView(model: model))
+        window.contentView = NSHostingView(rootView: SettingsView(model: model, extraSections: extraSections))
         window.center()
     }
 
@@ -96,6 +111,7 @@ final class SettingsModel: ObservableObject {
 
 struct SettingsView: View {
     @ObservedObject var model: SettingsModel
+    var extraSections: [SettingsSection] = []
 
     var body: some View {
         Form {
@@ -106,9 +122,14 @@ struct SettingsView: View {
                     }
                 }
             }
+            ForEach(Array(extraSections.enumerated()), id: \.offset) { _, section in
+                Section(section.title) {
+                    section.content()
+                }
+            }
         }
         .formStyle(.grouped)
-        .frame(minWidth: 400, minHeight: 320)
+        .frame(minWidth: 440, minHeight: 360)
     }
 
     @ViewBuilder
