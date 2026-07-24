@@ -5,9 +5,9 @@ import MotiveSprite
 import MotiveUI
 
 /// The Motive demo: loads the bundled Winston sprite and puts her on the
-/// desktop with the full component set — sprite box (chat + action buttons),
-/// menu-bar notification menu, capability-driven settings window, and the
-/// REST control plane. Sprite package lookup order: $MOTIVE_SPRITE, a path
+/// desktop with the full component set — chrome-free sprite box, menu-bar
+/// notification menu, capability-driven settings window, and the REST
+/// control plane. Sprite package lookup order: $MOTIVE_SPRITE, a path
 /// argument, ./Sprites/winston (running from a checkout), the app bundle.
 func locateSpritePackage() -> URL? {
     var candidates: [URL] = []
@@ -83,11 +83,6 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
             kind: .toggle, defaultValue: .bool(false)
         ))
         registry.register(CapabilityDescriptor(
-            id: "sprite-box.chat-enabled", component: "Sprite Box", title: "Chat input",
-            help: "Type below the sprite to make it speak.",
-            kind: .toggle, defaultValue: .bool(true)
-        ))
-        registry.register(CapabilityDescriptor(
             id: "http.enabled", component: "Control Plane", title: "REST API",
             help: "Local HTTP API for driving the sprite (curl, agents, the MCP shim).",
             kind: .toggle, defaultValue: .bool(true)
@@ -103,21 +98,10 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
             kind: .toggle, defaultValue: .bool(false)
         ))
 
+        // Chrome-free on purpose: no action buttons, no chat input. Winston is
+        // just sprite + speech bubbles; everything is driven through the
+        // control plane (and the onboarding tour shows how).
         let box = SpriteBoxWindow(host: host, options: currentBoxOptions())
-        box.actions = [
-            SpriteBoxWindow.Action(title: "Wave") {
-                Task { await host.engine.fireTrigger("wave") }
-            },
-            SpriteBoxWindow.Action(title: "Jump") {
-                Task { await host.engine.fireTrigger("jump") }
-            },
-            SpriteBoxWindow.Action(title: "◀ Dash") {
-                Task { await host.engine.fireTrigger("dash-left") }
-            },
-            SpriteBoxWindow.Action(title: "Dash ▶") {
-                Task { await host.engine.fireTrigger("dash-right") }
-            },
-        ]
         box.show()
         self.box = box
 
@@ -169,7 +153,7 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
 
         // First launch gets the full onboarding tour; after that, a short
         // greeting. Completion is marked when the tour *starts* — cancelling
-        // it (typing, driving the sprite) is choosing to skip, not a reason
+        // it (driving the sprite mid-tour) is choosing to skip, not a reason
         // to replay it every launch. Replay lives in the menu.
         let onboardingKey = "motive.demo.onboarding-completed"
         let needsOnboarding = !UserDefaults.standard.bool(forKey: onboardingKey)
@@ -245,8 +229,7 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
         SpriteBoxWindow.Options(
             spriteSize: registry.value(for: "sprite-box.scale")?.numberValue.map { CGFloat($0) } ?? 160,
             alwaysOnTop: registry.value(for: "sprite-box.always-on-top")?.boolValue ?? true,
-            pixelated: registry.value(for: "sprite-box.pixelated")?.boolValue ?? false,
-            chatEnabled: registry.value(for: "sprite-box.chat-enabled")?.boolValue ?? true
+            pixelated: registry.value(for: "sprite-box.pixelated")?.boolValue ?? false
         )
     }
 

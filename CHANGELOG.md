@@ -6,6 +6,18 @@ All notable changes to Motive are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- The demo sprite box is chrome-free: the Wave/Jump/Dash action buttons and the
+  chat input (and its Settings toggle) are gone — Winston is sprite + speech
+  bubbles only, driven entirely through the control plane. `SpriteBoxWindow`
+  keeps `actions`/`chatEnabled` for embedders that want them.
+- Onboarding tour v3: reworked as the feature showcase for the chrome-free box.
+  One queued multi-step run now exercises the full `ScriptStep` vocabulary —
+  length-paced says, zero-hold state changes under narration, one-shot triggers,
+  and a demonstrated pause beat — and reframes interruption and the closing
+  chapters around the control plane (agents, MCP, curl) instead of the removed
+  chat/buttons.
+
 ## [0.3.0] - 2026-07-24
 
 ### Changed
