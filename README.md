@@ -2,11 +2,6 @@
 
 [![CI](https://github.com/Salable/motive/actions/workflows/ci.yml/badge.svg)](https://github.com/Salable/motive/actions/workflows/ci.yml)
 
-<p align="center">
-  <img src="docs/images/winston-hello.gif" width="336"
-       alt="Winston, an animated black labradoodle puppy, sits on a warm paper card waving a paw under a speech bubble that says: Woof! I'm Winston.">
-</p>
-
 **Motive** is a composable Swift framework for building desktop "pet" apps on macOS — animated sprite companions that live on your desktop, react to what your tools are doing, and can be driven by AI agents over REST or MCP.
 
 Your pet mirrors what your agent is up to — one REST or MCP call sets the state:
