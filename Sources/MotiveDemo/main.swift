@@ -145,6 +145,9 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
             NotificationMenu.Item(title: "Replay onboarding") {
                 Task { await host.engine.playScript(onboardingScript(name: name)) }
             },
+            NotificationMenu.Item(title: "View on GitHub") {
+                NSWorkspace.shared.open(URL(string: "https://github.com/Salable/motive")!)
+            },
             NotificationMenu.Item(title: "Settings…", keyEquivalent: ",") { [weak self] in
                 self?.statusModel.refresh()
                 self?.skillsModel.refresh()

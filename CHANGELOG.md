@@ -6,6 +6,12 @@ All notable changes to Motive are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- Onboarding tour v2: a chaptered ~25-item queued flow that tells the Motive story
+  (what it is, the components, a narrated live states demo, messages & the queue,
+  agent hookups) and points at github.com/Salable/motive; bubble holds now pace to
+  text length. New "View on GitHub" menu-bar item.
+
 ## [0.2.0] - 2026-07-24
 
 ### Changed
