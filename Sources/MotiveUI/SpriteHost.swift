@@ -29,6 +29,8 @@ public final class SpriteHost: ObservableObject {
                     self.speech = bubble
                 case .speechDismissed(let id):
                     if self.speech?.id == id { self.speech = nil }
+                case .scriptStarted, .scriptStepChanged, .scriptFinished, .scriptCancelled:
+                    break // rendering follows the state/speech events scripts produce
                 }
             }
         }

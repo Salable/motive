@@ -30,6 +30,10 @@ public enum MotiveEvent: Equatable, Sendable {
     case stateChanged(RenderDirective)
     case speechPosted(SpeechBubble)
     case speechDismissed(id: String)
+    case scriptStarted(id: String, stepCount: Int)
+    case scriptStepChanged(id: String, index: Int)
+    case scriptFinished(id: String)
+    case scriptCancelled(id: String)
 }
 
 /// The runtime hub for one actor: owns the state machine, ticks it, holds the
@@ -39,6 +43,7 @@ public enum MotiveEvent: Equatable, Sendable {
 public actor MotiveEngine {
     public private(set) var machine: ActorStateMachine
     public private(set) var speech: SpeechBubble?
+    private var scriptPlayer = ScriptPlayer()
 
     private var observers: [UUID: AsyncStream<MotiveEvent>.Continuation] = [:]
     private var tickTask: Task<Void, Never>?
@@ -89,6 +94,79 @@ public actor MotiveEngine {
 
     @discardableResult
     public func requestState(_ name: String, duration: TimeInterval? = nil, now: Date = Date()) -> ActorStateMachine.Outcome {
+        cancelScriptIfRunning(now: now)
+        return applyState(name, duration: duration, now: now)
+    }
+
+    @discardableResult
+    public func fireTrigger(_ name: String, now: Date = Date()) -> ActorStateMachine.Outcome {
+        cancelScriptIfRunning(now: now)
+        return applyTrigger(name, now: now)
+    }
+
+    @discardableResult
+    public func say(_ text: String, ttl: TimeInterval? = 8, now: Date = Date()) -> SpeechBubble {
+        cancelScriptIfRunning(now: now)
+        return applySay(text, ttl: ttl, now: now)
+    }
+
+    public func dismissSpeech(now: Date = Date()) {
+        cancelScriptIfRunning(now: now)
+        guard let bubble = speech else { return }
+        speech = nil
+        broadcast(.speechDismissed(id: bubble.id))
+    }
+
+    // MARK: scripts
+
+    /// Play a script. Latest-wins: a running script is cancelled and
+    /// replaced. Callers should validate first (`ScriptRun.validate`) — an
+    /// unvalidated run that names unknown states simply no-ops those steps.
+    public func playScript(_ run: ScriptRun, now: Date = Date()) {
+        applyScriptEffects(scriptPlayer.play(run, now: now), now: now)
+    }
+
+    public func cancelScript(now: Date = Date()) {
+        applyScriptEffects(scriptPlayer.cancel(now: now), now: now)
+    }
+
+    public var isScriptRunning: Bool { scriptPlayer.isRunning }
+
+    /// External mutating commands interrupt a running script — latest-wins;
+    /// the interrupting command is the new truth (no forced return to idle).
+    private func cancelScriptIfRunning(now: Date) {
+        guard scriptPlayer.isRunning else { return }
+        applyScriptEffects(scriptPlayer.cancel(now: now), now: now)
+    }
+
+    /// Execute player effects. Script-originated actions use the private
+    /// apply paths (never the public commands) so a script can't cancel
+    /// itself.
+    private func applyScriptEffects(_ effects: [ScriptPlayer.Effect], now: Date) {
+        for effect in effects {
+            switch effect {
+            case .perform(.say(let text, let ttl)):
+                applySay(text, ttl: ttl > 0 ? ttl : nil, now: now)
+            case .perform(.setState(let name)):
+                applyState(name, duration: nil, now: now)
+            case .perform(.trigger(let name)):
+                applyTrigger(name, now: now)
+            case .emit(.started(let id, let stepCount)):
+                broadcast(.scriptStarted(id: id, stepCount: stepCount))
+            case .emit(.stepChanged(let id, let index)):
+                broadcast(.scriptStepChanged(id: id, index: index))
+            case .emit(.finished(let id)):
+                broadcast(.scriptFinished(id: id))
+            case .emit(.cancelled(let id)):
+                broadcast(.scriptCancelled(id: id))
+            }
+        }
+    }
+
+    // MARK: private apply paths (no script cancellation)
+
+    @discardableResult
+    private func applyState(_ name: String, duration: TimeInterval?, now: Date) -> ActorStateMachine.Outcome {
         let outcome = machine.requestState(name, duration: duration, now: now)
         if case .changed(let directive) = outcome {
             broadcast(.stateChanged(directive))
@@ -97,7 +175,7 @@ public actor MotiveEngine {
     }
 
     @discardableResult
-    public func fireTrigger(_ name: String, now: Date = Date()) -> ActorStateMachine.Outcome {
+    private func applyTrigger(_ name: String, now: Date) -> ActorStateMachine.Outcome {
         let outcome = machine.fireTrigger(name, now: now)
         if case .changed(let directive) = outcome {
             broadcast(.stateChanged(directive))
@@ -106,17 +184,11 @@ public actor MotiveEngine {
     }
 
     @discardableResult
-    public func say(_ text: String, ttl: TimeInterval? = 8, now: Date = Date()) -> SpeechBubble {
+    private func applySay(_ text: String, ttl: TimeInterval?, now: Date) -> SpeechBubble {
         let bubble = SpeechBubble(text: text, ttl: ttl, postedAt: now)
         speech = bubble
         broadcast(.speechPosted(bubble))
         return bubble
-    }
-
-    public func dismissSpeech() {
-        guard let bubble = speech else { return }
-        speech = nil
-        broadcast(.speechDismissed(id: bubble.id))
     }
 
     // MARK: clock
@@ -131,6 +203,9 @@ public actor MotiveEngine {
             speech = nil
             broadcast(.speechDismissed(id: bubble.id))
         }
+        // Script effects run last so a say-step's fresh bubble is never
+        // expired by the same tick.
+        applyScriptEffects(scriptPlayer.tick(now: now), now: now)
     }
 
     /// Begin ticking on the engine's own clock. Idempotent.

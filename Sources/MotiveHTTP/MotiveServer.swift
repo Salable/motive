@@ -104,6 +104,14 @@ public final class MotiveServer: @unchecked Sendable {
                     sseHub.broadcast(event: "speech", json: Self.encode(SpeechEventDTO(id: bubble.id, text: bubble.text)))
                 case .speechDismissed(let id):
                     sseHub.broadcast(event: "speech-dismissed", json: Self.encode(SpeechEventDTO(id: id, text: nil)))
+                case .scriptStarted(let id, _):
+                    sseHub.broadcast(event: "script", json: Self.encode(ScriptEventDTO(id: id, phase: "started", step: nil)))
+                case .scriptStepChanged(let id, let index):
+                    sseHub.broadcast(event: "script", json: Self.encode(ScriptEventDTO(id: id, phase: "step", step: index)))
+                case .scriptFinished(let id):
+                    sseHub.broadcast(event: "script", json: Self.encode(ScriptEventDTO(id: id, phase: "finished", step: nil)))
+                case .scriptCancelled(let id):
+                    sseHub.broadcast(event: "script", json: Self.encode(ScriptEventDTO(id: id, phase: "cancelled", step: nil)))
                 }
             }
         }
@@ -138,6 +146,11 @@ public enum MotiveServerError: Error {
 }
 
 struct StateEventDTO: Codable { let state: String }
+struct ScriptEventDTO: Codable {
+    let id: String
+    let phase: String
+    let step: Int?
+}
 struct SpeechEventDTO: Codable {
     let id: String
     let text: String?
