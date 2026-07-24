@@ -87,7 +87,12 @@ public final class SpriteBoxWindow {
             guard let engine = host?.engine else { return }
             Task { await engine.say(text) }
         }
-        panel.contentView = NSHostingView(rootView: SpriteBoxContent(host: host, model: model))
+        let hosting = NSHostingView(rootView: SpriteBoxContent(host: host, model: model))
+        // The panel's size is set explicitly in update(options:); without this,
+        // the hosting view's window-sizing constraints inflate the panel to its
+        // own idea of the content size and push the sprite off-screen.
+        hosting.sizingOptions = []
+        panel.contentView = hosting
         update(options: options)
     }
 
