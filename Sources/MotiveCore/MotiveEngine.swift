@@ -30,20 +30,33 @@ public enum MotiveEvent: Equatable, Sendable {
     case stateChanged(RenderDirective)
     case speechPosted(SpeechBubble)
     case speechDismissed(id: String)
-    case scriptStarted(id: String, stepCount: Int)
-    case scriptStepChanged(id: String, index: Int)
-    case scriptFinished(id: String)
-    case scriptCancelled(id: String)
+    case queueItemStarted(id: String, remaining: Int)
+    case queueItemFinished(id: String)
+    /// The last queued item finished naturally.
+    case queueDrained
+    /// An explicit flush dropped pending items.
+    case queueFlushed(dropped: Int)
 }
 
-/// The runtime hub for one actor: owns the state machine, ticks it, holds the
-/// current speech bubble, and fans typed events out to any number of
-/// observers. All decision logic stays in `ActorStateMachine`; the engine just
-/// supplies the clock and the fan-out.
+/// What a successful enqueue admitted.
+public struct EnqueueReceipt: Equatable, Sendable {
+    public let itemIDs: [String]
+    public let queueDepth: Int
+}
+
+/// The runtime hub for one actor: owns the state machine, the action queue,
+/// and the current speech bubble; ticks them; and fans typed events out to
+/// observers.
+///
+/// Queue-first model: every command is a queue item. Direct verbs
+/// (`say`/`requestState`/`fireTrigger`) enqueue at the **head** — they play
+/// next, cutting the current item's remaining hold, and everything already
+/// queued continues afterwards. Flows enqueue at the tail. Nothing is
+/// dropped except by an explicit `flushQueue`.
 public actor MotiveEngine {
     public private(set) var machine: ActorStateMachine
     public private(set) var speech: SpeechBubble?
-    private var scriptPlayer = ScriptPlayer()
+    private var queue: ActionQueue
 
     private var observers: [UUID: AsyncStream<MotiveEvent>.Continuation] = [:]
     private var tickTask: Task<Void, Never>?
@@ -51,6 +64,7 @@ public actor MotiveEngine {
 
     public init(definition: BehaviorDefinition, initialState: String = "idle", tickInterval: TimeInterval = 0.1) {
         self.machine = ActorStateMachine(definition: definition, initialState: initialState)
+        self.queue = ActionQueue(definition: definition)
         self.tickInterval = tickInterval
     }
 
@@ -88,82 +102,128 @@ public actor MotiveEngine {
         }
     }
 
-    // MARK: commands
+    // MARK: queue
 
-    public var currentDirective: RenderDirective { machine.directive() }
+    /// Append items (tail by default). All-or-nothing validation and depth
+    /// cap; admitted items start executing within this call when due.
+    public func enqueue(
+        _ items: [QueueItem],
+        at position: ActionQueue.Position = .tail,
+        now: Date = Date()
+    ) -> Result<EnqueueReceipt, ControlFailure> {
+        switch queue.enqueue(items, at: position, now: now) {
+        case .failure(let failure):
+            return .failure(failure)
+        case .success(let effects):
+            applyQueueEffects(effects, now: now)
+            return .success(EnqueueReceipt(itemIDs: items.map(\.id), queueDepth: queue.depth))
+        }
+    }
+
+    /// Wipe pending items and stop waiting on the current one. Returns the
+    /// number of pending items dropped.
+    @discardableResult
+    public func flushQueue(now: Date = Date()) -> Int {
+        let effects = queue.flush(now: now)
+        let dropped = effects.compactMap { effect -> Int? in
+            if case .emit(.flushed(let count)) = effect { return count }
+            return nil
+        }.first ?? 0
+        applyQueueEffects(effects, now: now)
+        return dropped
+    }
+
+    public var queueDepth: Int { queue.depth }
+
+    public func queueSnapshot(now: Date = Date()) -> QueueSnapshot {
+        queue.snapshot(now: now)
+    }
+
+    /// Compat sugar for `/v1/script`: replace the queue with these steps.
+    public func playScript(_ run: ScriptRun, now: Date = Date()) {
+        _ = flushQueue(now: now)
+        _ = enqueue(run.steps.map(QueueItem.init(step:)), at: .tail, now: now)
+    }
+
+    // MARK: direct verbs (head-enqueue: "plays next")
 
     @discardableResult
     public func requestState(_ name: String, duration: TimeInterval? = nil, now: Date = Date()) -> ActorStateMachine.Outcome {
-        cancelScriptIfRunning(now: now)
-        return applyState(name, duration: duration, now: now)
+        guard machine.definition.state(named: name) != nil else {
+            return .rejected(valid: machine.definition.validStateNames)
+        }
+        let item = QueueItem(
+            action: .setState(name: name, durationMS: duration.map { Int($0 * 1_000) }),
+            holdMS: nil
+        )
+        lastMachineOutcome = nil
+        if case .failure = enqueue([item], at: .head, now: now) {
+            return .noChange // queue full — pathological; nothing dropped
+        }
+        return lastMachineOutcome ?? .noChange
     }
 
     @discardableResult
     public func fireTrigger(_ name: String, now: Date = Date()) -> ActorStateMachine.Outcome {
-        cancelScriptIfRunning(now: now)
-        return applyTrigger(name, now: now)
+        guard machine.definition.triggers[name] != nil else {
+            return .rejected(valid: machine.definition.triggers.keys.sorted())
+        }
+        // Default hold = the gesture's loop duration, so a queued flow
+        // resumes only after the gesture has played out.
+        let item = QueueItem(action: .trigger(name: name))
+        lastMachineOutcome = nil
+        if case .failure = enqueue([item], at: .head, now: now) {
+            return .noChange
+        }
+        return lastMachineOutcome ?? .noChange
     }
 
     @discardableResult
     public func say(_ text: String, ttl: TimeInterval? = 8, now: Date = Date()) -> SpeechBubble {
-        cancelScriptIfRunning(now: now)
-        return applySay(text, ttl: ttl, now: now)
+        let holdMS = (ttl ?? 8) * 1_000
+        let item = QueueItem(action: .say(text: text), holdMS: Int(holdMS))
+        lastPostedBubble = nil
+        if case .failure = enqueue([item], at: .head, now: now) {
+            return SpeechBubble(text: text, ttl: ttl, postedAt: now)
+        }
+        return lastPostedBubble ?? SpeechBubble(text: text, ttl: ttl, postedAt: now)
     }
 
+    /// Dismiss the current bubble. Immediate — bubble control, not content;
+    /// does not touch the queue.
     public func dismissSpeech(now: Date = Date()) {
-        cancelScriptIfRunning(now: now)
         guard let bubble = speech else { return }
         speech = nil
         broadcast(.speechDismissed(id: bubble.id))
     }
 
-    // MARK: scripts
+    // MARK: effect execution
 
-    /// Play a script. Latest-wins: a running script is cancelled and
-    /// replaced. Callers should validate first (`ScriptRun.validate`) — an
-    /// unvalidated run that names unknown states simply no-ops those steps.
-    public func playScript(_ run: ScriptRun, now: Date = Date()) {
-        applyScriptEffects(scriptPlayer.play(run, now: now), now: now)
-    }
+    /// Execute queue effects through the private apply paths — queue actions
+    /// can never re-enqueue or flush.
+    private var lastMachineOutcome: ActorStateMachine.Outcome?
+    private var lastPostedBubble: SpeechBubble?
 
-    public func cancelScript(now: Date = Date()) {
-        applyScriptEffects(scriptPlayer.cancel(now: now), now: now)
-    }
-
-    public var isScriptRunning: Bool { scriptPlayer.isRunning }
-
-    /// External mutating commands interrupt a running script — latest-wins;
-    /// the interrupting command is the new truth (no forced return to idle).
-    private func cancelScriptIfRunning(now: Date) {
-        guard scriptPlayer.isRunning else { return }
-        applyScriptEffects(scriptPlayer.cancel(now: now), now: now)
-    }
-
-    /// Execute player effects. Script-originated actions use the private
-    /// apply paths (never the public commands) so a script can't cancel
-    /// itself.
-    private func applyScriptEffects(_ effects: [ScriptPlayer.Effect], now: Date) {
+    private func applyQueueEffects(_ effects: [ActionQueue.Effect], now: Date) {
         for effect in effects {
             switch effect {
             case .perform(.say(let text, let ttl)):
-                applySay(text, ttl: ttl > 0 ? ttl : nil, now: now)
-            case .perform(.setState(let name)):
-                applyState(name, duration: nil, now: now)
+                lastPostedBubble = applySay(text, ttl: ttl > 0 ? ttl : nil, now: now)
+            case .perform(.setState(let name, let duration)):
+                lastMachineOutcome = applyState(name, duration: duration, now: now)
             case .perform(.trigger(let name)):
-                applyTrigger(name, now: now)
-            case .emit(.started(let id, let stepCount)):
-                broadcast(.scriptStarted(id: id, stepCount: stepCount))
-            case .emit(.stepChanged(let id, let index)):
-                broadcast(.scriptStepChanged(id: id, index: index))
-            case .emit(.finished(let id)):
-                broadcast(.scriptFinished(id: id))
-            case .emit(.cancelled(let id)):
-                broadcast(.scriptCancelled(id: id))
+                lastMachineOutcome = applyTrigger(name, now: now)
+            case .emit(.itemStarted(let id, let remaining)):
+                broadcast(.queueItemStarted(id: id, remaining: remaining))
+            case .emit(.itemFinished(let id)):
+                broadcast(.queueItemFinished(id: id))
+            case .emit(.drained):
+                broadcast(.queueDrained)
+            case .emit(.flushed(let dropped)):
+                broadcast(.queueFlushed(dropped: dropped))
             }
         }
     }
-
-    // MARK: private apply paths (no script cancellation)
 
     @discardableResult
     private func applyState(_ name: String, duration: TimeInterval?, now: Date) -> ActorStateMachine.Outcome {
@@ -193,6 +253,8 @@ public actor MotiveEngine {
 
     // MARK: clock
 
+    public var currentDirective: RenderDirective { machine.directive() }
+
     /// Advance the machine once. Exposed for tests and for hosts that drive
     /// their own clock; `start()` calls this on a repeating task.
     public func tick(now: Date = Date()) {
@@ -203,9 +265,9 @@ public actor MotiveEngine {
             speech = nil
             broadcast(.speechDismissed(id: bubble.id))
         }
-        // Script effects run last so a say-step's fresh bubble is never
+        // Queue effects run last so a say-item's fresh bubble is never
         // expired by the same tick.
-        applyScriptEffects(scriptPlayer.tick(now: now), now: now)
+        applyQueueEffects(queue.tick(now: now), now: now)
     }
 
     /// Begin ticking on the engine's own clock. Idempotent.

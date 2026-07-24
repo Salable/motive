@@ -158,12 +158,12 @@ final class MotiveServerTests: XCTestCase {
 
     func testCancelScriptRoute() async throws {
         _ = try await request("POST", "/v1/script", body: #"{"steps":[{"type":"pause","ms":20000},{"type":"say","text":"later"}]}"#)
-        let running = await engine.isScriptRunning
-        XCTAssertTrue(running)
+        let depth = await engine.queueDepth
+        XCTAssertEqual(depth, 2)
         let (status, _) = try await request("DELETE", "/v1/script")
         XCTAssertEqual(status, 200)
-        let after = await engine.isScriptRunning
-        XCTAssertFalse(after)
+        let after = await engine.queueDepth
+        XCTAssertEqual(after, 0)
     }
 
     func testSchemaVerbHonesty() async throws {

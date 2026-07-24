@@ -219,7 +219,7 @@ public actor MotiveControl {
     }
 
     public func cancelScript() async -> ControlReceipt {
-        await engine.cancelScript()
+        await engine.flushQueue()
         let current = await engine.machine.currentStateName
         return ControlReceipt(state: current)
     }

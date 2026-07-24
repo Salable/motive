@@ -111,14 +111,14 @@ public final class MotiveServer: @unchecked Sendable {
                     sseHub.broadcast(event: "speech", json: Self.encode(SpeechEventDTO(id: bubble.id, text: bubble.text)))
                 case .speechDismissed(let id):
                     sseHub.broadcast(event: "speech-dismissed", json: Self.encode(SpeechEventDTO(id: id, text: nil)))
-                case .scriptStarted(let id, _):
-                    sseHub.broadcast(event: "script", json: Self.encode(ScriptEventDTO(id: id, phase: "started", step: nil)))
-                case .scriptStepChanged(let id, let index):
-                    sseHub.broadcast(event: "script", json: Self.encode(ScriptEventDTO(id: id, phase: "step", step: index)))
-                case .scriptFinished(let id):
-                    sseHub.broadcast(event: "script", json: Self.encode(ScriptEventDTO(id: id, phase: "finished", step: nil)))
-                case .scriptCancelled(let id):
-                    sseHub.broadcast(event: "script", json: Self.encode(ScriptEventDTO(id: id, phase: "cancelled", step: nil)))
+                case .queueItemStarted(let id, let remaining):
+                    sseHub.broadcast(event: "queue", json: Self.encode(QueueEventDTO(phase: "item-started", id: id, remaining: remaining, dropped: nil)))
+                case .queueItemFinished(let id):
+                    sseHub.broadcast(event: "queue", json: Self.encode(QueueEventDTO(phase: "item-finished", id: id, remaining: nil, dropped: nil)))
+                case .queueDrained:
+                    sseHub.broadcast(event: "queue", json: Self.encode(QueueEventDTO(phase: "drained", id: nil, remaining: nil, dropped: nil)))
+                case .queueFlushed(let dropped):
+                    sseHub.broadcast(event: "queue", json: Self.encode(QueueEventDTO(phase: "flushed", id: nil, remaining: nil, dropped: dropped)))
                 }
             }
         }
@@ -153,10 +153,11 @@ public enum MotiveServerError: Error {
 }
 
 struct StateEventDTO: Codable { let state: String }
-struct ScriptEventDTO: Codable {
-    let id: String
+struct QueueEventDTO: Codable {
     let phase: String
-    let step: Int?
+    let id: String?
+    let remaining: Int?
+    let dropped: Int?
 }
 struct SpeechEventDTO: Codable {
     let id: String
