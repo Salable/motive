@@ -4,35 +4,72 @@ import MotiveCore
 import MotiveSprite
 
 /// The borderless, transparent, always-on-top desktop window that hosts a
-/// sprite. Drag anywhere to move it. This is the "app layer" surface — later
-/// milestones add chat, text blobs, and action buttons around the sprite.
+/// sprite — the "app layer" surface. Drag anywhere to move it. Optional
+/// interactions: a chat input (default: makes the sprite speak), and action
+/// buttons the host app supplies.
 @MainActor
 public final class SpriteBoxWindow {
-    public let panel: NSPanel
-    public let host: SpriteHost
+    public struct Action: Identifiable, Sendable {
+        public let id: String
+        public let title: String
+        public let handler: @Sendable () -> Void
+
+        public init(id: String = UUID().uuidString, title: String, handler: @escaping @Sendable () -> Void) {
+            self.id = id
+            self.title = title
+            self.handler = handler
+        }
+    }
 
     public struct Options: Sendable {
         /// Sprite display size in points (frame aspect is preserved).
         public var spriteSize: CGFloat
         public var alwaysOnTop: Bool
         public var pixelated: Bool
+        public var chatEnabled: Bool
 
-        public init(spriteSize: CGFloat = 160, alwaysOnTop: Bool = true, pixelated: Bool = false) {
+        public init(
+            spriteSize: CGFloat = 160,
+            alwaysOnTop: Bool = true,
+            pixelated: Bool = false,
+            chatEnabled: Bool = false
+        ) {
             self.spriteSize = spriteSize
             self.alwaysOnTop = alwaysOnTop
             self.pixelated = pixelated
+            self.chatEnabled = chatEnabled
         }
+    }
+
+    final class Model: ObservableObject {
+        @Published var spriteSize: CGFloat = 160
+        @Published var pixelated = false
+        @Published var chatEnabled = false
+        @Published var actions: [Action] = []
+        var onChatSubmit: ((String) -> Void)?
+    }
+
+    public let panel: NSPanel
+    public let host: SpriteHost
+    let model = Model()
+
+    /// Called when the user submits chat text. Defaults to making the sprite
+    /// say the text.
+    public var onChatSubmit: ((String) -> Void)? {
+        get { model.onChatSubmit }
+        set { model.onChatSubmit = newValue }
+    }
+
+    public var actions: [Action] {
+        get { model.actions }
+        set { model.actions = newValue }
     }
 
     public init(host: SpriteHost, options: Options = Options()) {
         self.host = host
 
-        let content = SpriteBoxContent(host: host, pixelated: options.pixelated)
-        let hosting = NSHostingView(rootView: content)
-
-        let size = NSSize(width: options.spriteSize, height: options.spriteSize + SpriteBoxContent.bubbleReserve)
         let panel = NSPanel(
-            contentRect: NSRect(origin: .zero, size: size),
+            contentRect: NSRect(origin: .zero, size: .zero),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -40,13 +77,31 @@ public final class SpriteBoxWindow {
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = false
-        panel.level = options.alwaysOnTop ? .floating : .normal
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.isMovableByWindowBackground = true
         panel.hidesOnDeactivate = false
         panel.becomesKeyOnlyIfNeeded = true
-        panel.contentView = hosting
         self.panel = panel
+
+        model.onChatSubmit = { [weak host] text in
+            guard let engine = host?.engine else { return }
+            Task { await engine.say(text) }
+        }
+        panel.contentView = NSHostingView(rootView: SpriteBoxContent(host: host, model: model))
+        update(options: options)
+    }
+
+    /// Re-apply presentation options (used by settings capabilities).
+    public func update(options: Options) {
+        model.spriteSize = options.spriteSize
+        model.pixelated = options.pixelated
+        model.chatEnabled = options.chatEnabled
+        panel.level = options.alwaysOnTop ? .floating : .normal
+        let size = NSSize(
+            width: max(options.spriteSize + 16, 260),
+            height: options.spriteSize + SpriteBoxContent.chromeReserve
+        )
+        panel.setContentSize(size)
     }
 
     /// Show the box near the bottom-trailing corner of the main screen (or at
@@ -67,27 +122,56 @@ public final class SpriteBoxWindow {
     public func close() {
         panel.orderOut(nil)
     }
+
+    public var isVisible: Bool { panel.isVisible }
 }
 
 struct SpriteBoxContent: View {
-    /// Vertical points reserved above the sprite for the speech bubble.
-    static let bubbleReserve: CGFloat = 96
+    /// Vertical points reserved around the sprite for bubble + controls.
+    static let chromeReserve: CGFloat = 148
 
     @ObservedObject var host: SpriteHost
-    let pixelated: Bool
+    @ObservedObject var model: SpriteBoxWindow.Model
+    @State private var chatText = ""
 
     var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 6) {
             if let bubble = host.speech {
                 SpeechBubbleView(bubble: bubble)
                     .transition(.opacity.combined(with: .scale(scale: 0.9, anchor: .bottom)))
             } else {
-                Spacer().frame(height: Self.bubbleReserve)
+                Spacer().frame(height: 40)
             }
-            SpriteView(host: host, pixelated: pixelated)
+
+            SpriteView(host: host, pixelated: model.pixelated)
+                .frame(width: model.spriteSize, height: model.spriteSize)
+
+            if !model.actions.isEmpty {
+                HStack(spacing: 6) {
+                    ForEach(model.actions) { action in
+                        Button(action.title) { action.handler() }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                    }
+                }
+            }
+
+            if model.chatEnabled {
+                TextField("Say something…", text: $chatText)
+                    .textFieldStyle(.roundedBorder)
+                    .controlSize(.small)
+                    .frame(maxWidth: 220)
+                    .onSubmit {
+                        let text = chatText.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !text.isEmpty else { return }
+                        chatText = ""
+                        model.onChatSubmit?(text)
+                    }
+            }
         }
         .animation(.spring(duration: 0.25), value: host.speech)
         .padding(8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
     }
 }
 

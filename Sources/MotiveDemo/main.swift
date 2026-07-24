@@ -5,8 +5,10 @@ import MotiveSprite
 import MotiveUI
 
 /// The Motive demo: loads the bundled Salli sprite and puts her on the
-/// desktop. Sprite package lookup order: $MOTIVE_SPRITE, a path argument,
-/// ./Sprites/salli (running from a checkout), the app bundle's resources.
+/// desktop with the full component set — sprite box (chat + action buttons),
+/// menu-bar notification menu, capability-driven settings window, and the
+/// REST control plane. Sprite package lookup order: $MOTIVE_SPRITE, a path
+/// argument, ./Sprites/salli (running from a checkout), the app bundle.
 func locateSpritePackage() -> URL? {
     var candidates: [URL] = []
     if let env = ProcessInfo.processInfo.environment["MOTIVE_SPRITE"] {
@@ -42,22 +44,75 @@ do {
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
 
+@MainActor
 final class DemoDelegate: NSObject, NSApplicationDelegate {
     let definition: SpriteDefinition
+    let registry = CapabilityRegistry()
+
     var box: SpriteBoxWindow?
     var server: MotiveServer?
+    var menu: NotificationMenu?
+    var settings: SettingsWindow?
 
     init(definition: SpriteDefinition) {
         self.definition = definition
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        let name = definition.metadata.displayName
         let host = SpriteHost(definition: definition)
-        let box = SpriteBoxWindow(host: host)
+
+        // Components declare their configurable capabilities; the settings
+        // window renders whatever is registered.
+        registry.register(CapabilityDescriptor(
+            id: "sprite-box.scale", component: "Sprite Box", title: "Sprite size",
+            help: "Display size in points.",
+            kind: .number(min: 96, max: 320, step: 16), defaultValue: .number(160)
+        ))
+        registry.register(CapabilityDescriptor(
+            id: "sprite-box.always-on-top", component: "Sprite Box", title: "Always on top",
+            kind: .toggle, defaultValue: .bool(true)
+        ))
+        registry.register(CapabilityDescriptor(
+            id: "sprite-box.pixelated", component: "Sprite Box", title: "Pixelated rendering",
+            help: "Nearest-neighbor scaling for a crisp retro look.",
+            kind: .toggle, defaultValue: .bool(false)
+        ))
+        registry.register(CapabilityDescriptor(
+            id: "sprite-box.chat-enabled", component: "Sprite Box", title: "Chat input",
+            help: "Type below the sprite to make it speak.",
+            kind: .toggle, defaultValue: .bool(true)
+        ))
+
+        let box = SpriteBoxWindow(host: host, options: currentBoxOptions())
+        box.actions = [
+            SpriteBoxWindow.Action(title: "Wave") {
+                Task { await host.engine.fireTrigger("wave") }
+            },
+            SpriteBoxWindow.Action(title: "Jump") {
+                Task { await host.engine.fireTrigger("jump") }
+            },
+        ]
         box.show()
         self.box = box
 
-        let name = definition.metadata.displayName
+        registry.observe { [weak self] _, _ in
+            Task { @MainActor in
+                guard let self, let box = self.box else { return }
+                box.update(options: self.currentBoxOptions())
+            }
+        }
+
+        settings = SettingsWindow(registry: registry, title: "\(name) — Motive Settings")
+        menu = NotificationMenu(accessibilityLabel: name, items: [
+            NotificationMenu.Item(title: "Show \(name)") { [weak self] in self?.box?.show() },
+            NotificationMenu.Item(title: "Hide \(name)") { [weak self] in self?.box?.close() },
+            .separator,
+            NotificationMenu.Item(title: "Settings…", keyEquivalent: ",") { [weak self] in self?.settings?.show() },
+            .separator,
+            NotificationMenu.Item(title: "Quit", keyEquivalent: "q") { NSApp.terminate(nil) },
+        ])
+
         let control = MotiveControl(engine: host.engine, displayName: name)
         let server = MotiveServer(control: control)
         self.server = server
@@ -68,7 +123,7 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
                 let info = try await server.start()
                 let tokenPath = server.paths.tokenURL.path
                 print("""
-                motive-demo \(MotiveVersion.current): \(name) is on your desktop (⌃C to quit).
+                motive-demo \(MotiveVersion.current): \(name) is on your desktop (menu-bar paw to quit).
                 Control plane: http://127.0.0.1:\(info.port)  (token: \(tokenPath))
                 Try:  curl -H "Authorization: Bearer $(cat \(tokenPath))" \\
                            -d '{"state":"jumping"}' http://127.0.0.1:\(info.port)/v1/state
@@ -77,6 +132,15 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
                 FileHandle.standardError.write(Data("motive-demo: control plane failed to start: \(error)\n".utf8))
             }
         }
+    }
+
+    private func currentBoxOptions() -> SpriteBoxWindow.Options {
+        SpriteBoxWindow.Options(
+            spriteSize: registry.value(for: "sprite-box.scale")?.numberValue.map { CGFloat($0) } ?? 160,
+            alwaysOnTop: registry.value(for: "sprite-box.always-on-top")?.boolValue ?? true,
+            pixelated: registry.value(for: "sprite-box.pixelated")?.boolValue ?? false,
+            chatEnabled: registry.value(for: "sprite-box.chat-enabled")?.boolValue ?? true
+        )
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -90,6 +154,12 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-let delegate = DemoDelegate(definition: definition)
-app.delegate = delegate
-app.run()
+// Top-level code isn't main-actor isolated in Swift 5 mode, but we're on the
+// main thread before app.run().
+MainActor.assumeIsolated {
+    let delegate = DemoDelegate(definition: definition)
+    app.delegate = delegate
+    withExtendedLifetime(delegate) {
+        app.run()
+    }
+}
