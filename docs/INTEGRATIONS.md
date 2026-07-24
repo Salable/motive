@@ -62,8 +62,17 @@ Otherwise use the REST plane directly.
 ## CLI agents (Claude Code, Codex, OpenCode)
 
 `MotiveAgents` provides installers that write the appropriate skill/config files
-(merge-with-backup, uninstallable) teaching each agent the REST verbs. The skill text is
-generated from the live schema. See milestone M7.
+(write-with-backup, uninstallable) teaching each agent the REST verbs — discovery,
+auth, and the full verb vocabulary. In the demo they're one-click rows under
+Settings → Agent Skills; embedders call the installers directly
+([EMBEDDING.md](EMBEDDING.md)). Targets:
+
+| Agent | Installer writes |
+| --- | --- |
+| Claude Code | `~/.claude/skills/motive-companion/SKILL.md` |
+| Codex | `~/.codex/prompts/motive-companion.md` |
+| OpenCode | `~/.config/opencode/command/motive-companion.md` |
+| Claude Desktop | merges the `motive-mcp` server into `~/Library/Application Support/Claude/claude_desktop_config.json` |
 
 ## Implementation note
 
