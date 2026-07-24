@@ -5,7 +5,8 @@ final class CodexRunnerTests: XCTestCase {
     // MARK: Salli (the bundled happy-path sprite)
 
     func testLoadsSalli() throws {
-        let definition = try SpriteRunnerRegistry.standard.load(Fixtures.salli)
+        // Direct: Salli also carries motive.json, which the registry prefers.
+        let definition = try CodexRunner().load(Fixtures.salli)
         XCTAssertEqual(definition.format, "codex/1")
         XCTAssertEqual(definition.metadata.id, "salli")
         XCTAssertEqual(definition.metadata.displayName, "Salli")

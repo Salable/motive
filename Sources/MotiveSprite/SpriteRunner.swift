@@ -63,9 +63,10 @@ public protocol SpriteRunner: Sendable {
 public struct SpriteRunnerRegistry: Sendable {
     private var runners: [(id: String, claims: @Sendable (URL) -> Bool, runner: any SpriteRunner)] = []
 
-    /// The default registry: motive/1 first (once it lands), then codex/1.
+    /// The default registry: motive/1 first, then codex/1.
     public static var standard: SpriteRunnerRegistry {
         var registry = SpriteRunnerRegistry()
+        registry.register(MotiveRunner())
         registry.register(CodexRunner())
         return registry
     }

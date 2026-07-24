@@ -78,6 +78,13 @@ public struct TriggerSpec: Codable, Equatable, Sendable {
         self.once = once
         self.purpose = purpose
     }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        state = try container.decode(String.self, forKey: .state)
+        once = try container.decodeIfPresent(Bool.self, forKey: .once) ?? true
+        purpose = try container.decodeIfPresent(String.self, forKey: .purpose)
+    }
 }
 
 /// The behavior vocabulary of one actor: states, aliases, triggers, and
