@@ -44,7 +44,7 @@ func onboardingScript(name: String) -> ScriptRun {
     steps += [
         say("This floating window is the sprite box — just me and my speech bubbles. No buttons, no chrome: everything happens through my control plane."),
         say("My animations come from a sprite sheet — swap in your own character and I'll wear it."),
-        say("The paw in the menu bar is my notification menu: show/hide me, Settings, and replaying this tour."),
+        say("The paw in the menu bar is my notification menu: show/hide me, my live action queue, Settings, and replaying this tour."),
         say("Settings is where the interesting switches live — my REST API, agent skills, and how I look."),
     ]
 
@@ -75,6 +75,7 @@ func onboardingScript(name: String) -> ScriptRun {
     // Messages & the queue
     steps += [
         say("Everything you've just watched — every bubble, every state, every gesture — was an item on my action queue, played strictly in order."),
+        say("You can watch that list live: paw menu → “Queue…” opens a window showing what's playing now and everything lined up behind it — including the rest of this tour."),
         say("Queues can hold a beat, too. Watch me do nothing for a moment —"),
         .pause(ms: 1800),
         say("…that was a queued pause. Says, states, triggers, pauses: agents compose them into whole performances."),

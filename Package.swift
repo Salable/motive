@@ -59,6 +59,7 @@ let package = Package(
         .testTarget(name: "MotiveCoreTests", dependencies: ["MotiveCore"]),
         .testTarget(name: "MotiveSpriteTests", dependencies: ["MotiveSprite"]),
         .testTarget(name: "MotiveUITests", dependencies: ["MotiveUI"]),
+        .testTarget(name: "MotiveDemoTests", dependencies: ["MotiveDemo"]),
         .testTarget(name: "MotiveHTTPTests", dependencies: ["MotiveHTTP"]),
         .testTarget(name: "MotiveMCPTests", dependencies: ["MotiveMCP", "MotiveHTTP"]),
         .testTarget(name: "MotiveAgentsTests", dependencies: ["MotiveAgents"]),

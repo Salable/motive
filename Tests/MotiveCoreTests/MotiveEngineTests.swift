@@ -288,6 +288,37 @@ final class MotiveEngineTests: XCTestCase {
         XCTAssertEqual(depth, 1)
     }
 
+    func testPlayScriptSurfacesRejection() async throws {
+        let engine = makeEngine()
+        _ = try await engine.enqueue([
+            QueueItem(action: .say(text: "old flow"), holdMS: 10_000),
+        ], now: t0).get()
+
+        let result = await engine.playScript(ScriptRun(id: "bad", steps: [
+            .setState(name: "no-such-state", holdMS: nil),
+        ]), now: t0.addingTimeInterval(1))
+
+        guard case .failure(let failure) = result else {
+            return XCTFail("an invalid script must be rejected, got \(result)")
+        }
+        XCTAssertEqual(failure.error, "unknown_state")
+        XCTAssertEqual(failure.valid, ["idle", "running"])
+        // The replace-flush already happened — exactly the silent-empty-stage
+        // hazard the returned result exists to make visible.
+        let depth = await engine.queueDepth
+        XCTAssertEqual(depth, 0)
+    }
+
+    func testPlayScriptSuccessReturnsReceipt() async throws {
+        let engine = makeEngine()
+        let receipt = try await engine.playScript(ScriptRun(id: "ok", steps: [
+            .say(text: "hello", holdMS: 1000),
+            .setState(name: "running", holdMS: nil),
+        ]), now: t0).get()
+        XCTAssertEqual(receipt.itemIDs.count, 2)
+        XCTAssertEqual(receipt.queueDepth, 2)
+    }
+
     func testDismissSpeechDoesNotTouchQueue() async throws {
         let engine = makeEngine()
         _ = try await engine.enqueue([

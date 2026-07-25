@@ -166,9 +166,13 @@ public actor MotiveEngine {
     }
 
     /// Compat sugar for `/v1/script`: replace the queue with these steps.
-    public func playScript(_ run: ScriptRun, now: Date = Date()) {
+    /// Returns the enqueue result — the queue is already flushed by the time
+    /// a failure is reported, so callers who ignore it are choosing a silent
+    /// empty stage over a visible error.
+    @discardableResult
+    public func playScript(_ run: ScriptRun, now: Date = Date()) -> Result<EnqueueReceipt, ControlFailure> {
         _ = flushQueue(now: now, revertToDefault: false)
-        _ = enqueue(run.steps.map(QueueItem.init(step:)), at: .tail, now: now)
+        return enqueue(run.steps.map(QueueItem.init(step:)), at: .tail, now: now)
     }
 
     // MARK: direct verbs (head-enqueue: "plays next")
