@@ -54,6 +54,7 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
     var control: MotiveControl?
     var menu: NotificationMenu?
     var settings: SettingsWindow?
+    var queueWindow: QueueWindow?
     let skillsModel = AgentSkillsModel()
     let statusModel = ServerStatusModel()
     private var serverRestartTask: Task<Void, Never>?
@@ -128,10 +129,15 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
                 },
             ]
         )
+        // The queue is where every agent command, script, and REST call lands;
+        // the window makes that visible while the tour (or an agent) plays.
+        queueWindow = QueueWindow(host: host, options: QueueWindow.Options(title: "\(name) — Queue"))
+
         menu = NotificationMenu(accessibilityLabel: name, items: [
             NotificationMenu.Item(title: "Show \(name)") { [weak self] in self?.box?.show() },
             NotificationMenu.Item(title: "Hide \(name)") { [weak self] in self?.box?.close() },
             .separator,
+            NotificationMenu.Item(title: "Queue…") { [weak self] in self?.queueWindow?.show() },
             NotificationMenu.Item(title: "Replay onboarding") {
                 Task { await host.engine.playScript(onboardingScript(name: name)) }
             },
