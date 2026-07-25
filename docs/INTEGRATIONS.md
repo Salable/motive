@@ -27,13 +27,20 @@ surface:
 | `motive_set_state` | `state`, `duration?` (ms) | Change animation state (auto-revert with `duration`). |
 | `motive_trigger` | `name` | One-shot gesture, then return. |
 | `motive_say` | `text`, `ttl?` (ms) | Speech bubble (≤400 chars). |
+| `motive_dismiss_speech` | — | Dismiss the current bubble; the queue is untouched. |
 | `motive_enqueue` | `items` (array of `{type: say\|setState\|trigger\|pause, …}`) | Append to the action queue; plays in order after existing items. |
+| `motive_queue` | — | Inspect the queue: depth, current item + remaining hold, pending items. |
 | `motive_clear_queue` | — | Flush the queue and return to the default state. |
 | `motive_skip` | — | Skip the current queue item; pending preserved. |
 | `motive_play_script` | `steps` (same shape) | Replace the queue with this sequence. |
 
 Direct tools (`motive_say`/`motive_set_state`/`motive_trigger`) play **next**, ahead
 of the queue; queued items continue afterwards.
+
+The tool set is 1:1 with the canonical verb list (`ControlSchema.standardVerbs`),
+with two deliberate exceptions: `cancel-script` (an alias of `clear-queue` — MCP
+hosts get one tool per behavior) and `events` (a long-lived SSE stream with no
+request/response tool shape; poll `motive_status`/`motive_queue` instead).
 
 Tool descriptions are generated from the live `/v1/schema`, so they name the loaded
 sprite's actual states and triggers.
