@@ -16,11 +16,15 @@ All notable changes to Motive are documented here. The format follows
   of a step into kind, title, hold detail, and symbol. The demo opens it from
   the menu bar ("Queue…"), so the onboarding tour and any agent traffic can be
   watched as it plays.
+- **MCP queue inspection and bubble dismissal**: new `motive_queue` (depth,
+  current item + remaining hold, pending items) and `motive_dismiss_speech`
+  tools, with matching `queueStatus()` / `dismissSpeech()` on
+  `MotiveCommandTransport`. The MCP tool set is now 1:1 with
+  `ControlSchema.standardVerbs` (exceptions — the `cancel-script` alias and
+  the SSE `events` stream — are documented and pinned by a parity test).
 - README hero and agent-state GIFs (`docs/images/`): Winston waving under a
   speech bubble, plus working / waiting / review / failed cards, generated
   deterministically from the sprite atlas by `scripts/make-readme-art.py`.
-
-### Added
 - **`skip` verb** — the single-item counterpart of clear-queue: the current
   queue item ends immediately and the next pending item plays; pending is
   preserved, and a skipped `say`'s bubble is dismissed. Full command surface:
@@ -52,7 +56,18 @@ All notable changes to Motive are documented here. The format follows
   length-paced says, zero-hold state changes under narration, one-shot triggers,
   and a demonstrated pause beat — and reframes interruption and the closing
   chapters around the control plane (agents, MCP, curl) instead of the removed
-  chat/buttons.
+  chat/buttons. The tour now also points at the queue window ("Queue…" in the
+  paw menu) while the queue it narrates is on screen.
+- `MotiveEngine.playScript` returns the enqueue result (`@discardableResult`)
+  instead of swallowing it — the queue is already flushed when a script is
+  rejected, so callers can now report the empty stage instead of shrugging;
+  the demo logs a rejected tour to stderr, and `MotiveDemoTests` validates the
+  onboarding script against the bundled Winston sprite so vocabulary drift
+  breaks CI.
+- `scripts/build-demo-app.sh` stamps the app bundle's
+  `CFBundleShortVersionString` from `MotiveVersion.current` at build time, and
+  a test keeps the committed `Resources/Info.plist` in sync — a release can no
+  longer ship a bundle version that disagrees with `/v1/status`.
 
 ## [0.3.0] - 2026-07-24
 

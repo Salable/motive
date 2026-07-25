@@ -75,6 +75,11 @@ public final class MCPServer: @unchecked Sendable {
                 inputSchema: Self.stepsSchema(key: "items", description: "Items appended to the queue in order.")
             ),
             ToolSpec(
+                name: "motive_queue",
+                description: "Inspect \(spriteName)'s action queue: depth, the current item (with its remaining hold in seconds), and the pending items in play order.",
+                inputSchema: ["type": "object", "properties": [String: Any](), "required": [String]()]
+            ),
+            ToolSpec(
                 name: "motive_clear_queue",
                 description: "Flush \(spriteName)'s action queue: drop all pending items, stop waiting on the current one, and return to the default state.",
                 inputSchema: ["type": "object", "properties": [String: Any](), "required": [String]()]
@@ -100,6 +105,11 @@ public final class MCPServer: @unchecked Sendable {
                     ],
                     "required": ["text"],
                 ]
+            ),
+            ToolSpec(
+                name: "motive_dismiss_speech",
+                description: "Dismiss \(spriteName)'s current speech bubble. Bubble control only — the queue is untouched.",
+                inputSchema: ["type": "object", "properties": [String: Any](), "required": [String]()]
             ),
         ]
     }
@@ -211,6 +221,9 @@ public final class MCPServer: @unchecked Sendable {
                 }
                 payload = encodeJSON(try await transport.enqueue(run.steps))
 
+            case "motive_queue":
+                payload = encodeJSON(try await transport.queueStatus())
+
             case "motive_clear_queue":
                 payload = encodeJSON(try await transport.clearQueue())
 
@@ -223,6 +236,9 @@ public final class MCPServer: @unchecked Sendable {
                 }
                 let ttl = (arguments["ttl"] as? NSNumber)?.intValue
                 payload = encodeJSON(try await transport.say(text, ttlMS: ttl))
+
+            case "motive_dismiss_speech":
+                payload = encodeJSON(try await transport.dismissSpeech())
 
             default:
                 return encodeError(id: id, code: -32602, message: "unknown tool: \(name)")

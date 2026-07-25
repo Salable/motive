@@ -50,7 +50,8 @@ final class MCPServerTests: XCTestCase {
         XCTAssertEqual(
             Set(tools.compactMap { $0["name"] as? String }),
             ["motive_status", "motive_set_state", "motive_trigger", "motive_say",
-             "motive_play_script", "motive_enqueue", "motive_clear_queue", "motive_skip"]
+             "motive_dismiss_speech", "motive_play_script", "motive_enqueue",
+             "motive_queue", "motive_clear_queue", "motive_skip"]
         )
         let setState = try XCTUnwrap(tools.first { $0["name"] as? String == "motive_set_state" })
         let description = try XCTUnwrap(setState["description"] as? String)
@@ -167,6 +168,58 @@ final class MCPServerTests: XCTestCase {
         let result = try XCTUnwrap(response["result"] as? [String: Any])
         let text = try XCTUnwrap((result["content"] as? [[String: Any]])?.first?["text"] as? String)
         XCTAssertTrue(text.contains(#""queueDepth":1"#), "status should report queue depth: \(text)")
+    }
+
+    func testQueueToolReportsCurrentAndPending() async throws {
+        let (server, _) = makeServer()
+        let enqueue = #"{"jsonrpc":"2.0","id":40,"method":"tools/call","params":{"name":"motive_enqueue","arguments":{"items":[{"type":"say","text":"a","hold":30000},{"type":"say","text":"b","hold":30000}]}}}"#
+        _ = await server.handle(line: enqueue)
+
+        let response = try json(await server.handle(
+            line: #"{"jsonrpc":"2.0","id":41,"method":"tools/call","params":{"name":"motive_queue","arguments":{}}}"#
+        ))
+        let result = try XCTUnwrap(response["result"] as? [String: Any])
+        XCTAssertEqual(result["isError"] as? Bool, false)
+        let text = try XCTUnwrap((result["content"] as? [[String: Any]])?.first?["text"] as? String)
+        XCTAssertTrue(text.contains(#""depth":2"#), "queue inspection should report depth: \(text)")
+        XCTAssertTrue(text.contains(#""text":"a""#), "queue inspection should show the current item: \(text)")
+        XCTAssertTrue(text.contains(#""text":"b""#), "queue inspection should show pending items: \(text)")
+        XCTAssertTrue(text.contains("currentRemaining"), "queue inspection should carry the remaining hold: \(text)")
+    }
+
+    func testDismissSpeechToolClearsBubbleAndKeepsQueue() async throws {
+        let (server, engine) = makeServer()
+        let enqueue = #"{"jsonrpc":"2.0","id":50,"method":"tools/call","params":{"name":"motive_enqueue","arguments":{"items":[{"type":"say","text":"hello","hold":30000},{"type":"say","text":"later","hold":30000}]}}}"#
+        _ = await server.handle(line: enqueue)
+        var speech = await engine.speech
+        XCTAssertEqual(speech?.text, "hello")
+
+        let response = try json(await server.handle(
+            line: #"{"jsonrpc":"2.0","id":51,"method":"tools/call","params":{"name":"motive_dismiss_speech","arguments":{}}}"#
+        ))
+        let result = try XCTUnwrap(response["result"] as? [String: Any])
+        XCTAssertEqual(result["isError"] as? Bool, false)
+        speech = await engine.speech
+        XCTAssertNil(speech, "the bubble is dismissed")
+        let depth = await engine.queueDepth
+        XCTAssertEqual(depth, 2, "dismissing speech must not touch the queue")
+    }
+
+    /// The 1:1 contract the docs promise: every canonical verb has an MCP
+    /// tool. Two exemptions: `cancel-script` is a documented alias of
+    /// `clear-queue` (one tool per behavior, not per route), and `events` is
+    /// a long-lived SSE stream with no request/response tool shape.
+    func testEveryStandardVerbHasATool() async throws {
+        let exempt: Set<String> = ["cancel-script", "events"]
+        let (server, _) = makeServer()
+        let toolNames = Set(await server.toolSpecs().map(\.name))
+        for verb in ControlSchema.standardVerbs where !exempt.contains(verb.name) {
+            let expected = "motive_" + verb.name.replacingOccurrences(of: "-", with: "_")
+            XCTAssertTrue(
+                toolNames.contains(expected),
+                "verb '\(verb.name)' has no MCP tool (expected \(expected)); tools: \(toolNames.sorted())"
+            )
+        }
     }
 
     func testUnknownMethodIsJSONRPCError() async throws {

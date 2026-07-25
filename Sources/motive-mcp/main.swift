@@ -37,12 +37,20 @@ struct LazyDiscoveryTransport: MotiveCommandTransport {
         try await RESTCommandTransport.discover().say(text, ttlMS: ttlMS)
     }
 
+    func dismissSpeech() async throws -> ControlReceipt {
+        try await RESTCommandTransport.discover().dismissSpeech()
+    }
+
     func playScript(_ run: ScriptRun) async throws -> ControlReceipt {
         try await RESTCommandTransport.discover().playScript(run)
     }
 
     func enqueue(_ steps: [ScriptStep]) async throws -> ControlReceipt {
         try await RESTCommandTransport.discover().enqueue(steps)
+    }
+
+    func queueStatus() async throws -> QueueStatus {
+        try await RESTCommandTransport.discover().queueStatus()
     }
 
     func clearQueue() async throws -> ControlReceipt {

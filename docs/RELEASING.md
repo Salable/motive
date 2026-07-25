@@ -12,7 +12,10 @@ format. During `0.x`, minor versions may break API.
    [`Sources/MotiveCore/MotiveVersion.swift`](../Sources/MotiveCore/MotiveVersion.swift)
    (`MotiveVersion.current`). This is the single source of truth: the control
    plane reports it in `/v1/status` and `server.json`, and the packaging
-   script names the zip from it.
+   script names the zip from it **and stamps it into the app bundle's
+   `Info.plist`**. The committed `Resources/Info.plist` carries the same
+   number — a test (`testBundlePlistMatchesVersionConstant`) fails until you
+   bump both.
 3. **Commit and merge to `main`** (subject `Release X.Y.Z`), with CI green
    (`swift test` on macOS).
 4. **Tag and push:**

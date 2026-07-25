@@ -139,7 +139,7 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
             .separator,
             NotificationMenu.Item(title: "Queue…") { [weak self] in self?.queueWindow?.show() },
             NotificationMenu.Item(title: "Replay onboarding") {
-                Task { await host.engine.playScript(onboardingScript(name: name)) }
+                Task { await Self.playTour(on: host.engine, name: name) }
             },
             NotificationMenu.Item(title: "View on GitHub") {
                 NSWorkspace.shared.open(URL(string: "https://github.com/Salable/motive")!)
@@ -167,11 +167,22 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
         Task {
             if needsOnboarding {
                 UserDefaults.standard.set(true, forKey: onboardingKey)
-                await host.engine.playScript(onboardingScript(name: name))
+                await Self.playTour(on: host.engine, name: name)
             } else {
                 await host.engine.say("Hi, I'm \(name)!", ttl: 6)
             }
             await self.startServerIfEnabled(announce: true)
+        }
+    }
+
+    /// A rejected script means the queue was flushed and nothing plays — an
+    /// empty stage with no explanation. Surface it instead of shrugging.
+    static func playTour(on engine: MotiveEngine, name: String) async {
+        if case .failure(let failure) = await engine.playScript(onboardingScript(name: name)) {
+            let valid = failure.valid.map { " (valid: \($0.joined(separator: ", ")))" } ?? ""
+            FileHandle.standardError.write(Data(
+                "motive-demo: onboarding script rejected: \(failure.error)\(valid)\n".utf8
+            ))
         }
     }
 

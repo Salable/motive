@@ -10,8 +10,10 @@ public protocol MotiveCommandTransport: Sendable {
     func setState(_ name: String, durationMS: Int?) async throws -> ControlReceipt
     func fireTrigger(_ name: String) async throws -> ControlReceipt
     func say(_ text: String, ttlMS: Int?) async throws -> ControlReceipt
+    func dismissSpeech() async throws -> ControlReceipt
     func playScript(_ run: ScriptRun) async throws -> ControlReceipt
     func enqueue(_ steps: [ScriptStep]) async throws -> ControlReceipt
+    func queueStatus() async throws -> QueueStatus
     func clearQueue() async throws -> ControlReceipt
     func skip() async throws -> ControlReceipt
 }
@@ -60,12 +62,20 @@ public struct LocalCommandTransport: MotiveCommandTransport {
         try unwrap(await control.say(text, ttlMS: ttlMS))
     }
 
+    public func dismissSpeech() async throws -> ControlReceipt {
+        await control.dismissSpeech()
+    }
+
     public func playScript(_ run: ScriptRun) async throws -> ControlReceipt {
         try unwrap(await control.playScript(run))
     }
 
     public func enqueue(_ steps: [ScriptStep]) async throws -> ControlReceipt {
         try unwrap(await control.enqueue(steps))
+    }
+
+    public func queueStatus() async throws -> QueueStatus {
+        await control.queueStatus()
     }
 
     public func clearQueue() async throws -> ControlReceipt {
@@ -143,10 +153,18 @@ public struct RESTCommandTransport: MotiveCommandTransport {
         return try await send(request(path: "/v1/script", method: "POST", body: data))
     }
 
+    public func dismissSpeech() async throws -> ControlReceipt {
+        try await send(request(path: "/v1/speech", method: "DELETE", body: nil))
+    }
+
     public func enqueue(_ steps: [ScriptStep]) async throws -> ControlReceipt {
         struct Payload: Encodable { let items: [ScriptStep] }
         let data = try JSONEncoder().encode(Payload(items: steps))
         return try await send(request(path: "/v1/queue", method: "POST", body: data))
+    }
+
+    public func queueStatus() async throws -> QueueStatus {
+        try await get("/v1/queue")
     }
 
     public func clearQueue() async throws -> ControlReceipt {

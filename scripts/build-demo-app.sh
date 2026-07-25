@@ -54,10 +54,15 @@ fi
 
 rm -rf "$APP_DIR"
 mkdir -p "$CONTENTS_DIR/MacOS" "$CONTENTS_DIR/Resources"
+VERSION=$(grep -o 'current = "[^"]*"' "$PROJECT_DIR/Sources/MotiveCore/MotiveVersion.swift" | cut -d'"' -f2)
+
 cp "$PRODUCTS/motive-demo" "$CONTENTS_DIR/MacOS/MotiveDemo"
 # Ship the MCP shim inside the bundle so users can point Claude Desktop at it.
 cp "$PRODUCTS/motive-mcp" "$CONTENTS_DIR/MacOS/motive-mcp"
 cp "$PROJECT_DIR/Resources/Info.plist" "$CONTENTS_DIR/Info.plist"
+# Stamp the bundle version from MotiveVersion.current — the single source of
+# truth — so a release can't ship a bundle that disagrees with /v1/status.
+plutil -replace CFBundleShortVersionString -string "$VERSION" "$CONTENTS_DIR/Info.plist"
 cp "$PROJECT_DIR/Resources/AppIcon.icns" "$CONTENTS_DIR/Resources/AppIcon.icns"
 # Embedded sprite: the demo finds it via Bundle.main resources.
 cp -R "$PROJECT_DIR/Sprites/winston" "$CONTENTS_DIR/Resources/winston"
@@ -69,7 +74,6 @@ if command -v codesign >/dev/null 2>&1; then
 fi
 
 if [[ $MAKE_ZIP -eq 1 ]]; then
-  VERSION=$(grep -o 'current = "[^"]*"' "$PROJECT_DIR/Sources/MotiveCore/MotiveVersion.swift" | cut -d'"' -f2)
   ZIP="$DIST_DIR/MotiveDemo-$VERSION.zip"
   rm -f "$ZIP"
   (cd "$DIST_DIR" && ditto -c -k --keepParent MotiveDemo.app "$(basename "$ZIP")")
