@@ -1,0 +1,37 @@
+<!-- @dsCard group="Foundations" name="Keyboard map" subtitle="Agent-first: there is no text entry field left in the window, so every key is a queue/nav fallback." -->
+<meta charset="utf-8"><title>Keyboard map</title>
+<style>
+  :root {
+    --bg: #f5f5f7; --surface: #ffffff; --surface-subtle: #efeff2;
+    --text: #1d1d1f; --muted: #86868b; --border: #d8d8dd; --primary: #0a7cff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text);
+         font: 13px/1.5 -apple-system, "SF Pro Text", Helvetica, sans-serif;
+         padding: 20px; }
+  h1 { font-size: 17px; font-weight: 600; margin-bottom: 4px; }
+  p.lead { color: var(--muted); margin-bottom: 12px; max-width: 62ch; }
+  kbd { font: 11px ui-monospace, Menlo, monospace; background: var(--surface-subtle);
+        border: 1px solid var(--border); border-bottom-width: 2px;
+        border-radius: 5px; padding: 1px 6px; color: var(--text); }
+  .note { color: var(--muted); font-size: 11px; margin-top: 10px; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { text-align: left; padding: 5px 10px 5px 0; font-size: 12px;
+           border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 500; }
+</style>
+
+<h1>Keyboard map</h1><p class="lead">Media-app conventions. v2 removed the quick-entry field (agent-first: enqueue via REST, tray, or Requeue) — so ⌘N is gone, and every remaining key is queue/nav, never text entry.</p>
+
+<table>
+<tr><th>Key</th><th>Action</th><th>Scope</th></tr>
+<tr><td><kbd>Space</kbd></td><td>Pause/resume (plays next when idle)</td><td>app fallback (on_key)</td></tr>
+<tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>Move queue selection</td><td>app fallback</td></tr>
+<tr><td><kbd>⌘↑</kbd> <kbd>⌘↓</kbd></td><td>Reorder the selected item</td><td>app fallback</td></tr>
+<tr><td><kbd>⌫</kbd> / <kbd>Del</kbd></td><td>Remove the selected item</td><td>app fallback</td></tr>
+<tr><td><kbd>⌘E</kbd></td><td>Skip the current utterance — doubles as Decline while a reply is awaited</td><td>menu + shortcut</td></tr>
+<tr><td><kbd>⌘K</kbd></td><td>Clear Queue (asks first) — also resolves a stuck awaiting reply</td><td>menu + shortcut</td></tr>
+<tr><td><kbd>⌘,</kbd></td><td>Switch to the Settings tab (and raise the window)</td><td>shortcut</td></tr>
+<tr><td><kbd>Enter</kbd></td><td>Send the reply draft</td><td>reply composer's text field only</td></tr>
+</table>
+<p class="note">Rule unchanged from the pre-v2 HIG stage: while any text field is focused, typing wins — the app-level keys above structurally never fire (SDK precedence). Every key action is redundant with a visible control, menu item, or tray row.</p>

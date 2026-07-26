@@ -232,3 +232,99 @@ version) and `token` (per-boot bearer token, mode 0600). Everything honors
 ```sh
 MOTIVE_HOME=$(pwd)/.motive-home swift run motive-demo
 ```
+
+Durable state is a sibling of `runtime/`, not inside it: `history/questions.jsonl`
+holds resolved questions and their answers, mode 0600. `MotiveServer.stop()`
+deletes the two files it wrote under `runtime/`, so anything that must survive a
+restart lives outside that directory.
+
+## Recipe: ask the human something
+
+`say` with a `respond` block turns the bubble into a question and blocks the
+queue until a human resolves it:
+
+```swift
+let receipt = try await engine.ask(
+    "Ready to deploy?",
+    respond: ResponseSpec(form: .confirm, timeoutMS: 300_000)
+).get()
+```
+
+Rendering the affordance is `MotiveUI`'s job — `SpriteBoxWindow` shows buttons
+for the head question, and `QueueWindow` lists every outstanding one so a human
+can answer out of order. `SpriteHost` publishes `outstandingQuestions` and
+`headQuestion` if you are building your own surface, and `host.answer(_:with:)`
+is how an answer reaches the engine.
+
+**There is deliberately no way for an agent to answer.** No REST route, no MCP
+tool, and nothing in `MotiveControl` resolves a question as answered — only
+`MotiveEngine.answerQuestion`, which `MotiveUI` calls. If you build a custom
+surface, keep that boundary: an agent that can answer its own question turns a
+human-in-the-loop check into a rubber stamp.
+
+## Recipe: speech
+
+Speaking aloud needs **nothing** — no permission, no bundle, no `Info.plist`
+keys:
+
+```swift
+if let output = MotiveVoice.makeSpeechOutput() {
+    await output.setSink(engine)
+    await engine.setSpeechOutput(output)
+}
+```
+
+Installing output changes queue semantics rather than filtering on the way out:
+a `say` then holds the queue for exactly as long as its audio, so a talking
+state runs for the utterance instead of a guessed hold. Voice and rate are
+ordinary capabilities (`.choice` and `.number`), so `SettingsWindow` renders
+them with no new UI. A sprite may declare its own `voice`/`rate` in `pet.json`
+or `motive.json`; use it as the capability's `defaultValue` and a user's choice
+wins automatically.
+
+Listening is different, and the difference is not cosmetic: **macOS kills a
+process that requests microphone or speech-recognition access without the right
+`Info.plist` keys.** It does not return an error you can catch. So speech input
+has no public initializer — you obtain one through a factory that returns a
+`Result`, and a build that cannot support it refuses instead of dying:
+
+```swift
+switch MotiveVoice.inputAvailability() {
+case .available:        // safe to offer the mic
+case .denied(let why):  // recoverable in System Settings
+case .unavailable(let why): // this build cannot — show `why`
+}
+```
+
+`MotiveVoice.inputDiagnostics()` returns the same findings with the exact
+snippet that fixes each one, which is what a settings pane should show. To fail
+your own CI rather than a user's launch:
+
+```swift
+XCTAssertEqual(VoiceRequirements.speechInput.audit(appBundleAt: builtApp), [])
+```
+
+## Ship an app bundle
+
+Nothing above needs a bundle except speech input — but a `.app` is how you ship
+a pet to anyone else, and there is no SwiftPM step that produces one. You need:
+
+1. **A bundle layout.** `YourPet.app/Contents/MacOS/<executable>`,
+   `Contents/Resources/` (sprite package, icon), and `Contents/Info.plist`.
+   `scripts/build-demo-app.sh` in this repo is a working 80-line example —
+   copy it rather than starting from scratch.
+2. **An `Info.plist`.** At minimum `CFBundleExecutable`, `CFBundleIdentifier`,
+   `CFBundlePackageType`, and `LSMinimumSystemVersion`. A menu-bar-only pet
+   also wants `LSUIElement` set to `true` so it keeps no Dock icon.
+3. **Usage descriptions, if you use speech input.** Paste
+   `VoiceRequirements.speechInput.plistFragmentXML` and write your own purpose
+   strings — they are shown to your users in the permission prompt, so
+   boilerplate is worse than nothing. The equivalent Xcode build settings are in
+   `xcodeBuildSettings` if you generate your plist.
+4. **A signature.** Ad-hoc (`codesign --force --deep --sign -`) is enough for
+   local use; distributing to other people wants Developer ID and notarization,
+   or Gatekeeper will refuse the first launch.
+
+Keep the plist keys in your committed source plist rather than injecting them at
+build time — then what CI builds and what a contributor builds are identical,
+and there is one place to look when something is missing.

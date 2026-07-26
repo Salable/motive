@@ -1,0 +1,451 @@
+<!-- TalkBox (from "TalkBox v2.dc.html"): a two-pane appliance —
+     the speaker bay on the left (wordmark, speaker plate with status
+     LED, round transport), Queue/Settings tabs on the right. The bay
+     is the window's drag surface (hidden-inset chrome puts the traffic
+     lights over its top-left corner).
+     Only <panel> paints background/border/radius — rows and columns
+     are pure layout, so every tinted surface here is a panel with its
+     layout nested inside.
+     Validate with: native markup check src/app.native -->
+<row background="background" grow="1">
+
+  <!-- ── Speaker bay ── -->
+  <column width="336" padding="16" gap="20" main="center" cross="center" background="surface_subtle" window-drag="true" label="Speaker bay">
+    <text size="display"><span mono="true" foreground="text_muted">{'TalkBox '}</span></text>
+
+    <!-- speaker plate: the baked icon, with the live LED lens overlaid
+         at the design's right:20/bottom:12 housing position -->
+    <stack label="Speaker">
+      <icon name="app:plate" width="224" height="224" label="speaker plate" />
+      <column width="224" height="224" main="end" cross="end">
+        <row cross="center">
+          <if test="{ledPlaying}">
+            <panel width="10" height="10" radius="md" background="success_text" label="playing"></panel>
+          </if>
+          <if test="{ledPaused}">
+            <panel width="10" height="10" radius="md" background="warning" label="paused"></panel>
+          </if>
+          <if test="{ledIdle}">
+            <panel width="10" height="10" radius="md" background="text_muted" label="idle"></panel>
+          </if>
+          <if test="{ledAwaiting}">
+            <panel width="10" height="10" radius="md" background="accent" label="awaiting your reply"></panel>
+          </if>
+          <row width="24" height="1"></row>
+        </row>
+        <row width="1" height="16"></row>
+      </column>
+    </stack>
+
+    <!-- transport: 44px circles per the design -->
+    <row gap="12" cross="center" label="Transport">
+      <if test="{playEnabled}">
+        <panel width="44" height="44" radius="xl" background="accent" on-press="play_next" label="Play next">
+          <row width="44" height="44" main="center" cross="center"><icon name="play" foreground="accent_text" /></row>
+        </panel>
+      </if>
+      <else>
+        <panel width="44" height="44" radius="xl" background="surface_pressed" label="Play next disabled">
+          <row width="44" height="44" main="center" cross="center"><icon name="play" foreground="text_muted" /></row>
+        </panel>
+      </else>
+      <if test="{paused}">
+        <panel width="44" height="44" radius="xl" background="surface" border-color="border" on-press="toggle_pause" label="Resume">
+          <row width="44" height="44" main="center" cross="center"><icon name="play" foreground="text" /></row>
+        </panel>
+      </if>
+      <else>
+        <if test="{isSpeakingNow}">
+          <panel width="44" height="44" radius="xl" background="surface" border-color="border" on-press="toggle_pause" label="Pause">
+            <row width="44" height="44" main="center" cross="center"><icon name="pause" foreground="text" /></row>
+          </panel>
+        </if>
+        <else>
+          <panel width="44" height="44" radius="xl" background="surface" border-color="border" label="Pause disabled">
+            <row width="44" height="44" main="center" cross="center"><icon name="pause" foreground="text_muted" /></row>
+          </panel>
+        </else>
+      </else>
+      <!-- Skip doubles as Decline while a reply is awaited (model.zig's
+           skip_current arm) - stays enabled via the same {hasCurrent}
+           (current != null covers both the speaking and awaiting sub-
+           phases), so it's always the escape hatch either way. -->
+      <if test="{hasCurrent}">
+        <panel width="44" height="44" radius="xl" background="surface" border-color="border" on-press="skip_current" label="Skip">
+          <row width="44" height="44" main="center" cross="center"><icon name="skip-forward" foreground="text" /></row>
+        </panel>
+      </if>
+      <else>
+        <panel width="44" height="44" radius="xl" background="surface" border-color="border" label="Skip disabled">
+          <row width="44" height="44" main="center" cross="center"><icon name="skip-forward" foreground="text_muted" /></row>
+        </panel>
+      </else>
+    </row>
+  </column>
+  <separator />
+
+  <!-- ── Right panel ── -->
+  <column grow="1" background="background">
+
+    <!-- view switcher: segmented control (white active pill on a gray
+         track). Real tab triggers - <button> children of <tabs> lower to
+         segmented triggers with the house pill treatment - because a
+         button's label is control chrome: unlike the old pressable
+         panels wrapping <text>, a click on the label can never start a
+         static-text selection instead of the press. -->
+    <row padding="14" gap="6" cross="center">
+      <spacer grow="1" />
+      <tabs background="surface_pressed" label="View">
+        <button selected="{navIsQueue}" on-press="nav_queue">Queue</button>
+        <button selected="{navIsSettings}" on-press="nav_settings">Settings</button>
+      </tabs>
+    </row>
+
+    <if test="{navIsQueue}">
+      <column grow="1" gap="12" padding="20" label="Queue view">
+
+        <!-- now speaking card -->
+        <if test="{isSpeakingNow}">
+          <panel radius="lg" background="info" label="Now speaking">
+            <row gap="14" padding="14" cross="center">
+              <icon name="app:eq" width="27" height="22" foreground="accent" label="speaking" />
+              <column gap="4" grow="1">
+                <text foreground="info_text">{speakBadge}</text>
+                <text wrap="false">{speakText}</text>
+                <progress value="{progressFraction}" />
+              </column>
+            </row>
+          </panel>
+        </if>
+
+        <!-- reply composer: takes the speaking card's slot once a note
+             that expected one finishes (finishCurrent's awaiting-reply
+             sub-phase) - mutually exclusive with it by construction. -->
+        <if test="{hasAwaitingReply}">
+          <panel radius="lg" background="info" label="Reply needed">
+            <column gap="10" padding="14">
+              <row gap="10" cross="center">
+                <icon name="info" foreground="accent" label="awaiting your reply" />
+                <column gap="2" grow="1">
+                  <text foreground="info_text">AWAITING YOUR REPLY</text>
+                  <text wrap="false">{awaitingReplyText}</text>
+                </column>
+              </row>
+              <row gap="8" cross="center">
+                <text-field text="{replyDraft}" placeholder="Type your reply..." on-input="reply_edit" on-submit="reply_send" grow="1" />
+                <if test="{voiceRepliesEnabled}">
+                  <if test="{replyRecording}">
+                    <button size="sm" icon="circle-dot" variant="destructive" on-press="reply_record_stop" label="Stop recording"></button>
+                  </if>
+                  <else>
+                    <if test="{not replyTranscribing}">
+                      <button size="sm" icon="circle-dot" on-press="reply_record_start" label="Record a reply"></button>
+                    </if>
+                  </else>
+                </if>
+              </row>
+              <if test="{replyTranscribing}">
+                <text foreground="text_muted">Transcribing…</text>
+              </if>
+              <row gap="8" cross="center">
+                <spacer grow="1" />
+                <button size="sm" variant="ghost" on-press="reply_decline">Decline</button>
+                <button size="sm" variant="primary" on-press="reply_send">Send</button>
+              </row>
+            </column>
+          </panel>
+        </if>
+
+        <!-- pillars: per-item pastel hue cycled by id, like the design -->
+        <if test="{pendingCount > 0}">
+          <scroll grow="1">
+            <column gap="8">
+              <for each="queuedItems" key="id" as="q">
+                <if test="{q.tone == 'success'}">
+                  <panel global-key="{q.id}" radius="lg" background="success" on-press="select_item:{q.id}" role="listitem" label="{'queued ' ++ q.id}">
+                    <context-menu>
+                      <menu-item on-press="item_top:{q.id}">Move to Top</menu-item>
+                      <menu-item on-press="item_up:{q.id}">Move Up</menu-item>
+                      <menu-item on-press="item_down:{q.id}">Move Down</menu-item>
+                      <separator />
+                      <menu-item on-press="item_remove:{q.id}">Remove</menu-item>
+                    </context-menu>
+                    <row gap="12" padding="12" cross="center">
+                      <if test="{q.id == selected_id}">
+                        <icon name="chevron-right" foreground="accent" label="selected" />
+                      </if>
+                      <panel width="25" height="25" radius="xl" background="surface">
+                        <row width="25" height="25" main="center" cross="center"><text foreground="success_text">{q.index}</text></row>
+                      </panel>
+                      <text grow="1" wrap="false">{q.preview}</text>
+                      <button size="sm" variant="ghost" icon="chevron-up" label="{'move ' ++ q.id ++ ' earlier'}" on-press="item_up:{q.id}"></button>
+                      <button size="sm" variant="ghost" icon="chevron-down" label="{'move ' ++ q.id ++ ' later'}" on-press="item_down:{q.id}"></button>
+                      <button size="sm" variant="ghost" icon="x" label="{'remove ' ++ q.id}" on-press="item_remove:{q.id}"></button>
+                    </row>
+                  </panel>
+                </if>
+                <if test="{q.tone == 'disabled'}">
+                  <panel global-key="{q.id}" radius="lg" background="disabled" on-press="select_item:{q.id}" role="listitem" label="{'queued ' ++ q.id}">
+                    <context-menu>
+                      <menu-item on-press="item_top:{q.id}">Move to Top</menu-item>
+                      <menu-item on-press="item_up:{q.id}">Move Up</menu-item>
+                      <menu-item on-press="item_down:{q.id}">Move Down</menu-item>
+                      <separator />
+                      <menu-item on-press="item_remove:{q.id}">Remove</menu-item>
+                    </context-menu>
+                    <row gap="12" padding="12" cross="center">
+                      <if test="{q.id == selected_id}">
+                        <icon name="chevron-right" foreground="accent" label="selected" />
+                      </if>
+                      <panel width="25" height="25" radius="xl" background="surface">
+                        <row width="25" height="25" main="center" cross="center"><text foreground="text_muted">{q.index}</text></row>
+                      </panel>
+                      <text grow="1" wrap="false">{q.preview}</text>
+                      <button size="sm" variant="ghost" icon="chevron-up" label="{'move ' ++ q.id ++ ' earlier'}" on-press="item_up:{q.id}"></button>
+                      <button size="sm" variant="ghost" icon="chevron-down" label="{'move ' ++ q.id ++ ' later'}" on-press="item_down:{q.id}"></button>
+                      <button size="sm" variant="ghost" icon="x" label="{'remove ' ++ q.id}" on-press="item_remove:{q.id}"></button>
+                    </row>
+                  </panel>
+                </if>
+                <if test="{q.tone == 'info'}">
+                  <panel global-key="{q.id}" radius="lg" background="info" on-press="select_item:{q.id}" role="listitem" label="{'queued ' ++ q.id}">
+                    <context-menu>
+                      <menu-item on-press="item_top:{q.id}">Move to Top</menu-item>
+                      <menu-item on-press="item_up:{q.id}">Move Up</menu-item>
+                      <menu-item on-press="item_down:{q.id}">Move Down</menu-item>
+                      <separator />
+                      <menu-item on-press="item_remove:{q.id}">Remove</menu-item>
+                    </context-menu>
+                    <row gap="12" padding="12" cross="center">
+                      <if test="{q.id == selected_id}">
+                        <icon name="chevron-right" foreground="accent" label="selected" />
+                      </if>
+                      <panel width="25" height="25" radius="xl" background="surface">
+                        <row width="25" height="25" main="center" cross="center"><text foreground="info_text">{q.index}</text></row>
+                      </panel>
+                      <text grow="1" wrap="false">{q.preview}</text>
+                      <button size="sm" variant="ghost" icon="chevron-up" label="{'move ' ++ q.id ++ ' earlier'}" on-press="item_up:{q.id}"></button>
+                      <button size="sm" variant="ghost" icon="chevron-down" label="{'move ' ++ q.id ++ ' later'}" on-press="item_down:{q.id}"></button>
+                      <button size="sm" variant="ghost" icon="x" label="{'remove ' ++ q.id}" on-press="item_remove:{q.id}"></button>
+                    </row>
+                  </panel>
+                </if>
+              </for>
+            </column>
+          </scroll>
+        </if>
+        <else>
+          <panel radius="lg" border-color="border" background="background" label="Empty queue">
+            <column gap="12" padding="28" cross="center">
+              <text foreground="text_muted">Queue is empty. Anything POSTed to /speak lands here.</text>
+              <button variant="primary" on-press="copy_agents">Copy AGENTS.md to get started</button>
+            </column>
+          </panel>
+        </else>
+
+        <!-- destructive actions ask first -->
+        <if test="{confirm_clear}">
+          <dialog text="Clear the queue?" on-dismiss="cancel_clear">
+            <column gap="10">
+              <text>This removes every pending item. The current item keeps playing.</text>
+              <row gap="8">
+                <spacer grow="1" />
+                <button on-press="cancel_clear">Cancel</button>
+                <button variant="destructive" on-press="clear_queue">Clear Queue</button>
+              </row>
+            </column>
+          </dialog>
+        </if>
+
+        <!-- queue controls (right-aligned per the design) -->
+        <row gap="12" cross="center">
+          <spacer grow="1" />
+          <switch checked="{autoplay}" on-toggle="toggle_autoplay">Autoplay</switch>
+          <button size="sm" variant="ghost" on-press="request_clear" disabled="{not canClear}">Clear</button>
+        </row>
+
+        <!-- history -->
+        <if test="{recentCount > 0}">
+          <text foreground="text_muted">HISTORY</text>
+          <column gap="0">
+            <for each="recentItems" key="id" as="r">
+              <separator />
+              <row global-key="{r.id}" gap="10" padding="8" cross="center" role="listitem" label="{'finished ' ++ r.id}">
+                <text grow="1" wrap="false" foreground="text_muted">{r.preview}</text>
+                <if test="{r.state == 'done'}">
+                  <panel width="64" radius="md" background="success"><row width="64" padding="4" main="center"><text wrap="false" foreground="success_text">done</text></row></panel>
+                </if>
+                <else>
+                  <panel width="64" radius="md" background="disabled"><row width="64" padding="4" main="center"><text wrap="false" foreground="text_muted">{r.state}</text></row></panel>
+                </else>
+                <row width="56" main="end"><text wrap="false" foreground="text_muted">{r.duration}</text></row>
+                <!-- a real button (accent label keeps the design's link
+                     read): on-press on plain text made the label
+                     drag-selectable, so a slightly moving click copied
+                     instead of requeueing -->
+                <button size="sm" variant="ghost" foreground="accent" on-press="requeue:{r.id}" label="{'requeue ' ++ r.id}">Requeue</button>
+              </row>
+            </for>
+          </column>
+        </if>
+      </column>
+    </if>
+    <else>
+      <scroll grow="1" label="Settings view">
+      <column gap="14" padding="20">
+
+        <!-- Speech card -->
+        <panel radius="lg" background="surface" border-color="border">
+          <column gap="0">
+            <row padding="12"><text foreground="text_muted">SPEECH</text></row>
+            <separator />
+            <row gap="12" padding="12" cross="center">
+              <text grow="1">Voice</text>
+              <stack>
+                <select placeholder="Voice" on-press="toggle_voice_picker" label="Voice">{voiceName}</select>
+                <if test="{voice_picker_open}">
+                  <dropdown-menu anchor="below" anchor-alignment="stretch" on-dismiss="close_voice_picker">
+                    <for each="voiceRows" key="index" as="v">
+                      <menu-item on-press="pick_voice:{v.index}" selected="{v.selected}">{v.label}</menu-item>
+                    </for>
+                  </dropdown-menu>
+                </if>
+              </stack>
+            </row>
+            <separator />
+            <row gap="12" padding="12" cross="center">
+              <text grow="1">Speaking rate</text>
+              <radio-group gap="6" label="Speaking rate">
+                <for each="rateRows" key="value" as="rr">
+                  <radio checked="{rr.selected}" on-toggle="set_rate:{rr.value}" text="{rr.label}" />
+                </for>
+              </radio-group>
+              <text foreground="text_muted">{rateText}</text>
+            </row>
+            <separator />
+            <row gap="12" padding="12" cross="center">
+              <column grow="1" gap="2">
+                <text>Gap between items</text>
+                <text foreground="text_muted">Silence inserted before the next queued item plays.</text>
+              </column>
+              <radio-group gap="6" label="Gap between items">
+                <for each="delayRows" key="value" as="dr">
+                  <radio checked="{dr.selected}" on-toggle="set_delay:{dr.value}" text="{dr.label}" />
+                </for>
+              </radio-group>
+              <text foreground="text_muted">{gapText}</text>
+            </row>
+          </column>
+        </panel>
+
+        <!-- Server card -->
+        <panel radius="lg" background="surface" border-color="border">
+          <column gap="0">
+            <row padding="12"><text foreground="text_muted">SERVER</text></row>
+            <separator />
+            <row gap="12" padding="12" cross="center">
+              <column grow="1" gap="2">
+                <text>Port</text>
+                <text foreground="text_muted">{'Currently ' ++ portText ++ ' - changes apply when you save.'}</text>
+              </column>
+              <text-field text="{portDraft}" placeholder="port number" on-input="port_edit" on-submit="apply_port" grow="1" />
+            </row>
+            <separator />
+            <row gap="12" padding="12" cross="center">
+              <column grow="1" gap="2">
+                <text>Make public</text>
+                <text foreground="text_muted">{publicSub}</text>
+              </column>
+              <switch checked="{publicDraft}" on-toggle="toggle_public" label="Make public"></switch>
+            </row>
+            <if test="{bindDirty}">
+              <separator />
+              <row gap="12" padding="12" cross="center">
+                <text grow="1" foreground="text_muted">{bindPending}</text>
+                <button variant="primary" size="sm" on-press="apply_port">Save and restart</button>
+              </row>
+            </if>
+            <separator />
+            <row gap="12" padding="12" cross="center">
+              <column grow="1" gap="2">
+                <text>Server stuck?</text>
+                <text foreground="text_muted">Restarts the listener on the same host and port - no queue changes. Try this if it stops responding, e.g. after your Mac wakes from sleep.</text>
+              </column>
+              <button size="sm" on-press="restart_server">Restart server</button>
+            </row>
+            <separator />
+            <row gap="12" padding="12" cross="center">
+              <column grow="1" gap="2">
+                <text>Agent instructions</text>
+                <text foreground="text_muted">AGENTS.md any tool can read to use TalkBox.</text>
+              </column>
+              <button size="sm" on-press="copy_agents">Copy AGENTS.md</button>
+            </row>
+          </column>
+        </panel>
+
+        <!-- General card -->
+        <panel radius="lg" background="surface" border-color="border">
+          <column gap="0">
+            <row padding="12"><text foreground="text_muted">GENERAL</text></row>
+            <separator />
+            <row gap="12" padding="12" cross="center">
+              <column grow="1" gap="2">
+                <text>Appearance</text>
+                <text foreground="text_muted">System follows the macOS appearance; Light and Dark pin it.</text>
+              </column>
+              <radio-group gap="6" label="Appearance">
+                <for each="appearanceRows" key="value" as="ar">
+                  <radio checked="{ar.selected}" on-toggle="set_appearance:{ar.value}" text="{ar.label}" />
+                </for>
+              </radio-group>
+            </row>
+            <separator />
+            <row gap="12" padding="12" cross="center">
+              <column grow="1" gap="2">
+                <text>Launch at login</text>
+                <text foreground="text_muted">Installs a LaunchAgent for this build of TalkBox.</text>
+              </column>
+              <switch checked="{loginOn}" on-toggle="toggle_login" label="Launch at login"></switch>
+            </row>
+            <separator />
+            <row gap="12" padding="12" cross="center">
+              <column grow="1" gap="2">
+                <text>Test mode</text>
+                <text foreground="text_muted">Items play silently with simulated timing - for agents and CI runs.</text>
+              </column>
+              <switch checked="{testMode}" on-toggle="toggle_test_mode" label="Test mode"></switch>
+            </row>
+          </column>
+        </panel>
+
+        <!-- Replies card -->
+        <panel radius="lg" background="surface" border-color="border">
+          <column gap="0">
+            <row padding="12"><text foreground="text_muted">REPLIES</text></row>
+            <separator />
+            <row gap="12" padding="12" cross="center">
+              <column grow="1" gap="2">
+                <text>Voice replies</text>
+                <text foreground="text_muted">Speak a reply instead of typing - asks for microphone and speech-recognition access the first time.</text>
+              </column>
+              <switch checked="{voiceRepliesEnabled}" on-toggle="toggle_voice_replies" label="Voice replies"></switch>
+            </row>
+          </column>
+        </panel>
+
+        <row gap="8" cross="center">
+          <text grow="1" foreground="text_muted">{speakerStatus}</text>
+          <button size="sm" variant="ghost" on-press="speaker_restart">Restart speaker</button>
+        </row>
+      </column>
+      </scroll>
+    </else>
+
+    <!-- status bar -->
+    <row gap="8" padding="10" cross="center" background="surface_subtle" label="Status">
+      <panel width="8" height="8" radius="md" background="success_text" label="online"></panel>
+      <text grow="1" wrap="false" foreground="text_muted">{listeningLine}</text>
+    </row>
+  </column>
+</row>

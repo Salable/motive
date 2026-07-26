@@ -4,7 +4,9 @@ import Foundation
 /// auth token and the server discovery file. External clients (curl, the
 /// motive-mcp shim, agent skills) find a running Motive app through these.
 public struct RuntimePaths: Sendable {
-    public let runtimeURL: URL
+    /// `~/.motive` (or `$MOTIVE_HOME`). Durable state lives here, alongside —
+    /// never inside — `runtime/`, whose contents are deleted on shutdown.
+    public let rootURL: URL
 
     /// The default root honors `MOTIVE_HOME` so tests and parallel setups
     /// never touch the real `~/.motive`.
@@ -15,19 +17,44 @@ public struct RuntimePaths: Sendable {
         } else {
             root = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".motive", isDirectory: true)
         }
-        return RuntimePaths(runtimeURL: root.appendingPathComponent("runtime", isDirectory: true))
+        return RuntimePaths(rootURL: root)
     }
 
+    public init(rootURL: URL) {
+        self.rootURL = rootURL
+    }
+
+    /// Retained spelling: callers that own a `runtime/` directory directly
+    /// (tests, embedders pointing at a scratch dir) keep working, and the root
+    /// is derived from it.
     public init(runtimeURL: URL) {
-        self.runtimeURL = runtimeURL
+        self.rootURL = runtimeURL.deletingLastPathComponent()
     }
 
+    public var runtimeURL: URL { rootURL.appendingPathComponent("runtime", isDirectory: true) }
     public var tokenURL: URL { runtimeURL.appendingPathComponent("token", isDirectory: false) }
     public var serverInfoURL: URL { runtimeURL.appendingPathComponent("server.json", isDirectory: false) }
+
+    /// Durable state. Deliberately a sibling of `runtime/`: `MotiveServer.stop()`
+    /// deletes the files it wrote there, and history must survive that.
+    public var historyURL: URL { rootURL.appendingPathComponent("history", isDirectory: true) }
+    /// One timeline: questions, answers, and everything else the pet and the
+    /// human did.
+    public var activityURL: URL {
+        historyURL.appendingPathComponent("activity.jsonl", isDirectory: false)
+    }
 
     public func prepare() throws {
         try FileManager.default.createDirectory(
             at: runtimeURL,
+            withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o700]
+        )
+    }
+
+    public func prepareHistory() throws {
+        try FileManager.default.createDirectory(
+            at: historyURL,
             withIntermediateDirectories: true,
             attributes: [.posixPermissions: 0o700]
         )

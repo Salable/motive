@@ -52,10 +52,91 @@ public enum SkillGenerator {
           -d '{"state": "working"}' "http://127.0.0.1:$PORT/v1/state"
         ```
 
+        ## Asking the human something
+
+        Sometimes you need an answer before you can carry on: a yes/no, a pick from a
+        short list, a bit of text. Ask through the pet rather than stopping and hoping
+        someone reads your transcript — the question lands in a speech bubble on their
+        desktop, with buttons under it.
+
+        **1. Ask.** Add a `respond` object to `say`:
+
+        ```sh
+        curl -s -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \\
+          -d '{"text": "Deploy to production?", "respond": {"form": "confirm", "timeout": 300000}}' \\
+          "http://127.0.0.1:$PORT/v1/say"
+        # -> {"ok":true,"questionID":"…"}
+        ```
+
+        Three forms: `confirm` (yes/no), `choice` (add `choices`: 2–6 short options),
+        `text` (add `placeholder`). Set `timeout` in milliseconds — without one the
+        question waits forever, which can strand your session. Set `waiting` as the
+        state too, so a glance at the desktop says you're blocked.
+
+        **2. Wait.** Poll with a bounded long-poll. Each call parks for up to `wait`
+        milliseconds and returns the moment the human answers:
+
+        ```sh
+        curl -s -H "Authorization: Bearer $TOKEN" \\
+          "http://127.0.0.1:$PORT/v1/questions?id=$QID&wait=15000"
+        ```
+
+        Loop while `"status":"awaiting"`. Don't busy-poll with `wait=0`, and don't loop
+        forever — pick a budget, then move on.
+
+        **3. Act on the outcome.**
+
+        | `status` | meaning | what to do |
+        | --- | --- | --- |
+        | `awaiting` | not answered yet | poll again, or give up |
+        | `accepted` | they answered; `answer` holds it | continue with the answer |
+        | `declined` | they explicitly refused | don't re-ask; pick a safe default or stop |
+        | `cancelled` | dismissed, or you withdrew it | treat as no answer |
+        | `expired` | your `timeout` elapsed | treat as no answer |
+
+        A poll that returns `unknown_question` means the pet restarted while your
+        question was still open — treat it as no answer, same as `cancelled`.
+
+        For `confirm`, **both buttons are `accepted`** — read `answer.confirmed` for the
+        yes/no. "No" is an answer, not a refusal. For `choice` read `answer.choice`; for
+        `text`, `answer.text`.
+
+        **4. Clean up.** If you no longer need the answer, withdraw it:
+        `DELETE /v1/questions` with `{"id": "…"}`. Leaving stale questions on someone's
+        desktop is rude.
+
+        Answers only ever come from the human at the keyboard. There is deliberately no
+        endpoint for answering your own question: if you want one, you don't want a
+        question — you want a decision. Make it, and say what you decided.
+
+        ## Catching up after being away
+
+        You do not have to hold the event stream open. `GET /v1/activity` is the
+        durable record of what happened — commands, questions, and the human's
+        answers — oldest first, each with a sequence number:
+
+        ```sh
+        curl -s -H "Authorization: Bearer $TOKEN" "http://127.0.0.1:$PORT/v1/activity?since=$SEQ"
+        ```
+
+        Keep the `nextSeq` from each response and pass it back as `since` on the
+        next call; you get only what is new. `hasMore: true` means poll again
+        straight away rather than waiting. This survives restarts, so it is the
+        reliable way to answer "what did I miss" — including answers that landed
+        while you were not looking.
+
         ## Conventions
 
         - Lifecycle narration: `working` while you run tasks, `waiting` when you need
           input, `review` when done, `failed` on errors (aliases resolve per schema).
+        - Ask, don't assume: where you'd otherwise guess at a destructive or
+          irreversible choice, ask (see *Asking the human something*) and set `waiting`
+          while you're blocked.
+        - One question at a time. The head question owns the speech bubble; extras show
+          as a quiet count and are easy to miss. If you must ask two, ask the blocking
+          one first.
+        - A question blocks the queue until it resolves — anything you queue behind it
+          waits, including a plain `say`. That's deliberate; nothing is dropped.
         - Pass `duration` (ms) on state changes for temporary moods — the sprite
           auto-reverts to idle.
         - Keep `say` short (≤400 chars); it's a speech bubble, not a log.

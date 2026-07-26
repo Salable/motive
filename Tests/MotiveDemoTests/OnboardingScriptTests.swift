@@ -44,4 +44,17 @@ final class OnboardingScriptTests: XCTestCase {
             "the tour should point at the paw menu's Queue… window"
         )
     }
+
+    func testTourMentionsAskingTheHuman() {
+        // Questions are the one thing that stops the queue on purpose — the
+        // tour is where a first-time user learns that is deliberate.
+        let says = onboardingScript(name: "Winston").steps.compactMap { step -> String? in
+            if case .say(let text, _) = step { return text }
+            return nil
+        }
+        XCTAssertTrue(
+            says.contains { $0.contains("Ask me something") },
+            "the tour should point at the paw menu's Ask me something demo"
+        )
+    }
 }

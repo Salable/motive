@@ -1,0 +1,33 @@
+<!-- @dsCard group="Components" name="Now speaking card" subtitle="The queue view's top slot while something is current — mutually exclusive with the Reply card." -->
+<meta charset="utf-8"><title>Now speaking card</title>
+<style>
+  :root {
+    --bg: #f5f5f7; --surface: #ffffff; --text: #1d1d1f; --muted: #86868b; --border: #d8d8dd;
+    --accent: #0a7cff; --info: #e3eefc; --info-ink: #2d6ac0;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text);
+         font: 13px/1.5 -apple-system, "SF Pro Text", Helvetica, sans-serif;
+         padding: 20px; }
+  h1 { font-size: 17px; font-weight: 600; margin-bottom: 4px; }
+  h2 { font-size: 13px; font-weight: 600; color: var(--muted);
+       text-transform: uppercase; letter-spacing: 0.06em; margin: 18px 0 8px; }
+  p.lead { color: var(--muted); margin-bottom: 12px; max-width: 62ch; }
+  .card { background:var(--info); border-radius:16px; padding:14px; max-width:640px; margin:8px 0; display:flex; gap:14px; align-items:center; }
+  .note { color: var(--muted); font-size: 11px; margin-top: 10px; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { text-align: left; padding: 5px 10px 5px 0; font-size: 12px;
+           border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 500; }
+</style>
+
+<h1>Now speaking card</h1><p class="lead">Occupies the queue view's top slot for as long as an item is <code>current</code> and not awaiting a reply. Disappears entirely when idle (the queue list simply starts at the top) — there is no persistent always-visible strip like the pre-v2 design had.</p>
+
+<div class="card"><span style="color:var(--accent);font-size:20px">♫</span><div style="flex:1"><div style="color:var(--info-ink);font-size:12px;font-weight:600">SPEAKING · #7</div><div>Ship the release notes to the changelog channel.</div><div style="height:4px;background:#fff;border-radius:2px;margin-top:6px;overflow:hidden"><div style="width:55%;height:100%;background:var(--accent)"></div></div></div></div>
+<div class="card"><span style="color:var(--accent);font-size:20px">♫</span><div style="flex:1"><div style="color:var(--info-ink);font-size:12px;font-weight:600">PAUSED · #7</div><div>Ship the release notes to the changelog channel.</div><div style="height:4px;background:#fff;border-radius:2px;margin-top:6px;overflow:hidden"><div style="width:55%;height:100%;background:var(--accent)"></div></div></div></div>
+
+<h2>Rules</h2><table>
+<tr><td>Badge: <code>"SPEAKING · #N"</code> or <code>"PAUSED · #N"</code> — one <code>speakBadge()</code> helper picks the word from <code>model.paused</code>.</td></tr>
+<tr><td>Body line is the item's one-line preview (<code>wrap="false"</code>), never the full text.</td></tr>
+<tr><td>Progress is an ESTIMATE (elapsed ÷ a 190wpm×rate formula, clamped to 97% so it never overshoots before the real "done"), not a measured value — real duration is only known once the item finishes.</td></tr>
+<tr><td>When the current item <code>expects_response</code> and finishes speaking, this card's slot is taken over by the Reply card instead (see that component) — the two are mutually exclusive by construction, driven by <code>isSpeakingNow</code> vs. <code>hasAwaitingReply</code> over the same <code>model.current</code>.</td></tr></table>

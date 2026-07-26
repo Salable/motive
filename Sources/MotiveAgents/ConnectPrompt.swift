@@ -78,6 +78,16 @@ public enum ConnectPrompt {
           (`working` while busy, `waiting` for input, `review` when done, `failed` on errors).
         - `POST $BASE/v1/say` `{"text": "...", "ttl": <ms>}` — short speech bubbles (≤400 chars).
         - `POST $BASE/v1/trigger` `{"name": "..."}` — one-shot gestures.
+        - `POST $BASE/v1/say` `{"text": "...", "respond": {"form": "confirm|choice|text", "timeout": 300000}}` —
+          ask me something instead of just telling me. The receipt carries a `questionID`;
+          `choice` adds `choices` (2–6), `text` adds `placeholder`. My bubble stays up and
+          my queue waits until you resolve it.
+        - `GET $BASE/v1/questions?id=<id>&wait=15000` — long-poll for the answer; loop while
+          `"status":"awaiting"`. `accepted` means answered (for `confirm`, read
+          `answer.confirmed` — "No" is an answer, not a refusal); `declined`, `cancelled`
+          and `expired` all mean move on. Only the human can answer — there is no endpoint
+          for you to answer your own question.
+        - `DELETE $BASE/v1/questions` `{"id": "..."}` — withdraw a question you no longer need.
         - Direct verbs above play **next** (ahead of the queue); queued items continue after.
         - `POST $BASE/v1/queue` `{"items": [...]}` — append ordered sequences; `GET` inspects,
           `DELETE` flushes; `DELETE $BASE/v1/queue/current` skips just the current item

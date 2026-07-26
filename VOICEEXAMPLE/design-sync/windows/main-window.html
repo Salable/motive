@@ -1,0 +1,35 @@
+<!-- @dsCard group="Windows" name="Main window" subtitle="A light two-pane appliance: speaker bay (left) + Queue/Settings tabs (right). One window, no separate Settings window." -->
+<meta charset="utf-8"><title>Main window</title>
+<style>
+  :root {
+    --bg: #f5f5f7; --surface: #ffffff; --text: #1d1d1f; --muted: #86868b; --border: #d8d8dd;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text);
+         font: 13px/1.5 -apple-system, "SF Pro Text", Helvetica, sans-serif;
+         padding: 20px; }
+  h1 { font-size: 17px; font-weight: 600; margin-bottom: 4px; }
+  h2 { font-size: 13px; font-weight: 600; color: var(--muted);
+       text-transform: uppercase; letter-spacing: 0.06em; margin: 18px 0 8px; }
+  p.lead { color: var(--muted); margin-bottom: 12px; max-width: 62ch; }
+  .note { color: var(--muted); font-size: 11px; margin-top: 10px; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { text-align: left; padding: 5px 10px 5px 0; font-size: 12px;
+           border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 500; }
+</style>
+
+<h1>Main window</h1><p class="lead">TalkBox v2's two-pane appliance layout, matched against the "TalkBox v2.dc.html" design render. Everything lives in ONE window now — Settings is a tab, not a separate window like the pre-v2 design had.</p>
+
+<img src="../screenshots/main-queue.jpg" style="max-width:100%;border-radius:10px;border:1px solid var(--border);margin-bottom:8px" alt="Main window: empty queue with history">
+<img src="../screenshots/queue-populated.jpg" style="max-width:100%;border-radius:10px;border:1px solid var(--border)" alt="Main window: queue with three pending pastel pillars, Play enabled">
+
+<h2>Zones</h2>
+<table>
+<tr><th>Left</th><td>Speaker bay (336px, fixed): wordmark, plate + LED, 44px round transport. Also the window's drag surface.</td></tr>
+<tr><th>Top-right</th><td>Queue / Settings segmented tabs.</td></tr>
+<tr><th>Queue view</th><td>Now-speaking OR Reply-needed card (mutually exclusive) → pending pillars (scrolls) or the empty state → Autoplay switch + Clear, right-aligned → HISTORY (last 8, link-style Requeue).</td></tr>
+<tr><th>Settings view</th><td>SPEECH / SERVER / GENERAL / REPLIES cards, scrolls; speaker health + Restart at the bottom.</td></tr>
+<tr><th>Bottom</th><td>Status bar: green dot + one listening line only (no queued-count/note clutter — those live in the window content itself).</td></tr>
+</table>
+<p class="note">1024×664 at the design's reference size; resizable, position/size restored across launches. There is no quick-entry field — v2 removed it (agent-first: enqueue via REST, tray Reply, or history Requeue). More live captures under ../screenshots/ (reply-composer.jpg, settings.jpg).</p>

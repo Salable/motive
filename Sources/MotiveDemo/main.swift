@@ -3,6 +3,7 @@ import MotiveCore
 import MotiveHTTP
 import MotiveSprite
 import MotiveUI
+import MotiveVoice
 
 /// The Motive demo: loads the bundled Winston sprite and puts her on the
 /// desktop with the full component set — chrome-free sprite box, menu-bar
@@ -57,6 +58,10 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
     var queueWindow: QueueWindow?
     let skillsModel = AgentSkillsModel()
     let statusModel = ServerStatusModel()
+    var questionsModel: QuestionHistoryModel?
+    var speechOutput: AVSpeechOutput?
+    var speechInput: SFSpeechInput?
+    var voiceDiagnosticsModel: VoiceDiagnosticsModel?
     private var serverRestartTask: Task<Void, Never>?
 
     init(definition: SpriteDefinition) {
@@ -66,6 +71,11 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         let name = definition.metadata.displayName
         let host = SpriteHost(definition: definition)
+        let questions = QuestionHistoryModel(engine: host.engine)
+        questionsModel = questions
+        let voiceDiagnostics = VoiceDiagnosticsModel()
+        voiceDiagnostics.refresh()
+        voiceDiagnosticsModel = voiceDiagnostics
 
         // Components declare their configurable capabilities; the settings
         // window renders whatever is registered.
@@ -82,6 +92,37 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
             id: "sprite-box.pixelated", component: "Sprite Box", title: "Pixelated rendering",
             help: "Nearest-neighbor scaling for a crisp retro look.",
             kind: .toggle, defaultValue: .bool(false)
+        ))
+        // Speaking aloud needs no permission, no bundle, and no plist keys —
+        // so it can simply be a setting.
+        let voices = VoiceCatalog.availableVoiceNames()
+        registry.register(CapabilityDescriptor(
+            id: "voice.output.enabled", component: "Voice", title: "Speak out loud",
+            help: "Read speech bubbles aloud. A spoken line holds the queue for exactly as long as the audio.",
+            kind: .toggle, defaultValue: .bool(false)
+        ))
+        if !voices.isEmpty {
+            registry.register(CapabilityDescriptor(
+                id: "voice.output.voice", component: "Voice", title: "Voice",
+                help: "System voices installed on this Mac.",
+                kind: .choice(voices),
+                // The sprite's declared preference becomes the default, so a
+                // user's own choice always wins without extra precedence code.
+                defaultValue: .string(definition.metadata.voice?.voiceID ?? voices[0])
+            ))
+        }
+        // Off by default and deliberately: the permission prompt should only
+        // ever be reachable by someone who asked for it.
+        registry.register(CapabilityDescriptor(
+            id: "voice.input.enabled", component: "Voice", title: "Answer questions out loud",
+            help: "Transcribed on this Mac. No audio is ever recorded or sent anywhere. Needs a packaged app — see Settings for why if it is unavailable.",
+            kind: .toggle, defaultValue: .bool(false)
+        ))
+        registry.register(CapabilityDescriptor(
+            id: "voice.output.rate", component: "Voice", title: "Speaking rate",
+            help: "1.0 is normal speed.",
+            kind: .number(min: 0.5, max: 2.0, step: 0.1),
+            defaultValue: .number(definition.metadata.voice?.rate ?? 1.0)
         ))
         registry.register(CapabilityDescriptor(
             id: "http.enabled", component: "Control Plane", title: "REST API",
@@ -102,6 +143,10 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
         // Chrome-free on purpose: no action buttons, no chat input. Winston is
         // just sprite + speech bubbles; everything is driven through the
         // control plane (and the onboarding tour shows how).
+        // After registration: capability values are only readable once their
+        // descriptors exist.
+        applyVoiceSettings(to: host)
+
         let box = SpriteBoxWindow(host: host, options: currentBoxOptions())
         box.show()
         self.box = box
@@ -111,6 +156,8 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
                 guard let self else { return }
                 if descriptor.id.hasPrefix("http.") {
                     self.scheduleServerRestart()
+                } else if descriptor.id.hasPrefix("voice.") {
+                    self.applyVoiceSettings(to: host)
                 } else {
                     self.box?.update(options: self.currentBoxOptions())
                 }
@@ -127,6 +174,12 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
                 SettingsSection(title: "Agent Skills") { [skillsModel] in
                     AgentSkillsSection(model: skillsModel)
                 },
+                SettingsSection(title: "Questions") {
+                    QuestionHistorySection(model: questions)
+                },
+                SettingsSection(title: "Voice") {
+                    VoiceDiagnosticsSection(model: voiceDiagnostics)
+                },
             ]
         )
         // The queue is where every agent command, script, and REST call lands;
@@ -138,6 +191,18 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
             NotificationMenu.Item(title: "Hide \(name)") { [weak self] in self?.box?.close() },
             .separator,
             NotificationMenu.Item(title: "Queue…") { [weak self] in self?.queueWindow?.show() },
+            // Stands in for an agent asking: the same path a REST or MCP
+            // caller takes, so the affordance is exercised without one.
+            NotificationMenu.Item(title: "Ask me something") { [weak self] in
+                self?.box?.show()
+                Task {
+                    await host.engine.requestState("waiting")
+                    _ = await host.engine.ask(
+                        "Ready to deploy to production?",
+                        respond: ResponseSpec(form: .confirm, yesLabel: "Ship it", noLabel: "Hold off")
+                    )
+                }
+            },
             NotificationMenu.Item(title: "Replay onboarding") {
                 Task { await Self.playTour(on: host.engine, name: name) }
             },
@@ -147,6 +212,8 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
             NotificationMenu.Item(title: "Settings…", keyEquivalent: ",") { [weak self] in
                 self?.statusModel.refresh()
                 self?.skillsModel.refresh()
+                self?.questionsModel?.refresh()
+                self?.voiceDiagnosticsModel?.refresh()
                 self?.settings?.show()
             },
             .separator,
@@ -268,5 +335,67 @@ MainActor.assumeIsolated {
     app.delegate = delegate
     withExtendedLifetime(delegate) {
         app.run()
+    }
+}
+
+extension DemoDelegate {
+    /// Install or remove spoken output, and push the current voice/rate.
+    ///
+    /// Installing changes queue semantics — a `say` then waits for its audio
+    /// rather than a fixed hold — so it is a real toggle, not a filter applied
+    /// on the way out.
+    func applyVoiceSettings(to host: SpriteHost) {
+        let enabled = registry.value(for: "voice.output.enabled")?.boolValue ?? false
+        let voiceID = registry.value(for: "voice.output.voice")?.stringValue
+        let rate = registry.value(for: "voice.output.rate")?.numberValue
+
+        applySpeechInput(to: host)
+
+        guard enabled else {
+            speechOutput = nil
+            Task { await host.engine.setSpeechOutput(nil) }
+            return
+        }
+        let output = speechOutput ?? MotiveVoice.makeSpeechOutput()
+        guard let output else { return }
+        speechOutput = output
+        let engine = host.engine
+        Task {
+            await output.setSink(engine)
+            await engine.setSpeechOutput(output)
+            await engine.setVoicePreferences(
+                VoicePreferences(voiceID: voiceID, rate: rate)
+            )
+        }
+    }
+
+    /// Install speech input only when the user asked for it *and* this build
+    /// can actually support it. The factory refuses rather than letting the OS
+    /// kill us, so an unbundled `swift run` simply leaves the mic hidden.
+    func applySpeechInput(to host: SpriteHost) {
+        let wanted = registry.value(for: "voice.input.enabled")?.boolValue ?? false
+        guard wanted else {
+            speechInput = nil
+            host.setSpeechInput(nil)
+            return
+        }
+        if let existing = speechInput {
+            host.setSpeechInput(existing)
+            return
+        }
+        switch MotiveVoice.makeSpeechInput() {
+        case .success(let input):
+            input.setSink(host)
+            speechInput = input
+            host.setSpeechInput(input)
+        case .failure(let unavailable):
+            // Leave the mic hidden and let Settings explain; never crash, never
+            // a button that silently does nothing.
+            FileHandle.standardError.write(
+                Data("motive-demo: speech input unavailable — \(unavailable)\n".utf8)
+            )
+            speechInput = nil
+            host.setSpeechInput(nil)
+        }
     }
 }

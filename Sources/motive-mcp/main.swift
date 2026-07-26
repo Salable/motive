@@ -33,8 +33,8 @@ struct LazyDiscoveryTransport: MotiveCommandTransport {
         try await RESTCommandTransport.discover().fireTrigger(name)
     }
 
-    func say(_ text: String, ttlMS: Int?) async throws -> ControlReceipt {
-        try await RESTCommandTransport.discover().say(text, ttlMS: ttlMS)
+    func say(_ text: String, ttlMS: Int?, respond: ResponseSpec?) async throws -> ControlReceipt {
+        try await RESTCommandTransport.discover().say(text, ttlMS: ttlMS, respond: respond)
     }
 
     func dismissSpeech() async throws -> ControlReceipt {
@@ -60,4 +60,33 @@ struct LazyDiscoveryTransport: MotiveCommandTransport {
     func skip() async throws -> ControlReceipt {
         try await RESTCommandTransport.discover().skip()
     }
+
+    func pause() async throws -> ControlReceipt {
+        try await RESTCommandTransport.discover().pause()
+    }
+
+    func resume() async throws -> ControlReceipt {
+        try await RESTCommandTransport.discover().resume()
+    }
+
+    func questions(id: String?) async throws -> QuestionList {
+        try await RESTCommandTransport.discover().questions(id: id)
+    }
+
+    func cancelQuestion(id: String?) async throws -> ControlReceipt {
+        try await RESTCommandTransport.discover().cancelQuestion(id: id)
+    }
+
+    func activity(since: UInt64?, limit: Int?) async throws -> ActivityPage {
+        try await RESTCommandTransport.discover().activity(since: since, limit: limit)
+    }
+
+    func clearActivity(keep: Int?) async throws -> ControlReceipt {
+        try await RESTCommandTransport.discover().clearActivity(keep: keep)
+    }
+
+    func questionHistory(limit: Int?) async throws -> QuestionHistoryPage {
+        try await RESTCommandTransport.discover().questionHistory(limit: limit)
+    }
+
 }

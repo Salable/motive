@@ -1,0 +1,73 @@
+<!-- @dsCard group="Foundations" name="Color tokens" subtitle="TalkBox's theme (src/theme.zig): the light register, sampled from the running app, plus the dark register it flips to." -->
+<meta charset="utf-8"><title>Color tokens</title>
+<style>
+  :root {
+    --bg: #f5f5f7; --surface: #ffffff; --surface-subtle: #efeff2; --surface-pressed: #e4e4e9;
+    --text: #1d1d1f; --muted: #86868b; --border: #d8d8dd;
+    --primary: #0a7cff; --primary-hover: #0669d6; --primary-ink: #ffffff;
+    --destructive: #d0342c; --success: #ddf0e3; --success-ink: #3f7d57;
+    --warning: #e8b90a; --info: #e3eefc; --info-ink: #2d6ac0; --disabled: #e9e9ed;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text);
+         font: 13px/1.5 -apple-system, "SF Pro Text", Helvetica, sans-serif;
+         padding: 20px; }
+  h1 { font-size: 17px; font-weight: 600; margin-bottom: 4px; }
+  h2 { font-size: 13px; font-weight: 600; color: var(--muted);
+       text-transform: uppercase; letter-spacing: 0.06em; margin: 18px 0 8px; }
+  p.lead { color: var(--muted); margin-bottom: 12px; max-width: 62ch; }
+  .chip { font-size: 11px; color: var(--muted); background: var(--surface);
+          border: 1px solid var(--border); padding: 1px 7px; border-radius: 20px; }
+  .swatch { display: flex; align-items: center; gap: 12px; margin: 6px 0; }
+  .swatch .box { width: 52px; height: 36px; border-radius: 8px; border: 1px solid var(--border); }
+  .note { color: var(--muted); font-size: 11px; margin-top: 2px; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { text-align: left; padding: 5px 10px 5px 0; font-size: 12px;
+           border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 500; }
+</style>
+
+<h1>Color tokens</h1><p class="lead">TalkBox's actual theme (<code>src/theme.zig</code>), sampled from the running app. Two registers now: the light design below, and a dark register (last section) selected by Settings → Appearance — System follows the macOS appearance live, Light/Dark pin it.</p>
+
+<h2>Ground / surfaces</h2>
+<div class="swatch"><div class="box" style="background:#f5f5f7"></div><div><b style="font-size:12px">background</b> <span class="chip">#F5F5F7</span><div class="note">Window ground, the speaker bay's fill.</div></div></div>
+<div class="swatch"><div class="box" style="background:#ffffff"></div><div><b style="font-size:12px">surface</b> <span class="chip">#FFFFFF</span><div class="note">Cards (Now speaking, Reply, Settings sections), text fields.</div></div></div>
+<div class="swatch"><div class="box" style="background:#efeff2"></div><div><b style="font-size:12px">surface_subtle</b> <span class="chip">#EFEFF2</span><div class="note">Status bar band, speaker-bay panel fill.</div></div></div>
+<div class="swatch"><div class="box" style="background:#e4e4e9"></div><div><b style="font-size:12px">surface_pressed</b> <span class="chip">#E4E4E9</span><div class="note">Tab track, inactive segment, disabled transport buttons.</div></div></div>
+
+<h2>Ink</h2>
+<div class="swatch"><div class="box" style="background:#1d1d1f"></div><div><b style="font-size:12px">text</b> <span class="chip">#1D1D1F</span><div class="note">Primary ink.</div></div></div>
+<div class="swatch"><div class="box" style="background:#86868b"></div><div><b style="font-size:12px">text_muted</b> <span class="chip">#86868B</span><div class="note">Secondary ink: previews, durations, hints, section headers, disabled transport icons.</div></div></div>
+<div class="swatch"><div class="box" style="background:#d8d8dd"></div><div><b style="font-size:12px">border</b> <span class="chip">#D8D8DD</span><div class="note">Card borders, hairline separators, control outlines.</div></div></div>
+
+<h2>Brand + action</h2>
+<div class="swatch"><div class="box" style="background:#0a7cff"></div><div><b style="font-size:12px">accent</b> <span class="chip">#0A7CFF</span> <span class="chip">hover #0669D6</span> <span class="chip">active #065CBC</span><div class="note">THE primary fill: Play (enabled), active tab pill's text stays ink but the pill itself is <code>surface</code> — accent is reserved for Play, "Copy AGENTS.md to get started", Send, Requeue link text, and the awaiting-reply LED.</div></div></div>
+<div class="swatch"><div class="box" style="background:#d0342c"></div><div><b style="font-size:12px">destructive</b> <span class="chip">#D0342C</span><div class="note">Stop-recording button fill only. Skip/Remove/Clear stay plain ink-on-ghost — no destructive fill in the main queue flow.</div></div></div>
+
+<h2>Status pastels (per-item queue tone + history/LED)</h2>
+<div class="swatch"><div class="box" style="background:#ddf0e3"></div><div><b style="font-size:12px">success</b> <span class="chip">#DDF0E3</span> ink <span class="chip">#3F7D57</span><div class="note">A queue pillar's "green" tone (cycled by item id); the history "done" chip; the plate LED while playing.</div></div></div>
+<div class="swatch"><div class="box" style="background:#e3eefc"></div><div><b style="font-size:12px">info</b> <span class="chip">#E3EEFC</span> ink <span class="chip">#2D6AC0</span><div class="note">Now-speaking card, Reply-needed card, a queue pillar's "blue" tone.</div></div></div>
+<div class="swatch"><div class="box" style="background:#e9e9ed"></div><div><b style="font-size:12px">disabled</b> <span class="chip">#E9E9ED</span><div class="note">A queue pillar's "gray" tone; the history chip for skipped/failed states.</div></div></div>
+<div class="swatch"><div class="box" style="background:#e8b90a"></div><div><b style="font-size:12px">warning</b> <span class="chip">#E8B90A</span><div class="note">The plate LED while paused.</div></div></div>
+
+<h2>Dark register</h2>
+<div style="background:#1c1c1e; color:#f5f5f7; border-radius:12px; padding:14px 16px; margin:6px 0 12px;">
+  <p style="color:#98989d; font-size:12px; margin-bottom:10px; max-width:62ch;">The same design at night: cards one step LIGHTER than the ground (elevation by lightness), the light ground becomes the ink, the one blue accent brightens a notch (hover LIGHTENS where light's deepens), and each pastel pair inverts into a deep tinted surface with a brightened ink. The paused amber holds — it's a lit lens.</p>
+  <table style="width:100%; border-collapse:collapse;">
+    <tr><th style="color:#98989d; font-weight:500; text-align:left; padding:4px 10px 4px 0; border-bottom:1px solid #3d3d42;">Token</th><th style="color:#98989d; font-weight:500; text-align:left; padding:4px 10px 4px 0; border-bottom:1px solid #3d3d42;">Dark value</th></tr>
+    <tr><td style="padding:4px 10px 4px 0; border-bottom:1px solid #3d3d42;">background · surface · surface_subtle · surface_pressed</td><td style="padding:4px 10px 4px 0; border-bottom:1px solid #3d3d42;"><span style="display:inline-block;width:14px;height:14px;border-radius:4px;background:#1c1c1e;border:1px solid #3d3d42;vertical-align:-2px;"></span> #1C1C1E · <span style="display:inline-block;width:14px;height:14px;border-radius:4px;background:#2c2c2e;border:1px solid #3d3d42;vertical-align:-2px;"></span> #2C2C2E · #242427 · #3A3A3E</td></tr>
+    <tr><td style="padding:4px 10px 4px 0; border-bottom:1px solid #3d3d42;">text · text_muted · border</td><td style="padding:4px 10px 4px 0; border-bottom:1px solid #3d3d42;">#F5F5F7 · #98989D · #3D3D42</td></tr>
+    <tr><td style="padding:4px 10px 4px 0; border-bottom:1px solid #3d3d42;">accent</td><td style="padding:4px 10px 4px 0; border-bottom:1px solid #3d3d42;"><span style="display:inline-block;width:14px;height:14px;border-radius:4px;background:#0a84ff;vertical-align:-2px;"></span> #0A84FF (hover #2E93FF, active #4DA2FF)</td></tr>
+    <tr><td style="padding:4px 10px 4px 0; border-bottom:1px solid #3d3d42;">destructive</td><td style="padding:4px 10px 4px 0; border-bottom:1px solid #3d3d42;"><span style="display:inline-block;width:14px;height:14px;border-radius:4px;background:#ff453a;vertical-align:-2px;"></span> #FF453A</td></tr>
+    <tr><td style="padding:4px 10px 4px 0; border-bottom:1px solid #3d3d42;">success · info · disabled (pillar/chip tints)</td><td style="padding:4px 10px 4px 0; border-bottom:1px solid #3d3d42;"><span style="display:inline-block;width:14px;height:14px;border-radius:4px;background:#223b2d;vertical-align:-2px;"></span> #223B2D ink #7BC896 · <span style="display:inline-block;width:14px;height:14px;border-radius:4px;background:#213850;vertical-align:-2px;"></span> #213850 ink #7FB3F2 · #313135</td></tr>
+    <tr><td style="padding:4px 10px 4px 0;">warning (paused LED)</td><td style="padding:4px 10px 4px 0;"><span style="display:inline-block;width:14px;height:14px;border-radius:4px;background:#e8b90a;vertical-align:-2px;"></span> #E8B90A (unchanged)</td></tr>
+  </table>
+</div>
+
+<h2>Radius scale</h2>
+<table><tr><th>Token</th><th>Value</th><th>Use</th></tr>
+<tr><td>sm</td><td>8px</td><td>small chips</td></tr>
+<tr><td>md</td><td>10px</td><td>tab pill, number discs</td></tr>
+<tr><td>lg</td><td>16px</td><td>cards, queue pillars</td></tr>
+<tr><td>xl</td><td>22px</td><td>44px transport buttons (clamps round)</td></tr></table>
+<p class="note">Accent discipline: one primary-filled control class per surface (Play; Send; Copy-AGENTS.md). Destructive is a fill ONLY on Stop-recording — everywhere else in the queue flow (Skip/Remove/Clear) it's plain ink, matching the original HIG research finding that carried over from the pre-v2 design.</p>

@@ -6,7 +6,103 @@ All notable changes to Motive are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-26
+
 ### Added
+- **Questions — the pet can ask you something and wait.** `POST /v1/say` takes
+  an optional `respond` block (`confirm` yes/no, `choice` of 2–6 options, or
+  free `text`) that turns the bubble into a question and blocks the action queue
+  until a human resolves it. Buttons appear under the sprite; a second question
+  waits behind the first and can be answered out of order. Agents poll
+  `GET /v1/questions?id=…&wait=…` — a bounded long-poll that returns 200 with
+  `"status":"awaiting"` on timeout, so the caller's loop is a plain `while`.
+  Outcomes borrow MCP elicitation's vocabulary: `accepted` (including a
+  deliberate "no"), `declined`, `cancelled`, plus `expired` for an asker-declared
+  `timeout`. Motive imposes no deadline of its own.
+
+  **Answers originate only from UI input** — there is deliberately no verb, route,
+  or MCP tool that resolves a question as answered, because a local process
+  holding the token could otherwise forge a human's answer. Agents ask, read, and
+  withdraw. Full surface: `MotiveEngine.ask/answerQuestion/declineQuestion/
+  cancelQuestion`, `MotiveControl.say(respond:)`, the `questions`,
+  `cancel-question`, `question-history` and `clear-question-history` verbs with
+  their REST routes and `motive_*` MCP tools, a `question` SSE event, and
+  `SpriteHost.outstandingQuestions` / `headQuestion` driving the affordance.
+  Winston demonstrates it from the menu bar ("Ask me something").
+- **`MotiveVoice` — the pet speaks (new product).** In-process
+  `AVSpeechSynthesizer`, no sidecar processes. Installing spoken output changes
+  queue semantics rather than filtering on the way out: a `say` becomes an
+  external item and holds the queue for exactly as long as its audio, so a
+  talking state runs for the utterance instead of a guessed hold. Voice and
+  rate are ordinary capabilities, so `SettingsWindow` renders them with no new
+  UI; sprites may declare their own `voice`/`rate` in either manifest format,
+  which becomes the capability default so a user's choice always wins.
+
+  **Speech input's requirements are structural, not documentary.** macOS kills
+  a process that requests microphone or speech-recognition access without the
+  right `Info.plist` keys — it does not return a catchable error — so there is
+  no public initializer for speech input: `MotiveVoice.inputAvailability()` and
+  a `Result`-returning factory refuse instead. `VoiceRequirements` is a single
+  manifest that the runtime gate evaluates, the docs quote, and an embedder can
+  assert on in their own CI (`audit(appBundleAt:)`), so the documented
+  requirement cannot drift from the enforced one. `docs/EMBEDDING.md` gains
+  "Ship an app bundle" and "Recipe: speech"; the demo's `Info.plist` gains both
+  usage descriptions now, a milestone before anything requests them.
+- **Pause and resume** (`POST /v1/queue/pause` / `/resume`, `motive_pause` /
+  `motive_resume`). Freezes the clock rather than stopping the queue: the
+  current item keeps the time it had left, a spoken line pauses at the next word
+  boundary rather than mid-syllable, and nothing behind it starts. `GET /v1/queue`
+  gains `paused` and `currentElapsed`, which stops advancing while paused and
+  resumes where it left off. Plus a configurable inter-item gap
+  (`MotiveEngine.gapMS`, default 0 — the behaviour everything shipped with) for
+  hosts that want a beat of quiet between items.
+- **`GET /v1/activity` — a durable, sequence-numbered record of what happened.**
+  Commands accepted, questions asked, and how the human resolved each, oldest
+  first, with an `actor` saying who did it. Poll with `?since=<nextSeq>` to get
+  only what is new: SSE has no replay, so this is how an agent answers "what did
+  I miss" after a disconnect or a restart. Sequence numbers are monotonic and
+  survive restarts, so a cursor held across one stays valid.
+
+  It records *decisions*, not frames — an agent asking for a state, not the
+  transitions and auto-reverts that follow — because a render trace would bury
+  exactly the signal an agent polls this for. Question history is now a filtered
+  view over the same timeline rather than a second file: one store, one
+  retention policy, no two records that can disagree about what happened.
+  `DELETE /v1/questions/history` is therefore gone, replaced by
+  `DELETE /v1/activity`, and the on-disk file is `history/activity.jsonl`.
+- **Answer out loud (`speech.input`).** On-device transcription via
+  `SFSpeechRecognizer`, off by default, with a mic button beside the question's
+  buttons. A spoken answer goes through exactly the same path as a typed one and
+  is recorded with `via: "voice"` — transcription is an input method, not a
+  separate feature. `QuestionRecord.interpret(spoken:)` maps speech to the
+  question's own vocabulary (button labels first, then ordinary words; an exact
+  choice beats a prefix) and returns nil rather than guessing, so an ambiguous
+  answer says "didn't catch that" instead of acting.
+
+  Three promises enforced structurally rather than by comment: recognition is
+  always on-device (`requiresOnDeviceRecognition`, and there is no fallback path
+  to take — a locale without a model is refused), no audio file is ever created
+  (only a buffer request exists), and the recognizer is torn down after every
+  attempt. Settings → Voice explains why listening is unavailable in a given
+  build and offers the exact snippet that fixes it.
+- **Question history, persisted** — resolved questions and their answers are
+  appended to `$MOTIVE_HOME/history/questions.jsonl` (owner-only, a sibling of
+  `runtime/` so it survives shutdown) and restored on launch. Readable via
+  `GET /v1/questions/history` / `motive_question_history`, cullable via the
+  matching `DELETE` / `motive_clear_question_history` or Settings → Questions.
+  `RuntimePaths` grows `rootURL` and `historyURL`; the existing `runtimeURL`
+  initialiser still works and derives the root.
+- **The queue window is where questions live** — a "Waiting on you" section
+  lists every outstanding question with its own controls, so a human can answer
+  the one that arrived first after a second took the speech bubble; answering a
+  pending question resolves it in place without disturbing the one on screen.
+  An "Answered" section reads outcomes back in plain terms ("You chose staging").
+- **Queue items that complete on an external signal** (`QueueItem.Completion`).
+  `.hold` remains the default and behaves exactly as before; `.external` parks
+  until something outside the queue resolves it, which is what questions (and,
+  later, spoken output) need. Head-enqueued direct verbs now cut only a *hold* —
+  an interjection queues behind a parked item rather than voiding a commitment
+  the pet already made, so direct verbs are deferred, never dropped.
 - **Queue window** (`MotiveUI.QueueWindow`) — a standalone window listing the
   action queue live: the running item with its countdown, the pending items
   numbered behind it, and Skip / Clear controls with the depth against the cap.

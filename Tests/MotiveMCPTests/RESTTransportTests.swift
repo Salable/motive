@@ -58,4 +58,49 @@ final class RESTTransportTests: XCTestCase {
             XCTAssertTrue("\(error)".contains("no running Motive app"), "unhelpful error: \(error)")
         }
     }
+
+    /// Asking and polling over the shim path. Also pins the date strategy:
+    /// question timestamps cross this hop as ISO8601 in both directions, and a
+    /// mismatch silently loses the whole payload.
+    func testAskAndPollOverTheShimPath() async throws {
+        let runtimeDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("motive-mcp-q-\(UUID().uuidString)/runtime", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: runtimeDir.deletingLastPathComponent()) }
+
+        let engine = MotiveEngine(definition: BehaviorDefinition(
+            states: ["idle": StateBehavior(name: "idle", frameDurations: [0.1])]
+        ))
+        let control = MotiveControl(engine: engine, displayName: "ShimPet")
+        let paths = RuntimePaths(runtimeURL: runtimeDir)
+        let httpServer = MotiveServer(control: control, paths: paths, preferredPort: 0)
+        _ = try await httpServer.start()
+        defer { Task { await httpServer.stop() } }
+
+        let mcp = MCPServer(transport: try RESTCommandTransport.discover(paths: paths))
+
+        let askLine = #"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"motive_say","arguments":{"text":"Ship it?","respond":{"form":"choice","choices":["yes","later"]}}}}"#
+        let askRaw = await mcp.handle(line: askLine)
+        let askResponse = try XCTUnwrap(askRaw)
+        XCTAssertTrue(askResponse.contains(#""isError":false"#), "unexpected: \(askResponse)")
+
+        let outstanding = await engine.outstandingQuestions()
+        let questionID = try XCTUnwrap(outstanding.first?.id)
+
+        let pollLine = #"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"motive_questions","arguments":{}}}"#
+        let pollRaw = await mcp.handle(line: pollLine)
+        let pollResponse = try XCTUnwrap(pollRaw)
+        XCTAssertTrue(pollResponse.contains("awaiting"), "unexpected: \(pollResponse)")
+        XCTAssertTrue(pollResponse.contains("later"), "choices should survive the hop")
+        // ISO8601, not a raw reference-date double.
+        XCTAssertTrue(pollResponse.contains("askedAt"))
+        XCTAssertFalse(pollResponse.contains(#""askedAt":7"#), "dates must not encode as raw doubles")
+
+        _ = await engine.answerQuestion(id: questionID, content: .choice("later", index: 1))
+
+        let historyLine = #"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"motive_question_history","arguments":{}}}"#
+        let historyRaw = await mcp.handle(line: historyLine)
+        let historyResponse = try XCTUnwrap(historyRaw)
+        XCTAssertTrue(historyResponse.contains("accepted"), "unexpected: \(historyResponse)")
+        XCTAssertTrue(historyResponse.contains("later"))
+    }
 }

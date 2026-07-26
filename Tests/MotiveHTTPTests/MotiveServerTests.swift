@@ -449,4 +449,160 @@ final class MotiveServerTests: XCTestCase {
         let info = try decoder.decode(ServerInfo.self, from: Data(legacy.utf8))
         XCTAssertEqual(info.host, "127.0.0.1")
     }
+
+    // MARK: questions
+
+    func testAskPollAnswerRoundTrip() async throws {
+        let asked = try await request(
+            "POST", "/v1/say",
+            body: #"{"text":"Deploy to production?","respond":{"form":"confirm"}}"#
+        )
+        XCTAssertEqual(asked.status, 200)
+        let questionID = try XCTUnwrap(asked.json["questionID"] as? String)
+        XCTAssertEqual(asked.json["speechID"] as? String, questionID,
+                       "the bubble and the question are the same thing")
+
+        // Outstanding, and reported as awaiting.
+        let open = try await request("GET", "/v1/questions")
+        XCTAssertEqual(open.json["openCount"] as? Int, 1)
+        let one = try await request("GET", "/v1/questions?id=\(questionID)")
+        let question = try XCTUnwrap(one.json["question"] as? [String: Any])
+        XCTAssertEqual(question["status"] as? String, "awaiting")
+        XCTAssertEqual(question["form"] as? String, "confirm")
+
+        // Only the UI can answer: go through the engine, as MotiveUI does.
+        _ = await engine.answerQuestion(id: questionID, content: .confirm(true))
+
+        let answered = try await request("GET", "/v1/questions?id=\(questionID)")
+        let resolved = try XCTUnwrap(answered.json["question"] as? [String: Any])
+        XCTAssertEqual(resolved["status"] as? String, "accepted")
+        let answer = try XCTUnwrap(resolved["answer"] as? [String: Any])
+        XCTAssertEqual(answer["confirmed"] as? Bool, true)
+        XCTAssertEqual(resolved["via"] as? String, "typed")
+    }
+
+    /// A timed-out long poll is a 200 with status "awaiting", never an error —
+    /// that is what makes the caller's loop trivially correct.
+    func testLongPollTimesOutWithTwoHundred() async throws {
+        let asked = try await request(
+            "POST", "/v1/say", body: #"{"text":"Waiting?","respond":{"form":"confirm"}}"#
+        )
+        let questionID = try XCTUnwrap(asked.json["questionID"] as? String)
+
+        let started = Date()
+        let polled = try await request("GET", "/v1/questions?id=\(questionID)&wait=300")
+        XCTAssertEqual(polled.status, 200)
+        let question = try XCTUnwrap(polled.json["question"] as? [String: Any])
+        XCTAssertEqual(question["status"] as? String, "awaiting")
+        XCTAssertGreaterThan(Date().timeIntervalSince(started), 0.25, "the poll should have parked")
+    }
+
+    func testCancelQuestionReleasesTheQueue() async throws {
+        let asked = try await request(
+            "POST", "/v1/say", body: #"{"text":"Deploy?","respond":{"form":"confirm"}}"#
+        )
+        let questionID = try XCTUnwrap(asked.json["questionID"] as? String)
+
+        let cancelled = try await request("DELETE", "/v1/questions", body: #"{"id":"\#(questionID)"}"#)
+        XCTAssertEqual(cancelled.status, 200)
+        XCTAssertEqual(cancelled.json["cancelledIDs"] as? [String], [questionID])
+
+        let depth = await engine.queueDepth
+        XCTAssertEqual(depth, 0)
+        let history = try await request("GET", "/v1/questions/history")
+        let entries = try XCTUnwrap(history.json["entries"] as? [[String: Any]])
+        XCTAssertEqual(entries.first?["status"] as? String, "cancelled")
+    }
+
+    func testInvalidRespondFormIsRejectedWithVocabulary() async throws {
+        let response = try await request(
+            "POST", "/v1/say", body: #"{"text":"Hi","respond":{"form":"telepathy"}}"#
+        )
+        XCTAssertEqual(response.status, 400)
+        XCTAssertEqual(response.json["error"] as? String, "invalid_respond")
+    }
+
+    func testChoiceQuestionRequiresValidOptions() async throws {
+        let tooFew = try await request(
+            "POST", "/v1/say",
+            body: #"{"text":"Where?","respond":{"form":"choice","choices":["only"]}}"#
+        )
+        XCTAssertEqual(tooFew.status, 400)
+        XCTAssertEqual(tooFew.json["error"] as? String, "invalid_choices")
+    }
+
+    /// The security invariant, pinned: no advertised verb can resolve a
+    /// question as answered. Absence is the enforcement, so absence is what we
+    /// assert.
+    func testNoVerbAnswersAQuestion() {
+        let answering = ControlSchema.standardVerbs.filter {
+            $0.name.contains("answer") || $0.name.contains("resolve") || $0.name.contains("reply")
+        }
+        XCTAssertTrue(
+            answering.isEmpty,
+            "answers originate only from UI input; found \(answering.map(\.name))"
+        )
+    }
+
+    func testQuestionHistoryAndActivityShareOneTimeline() async throws {
+        for index in 0..<3 {
+            let asked = try await request(
+                "POST", "/v1/say", body: #"{"text":"Q\#(index)?","respond":{"form":"confirm"}}"#
+            )
+            let id = try XCTUnwrap(asked.json["questionID"] as? String)
+            _ = await engine.answerQuestion(id: id, content: .confirm(true))
+        }
+        let history = try await request("GET", "/v1/questions/history")
+        XCTAssertEqual(history.json["total"] as? Int, 3, "history is a filtered view")
+
+        // Each question contributes two activity entries: asked, then resolved.
+        let activity = try await request("GET", "/v1/activity")
+        let entries = try XCTUnwrap(activity.json["entries"] as? [[String: Any]])
+        XCTAssertEqual(entries.count, 6)
+        XCTAssertEqual(entries.first?["kind"] as? String, "asked")
+
+        // One store, one retention control.
+        let culled = try await request("DELETE", "/v1/activity", body: #"{"keep":2}"#)
+        XCTAssertEqual(culled.json["removed"] as? Int, 4)
+        let after = try await request("GET", "/v1/questions/history")
+        XCTAssertEqual(after.json["total"] as? Int, 1, "one resolved question survived")
+    }
+
+    /// The cursor is what makes polling a real alternative to holding the SSE
+    /// stream open: ask for everything after the last sequence you saw.
+    func testActivityCursorReturnsOnlyWhatIsNew() async throws {
+        _ = try await request("POST", "/v1/say", body: #"{"text":"first"}"#)
+        let first = try await request("GET", "/v1/activity")
+        let cursor = try XCTUnwrap(first.json["nextSeq"] as? Int)
+        XCTAssertGreaterThan(cursor, 0)
+
+        _ = try await request("POST", "/v1/state", body: #"{"state":"running"}"#)
+        let next = try await request("GET", "/v1/activity?since=\(cursor)")
+        let entries = try XCTUnwrap(next.json["entries"] as? [[String: Any]])
+        XCTAssertEqual(entries.count, 1, "only what happened since")
+        XCTAssertEqual(entries.first?["kind"] as? String, "stateRequested")
+        XCTAssertEqual(entries.first?["actor"] as? String, "agent")
+
+        // Nothing new: an empty page and the cursor held steady.
+        let latest = try XCTUnwrap(next.json["nextSeq"] as? Int)
+        let idle = try await request("GET", "/v1/activity?since=\(latest)")
+        XCTAssertEqual((idle.json["entries"] as? [[String: Any]])?.count, 0)
+        XCTAssertEqual(idle.json["nextSeq"] as? Int, latest, "the cursor must not rewind")
+    }
+
+    func testActivityRecordsWhoDidWhat() async throws {
+        let asked = try await request(
+            "POST", "/v1/say", body: #"{"text":"Deploy?","respond":{"form":"confirm"}}"#
+        )
+        let id = try XCTUnwrap(asked.json["questionID"] as? String)
+        _ = await engine.answerQuestion(id: id, content: .confirm(true))
+
+        let activity = try await request("GET", "/v1/activity")
+        let entries = try XCTUnwrap(activity.json["entries"] as? [[String: Any]])
+        let asking = try XCTUnwrap(entries.first { $0["kind"] as? String == "asked" })
+        XCTAssertEqual(asking["actor"] as? String, "agent")
+        let answering = try XCTUnwrap(entries.first { $0["kind"] as? String == "questionResolved" })
+        XCTAssertEqual(answering["actor"] as? String, "human", "the answer was the human's")
+        XCTAssertEqual(answering["summary"] as? String, "Answered yes")
+    }
 }

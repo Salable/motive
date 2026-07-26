@@ -3,6 +3,7 @@ import SwiftUI
 import MotiveAgents
 import MotiveCore
 import MotiveUI
+import MotiveVoice
 
 // MARK: - Agent skills
 
@@ -219,6 +220,124 @@ struct ServerStatusSection: View {
             }
             Text("The prompt embeds the current token and rotates with every restart — re-copy after changing server settings.")
                 .font(.caption2).foregroundStyle(.tertiary)
+        }
+    }
+}
+
+/// Question history: what the pet asked and what you answered, plus the way to
+/// forget it. Answers can be personal — this is the surface that makes the
+/// stored record visible and deletable rather than an invisible file.
+@MainActor
+final class QuestionHistoryModel: ObservableObject {
+    @Published private(set) var entries: [QuestionRecord] = []
+    @Published private(set) var outstanding = 0
+
+    private let engine: MotiveEngine
+
+    init(engine: MotiveEngine) {
+        self.engine = engine
+    }
+
+    func refresh() {
+        Task {
+            let history = await engine.questionHistory(limit: 200)
+            let open = await engine.outstandingQuestions()
+            entries = history
+            outstanding = open.count
+        }
+    }
+
+    func clearAll() {
+        Task {
+            _ = await engine.clearActivity()
+            refresh()
+        }
+    }
+
+    func keepRecent(_ count: Int) {
+        Task {
+            _ = await engine.clearActivity(keep: count)
+            refresh()
+        }
+    }
+}
+
+struct QuestionHistorySection: View {
+    @ObservedObject var model: QuestionHistoryModel
+
+    var body: some View {
+        LabeledContent("Stored answers") {
+            Text("\(model.entries.count)").monospacedDigit()
+        }
+        if model.outstanding > 0 {
+            LabeledContent("Waiting on you") {
+                Text("\(model.outstanding)").monospacedDigit()
+            }
+        }
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Kept in ~/.motive/history/activity.jsonl, owner-readable only.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Button("Refresh") { model.refresh() }
+                Button("Keep last 100") { model.keepRecent(100) }
+                    .disabled(model.entries.count <= 100)
+                Button("Clear", role: .destructive) { model.clearAll() }
+                    .disabled(model.entries.isEmpty)
+            }
+            Text("Agents can read this history to pick up an answer they missed. Clearing it does not cancel anything the pet is still waiting on.")
+                .font(.caption2).foregroundStyle(.tertiary)
+        }
+    }
+}
+
+/// Why speech input is or isn't available in *this* build, with the fix.
+///
+/// This is the layer that closes the loop for a developer who never read the
+/// docs: the reason their mic button is missing, and the exact snippet that
+/// makes it appear, on screen in their own app.
+@MainActor
+final class VoiceDiagnosticsModel: ObservableObject {
+    @Published private(set) var availability: SpeechInputAvailability = .available
+    @Published private(set) var diagnostics: [VoicePreflight.Diagnostic] = []
+    @Published private(set) var copiedAt: Date?
+
+    func refresh() {
+        availability = MotiveVoice.inputAvailability()
+        diagnostics = MotiveVoice.inputDiagnostics()
+    }
+
+    func copyFix() {
+        let text = diagnostics.map(\.fix).joined(separator: "\n")
+        guard !text.isEmpty else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        copiedAt = Date()
+    }
+}
+
+struct VoiceDiagnosticsSection: View {
+    @ObservedObject var model: VoiceDiagnosticsModel
+
+    var body: some View {
+        LabeledContent("Answering out loud") {
+            Text(model.availability.isAvailable ? "available" : "unavailable")
+        }
+        if let reason = model.availability.reason {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(reason)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Text("Speaking aloud needs none of this — only listening does.")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                    Spacer()
+                    Button("Re-check") { model.refresh() }
+                    Button(model.copiedAt == nil ? "Copy fix" : "Copied ✓") { model.copyFix() }
+                        .disabled(model.diagnostics.isEmpty)
+                }
+            }
         }
     }
 }

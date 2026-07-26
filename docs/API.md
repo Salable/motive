@@ -36,14 +36,32 @@ curl -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
 | `GET /v1/events` | Server-sent events stream (below). |
 | `POST /v1/state` | `{"state", "duration"?}` — change state; `duration` (ms) auto-reverts. |
 | `POST /v1/trigger` | `{"name"}` — one-shot gesture, then return to the prior state. |
-| `POST /v1/say` | `{"text", "ttl"?}` — speech bubble (≤ 400 chars; `ttl` ms). |
+| `POST /v1/say` | `{"text", "ttl"?, "respond"?}` — speech bubble (≤ 400 chars; `ttl` ms). With `respond`, a question (below). |
 | `DELETE /v1/speech` | Dismiss the current bubble. |
 | `POST /v1/queue` | `{"items": […]}` — append to the action queue (tail). |
 | `GET /v1/queue` | Inspect: depth, current item + remaining hold, pending items. |
 | `DELETE /v1/queue` | Flush the queue and return to the default state. |
 | `DELETE /v1/queue/current` | Skip the current item: it ends now, the next pending item plays. Pending preserved. |
+| `POST /v1/queue/pause` | Freeze playback: the current item stops counting down, a spoken line pauses at the next word, and nothing new starts. |
+| `POST /v1/queue/resume` | Resume. A half-played item keeps the half it had left. |
 | `POST /v1/script` | Compat sugar: **replace** the queue with these steps (v0.1.0 wire shape). |
 | `DELETE /v1/script` | Same as `DELETE /v1/queue`. |
+| `GET /v1/questions` | `?id`, `?wait` (ms, ≤ 30000) — open questions; long-poll for an answer. |
+| `DELETE /v1/questions` | `{"id"?}` — withdraw a question (all open ones when `id` is omitted). |
+| `GET /v1/questions/history` | `?limit` — past questions and answers, newest first. |
+| `GET /v1/activity` | `?since`, `?limit` — everything that happened, oldest first, sequence-numbered. |
+| `DELETE /v1/activity` | `{"keep"?}` — cull stored activity (and with it, question history). |
+
+## Pausing
+
+Pause freezes the clock rather than stopping the queue: the current item keeps
+whatever time it had left, a spoken line pauses at the next word boundary, and
+nothing behind it starts. `GET /v1/queue` reports `paused`, plus
+`currentElapsed` — which stops advancing while paused and picks up where it left
+off, because paused time is not time the item spent running.
+
+A parked question has no clock to freeze; pausing simply stops anything new
+starting behind it.
 
 ## Queue semantics
 
@@ -51,6 +69,100 @@ Every action is a queue item processed in order. The direct verbs
 (`/v1/state`, `/v1/trigger`, `/v1/say`) **head-enqueue**: they play *next*,
 cutting the current item's remaining hold; everything already queued continues
 afterwards. Nothing is dropped except by an explicit flush.
+
+One exception: a **question** cannot have its hold cut, because it has no hold —
+it waits on a human. A direct verb issued while a question is outstanding is
+deferred behind it, not dropped, and plays as soon as the question resolves.
+
+## Questions
+
+`POST /v1/say` takes an optional `respond` object that turns the bubble into a
+question the pet blocks on:
+
+```json
+{"text": "Deploy to production?",
+ "respond": {"form": "confirm", "timeout": 300000}}
+```
+
+- `form` — `confirm` (yes/no), `choice` (`choices`: 2–6 options), `text`
+  (`placeholder`). Unknown forms return 400 with the valid list.
+- `timeout` — milliseconds until the question expires. Optional but strongly
+  recommended; clamped to one hour. We impose no deadline of our own: an
+  unanswered question waits indefinitely, so the asker owns its own patience.
+- `ttl` is ignored — the bubble lives until the question resolves.
+
+The receipt carries `questionID`. Poll it:
+
+```
+GET /v1/questions?id=<id>&wait=15000
+```
+
+`wait` parks the request until the question resolves or the budget elapses. A
+timed-out poll is a **200** with `"status": "awaiting"` — never an error — so
+the caller's loop is a plain `while status == "awaiting"`.
+
+| `status` | meaning |
+| --- | --- |
+| `awaiting` | not answered yet |
+| `accepted` | answered; `answer` holds it |
+| `declined` | the human explicitly refused to answer |
+| `cancelled` | dismissed by the human, or withdrawn by the asker |
+| `expired` | the asker's `timeout` elapsed |
+
+For `confirm`, both buttons are `accepted` — read `answer.confirmed`. "No" is an
+answer, not a refusal.
+
+**Answers originate only from UI input.** There is deliberately no endpoint that
+resolves a question as answered: a local process holding the token could
+otherwise forge a human's answer, and the human-in-the-loop guarantee would mean
+nothing. Agents can ask, read, and withdraw — not answer.
+
+Questions block at the head of the queue; a second question waits behind the
+first. A human may answer a *pending* question out of order, which resolves it
+in place without disturbing the one on screen.
+
+### Activity
+
+`GET /v1/activity` is the durable record of what the pet and the human did:
+commands accepted, questions asked, and how each was resolved. It records
+*decisions*, not frames — an agent asking for a state, not the dozen transitions
+and auto-reverts that follow.
+
+Each entry carries a monotonic `seq`, an `actor` (`agent`, `human`, `system`),
+a `kind`, a one-line `summary`, and — for question entries — the whole
+`question` including its answer. Poll with the cursor:
+
+```
+GET /v1/activity?since=<nextSeq from your last call>
+```
+
+You get only what is new. `hasMore: true` means poll again immediately rather
+than waiting. Sequence numbers survive restarts and never repeat, so a cursor
+held across a restart stays valid. This is the reliable way to answer "what did
+I miss" — SSE has no replay.
+
+`GET /v1/questions/history` is a filtered view over the same timeline, for when
+you only care about answers.
+
+### History
+
+Resolved questions and their answers persist to
+`$MOTIVE_HOME/history/activity.jsonl` (default `~/.motive/history/`), owner-only,
+and survive restarts — deliberately a sibling of `runtime/`, whose contents are
+deleted on shutdown. Read it with `GET /v1/questions/history?limit=N`; cull it
+with `DELETE /v1/activity` (`{"keep": N}` to retain the newest N), or from
+Settings → Questions in a host app that exposes it. One store, one retention
+control: culling activity culls question history with it.
+
+An agent that missed an SSE event, or that started after an answer landed, reads
+history rather than re-asking.
+
+**Outstanding questions do not survive a restart** — only resolved ones are
+recorded. A question the pet was still waiting on when it quit is simply gone,
+and polling its id returns `unknown_question`. This is deliberate: the asking
+agent's session is over too, and resurrecting a stale question nobody is waiting
+on would be worse than losing it. Treat `unknown_question` on a poll the same as
+`cancelled`.
 
 `POST /v1/queue` items look like:
 

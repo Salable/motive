@@ -92,6 +92,9 @@ public struct SpriteMetadata: Equatable, Sendable {
     public let author: String?
     public let license: String?
     public let version: String?
+    /// How this pet should sound when a host installs spoken output. A
+    /// declaration, not a demand — the user's own setting overrides it.
+    public let voice: VoicePreferences?
 
     public init(
         id: String,
@@ -99,7 +102,8 @@ public struct SpriteMetadata: Equatable, Sendable {
         description: String? = nil,
         author: String? = nil,
         license: String? = nil,
-        version: String? = nil
+        version: String? = nil,
+        voice: VoicePreferences? = nil
     ) {
         self.id = id
         self.displayName = displayName
@@ -107,6 +111,7 @@ public struct SpriteMetadata: Equatable, Sendable {
         self.author = author
         self.license = license
         self.version = version
+        self.voice = voice
     }
 }
 

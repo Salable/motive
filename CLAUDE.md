@@ -57,8 +57,16 @@ Enforced in review; several are pinned by tests. Full rationale in
 - **Every verb ships rendered:** no API surface for behavior the renderer
   doesn't honor.
 - **Queue-first:** every action is a queue item. Direct verbs head-enqueue
-  ("plays next", cuts the current hold); flows tail-enqueue; nothing is dropped
-  except by explicit flush. Don't add bypass paths around `ActionQueue`.
+  ("plays next", cuts the current *hold*); flows tail-enqueue; nothing is dropped
+  except by explicit flush. Don't add bypass paths around `ActionQueue`. An
+  item with `.external` completion (a question, later a spoken line) has no hold
+  to cut — direct verbs queue behind it and play once it resolves.
+- **Answers originate only from UI input.** No verb, REST route, or MCP tool may
+  resolve a question as answered; `MotiveEngine.answerQuestion` is reachable from
+  `MotiveUI` alone. We have token auth, so an endpoint would let any local
+  process forge a human's answer and the human-in-the-loop guarantee would be
+  theatre. Agents ask, read, and withdraw. Enforced by absence and pinned by
+  `testNoVerbAnswersAQuestion`.
 - **Sprites are data, never code.** Tolerant decode (unknown keys pass), loud
   validation (bad values fail naming the valid vocabulary).
 - **Timer-free logic:** engine and state machine take explicit `now:` clocks.
@@ -88,5 +96,9 @@ Enforced in review; several are pinned by tests. Full rationale in
   runners.
 - `FIRST_ATTEMPT/`, `SPRITE_EXAMPLES/`, and `SPEC.md` are gitignored pre-rewrite
   reference material — never commit or cite them as current.
+- Adding or reordering a defaulted parameter on a public actor's `init` (or on
+  an actor method) leaves stale test objects behind: the build "succeeds" and
+  then the suite fails to link, or crashes with SIGBUS/SIGSEGV part-way through.
+  `swift package clean` fixes it; don't go hunting for a memory bug first.
 - README GIFs are generated (`scripts/make-readme-art.py`, deterministic);
   rerun manually only when the Winston atlas or `pet.json` changes.

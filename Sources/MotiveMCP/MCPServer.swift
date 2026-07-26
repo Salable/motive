@@ -90,6 +90,16 @@ public final class MCPServer: @unchecked Sendable {
                 inputSchema: ["type": "object", "properties": [String: Any](), "required": [String]()]
             ),
             ToolSpec(
+                name: "motive_pause",
+                description: "Freeze \(spriteName): the current item stops counting down, a spoken line pauses at the next word, and nothing new starts.",
+                inputSchema: ["type": "object", "properties": [String: Any](), "required": [String]()]
+            ),
+            ToolSpec(
+                name: "motive_resume",
+                description: "Resume \(spriteName). A half-played item keeps the half it had left.",
+                inputSchema: ["type": "object", "properties": [String: Any](), "required": [String]()]
+            ),
+            ToolSpec(
                 name: "motive_play_script",
                 description: "Replace \(spriteName)'s queue with this sequence (flush, then play these steps in order).\(stateList)\(triggerList)",
                 inputSchema: Self.stepsSchema(key: "steps", description: "Steps executed in order.")
@@ -101,9 +111,76 @@ public final class MCPServer: @unchecked Sendable {
                     "type": "object",
                     "properties": [
                         "text": ["type": "string", "description": "What the sprite says."],
-                        "ttl": ["type": "number", "description": "Optional milliseconds the bubble stays up (default 8000)."],
+                        "ttl": ["type": "number", "description": "Optional milliseconds the bubble stays up (default 8000). Ignored when `respond` is set."],
+                        "respond": [
+                            "type": "object",
+                            "description": "Ask a question instead of just speaking. Blocks the queue until a human answers. Poll motive_questions for the outcome — only the human can answer.",
+                            "properties": [
+                                "form": ["type": "string", "enum": ["confirm", "choice", "text"], "description": "confirm: yes/no buttons. choice: one button per option. text: a reply field."],
+                                "choices": ["type": "array", "items": ["type": "string"], "description": "choice form: 2-6 short options."],
+                                "placeholder": ["type": "string", "description": "text form: hint shown in the field."],
+                                "timeout": ["type": "number", "description": "Milliseconds until the question expires. Strongly recommended — without one it waits indefinitely."],
+                            ],
+                            "required": ["form"],
+                        ],
                     ],
                     "required": ["text"],
+                ]
+            ),
+            ToolSpec(
+                name: "motive_questions",
+                description: "List the questions \(spriteName) is waiting on, or one by id. Poll this after a motive_say that carried `respond`. Statuses: awaiting (keep polling), accepted (read `answer`), declined, cancelled, expired.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "id": ["type": "string", "description": "A specific question, open or already resolved."],
+                    ],
+                    "required": [String](),
+                ]
+            ),
+            ToolSpec(
+                name: "motive_cancel_question",
+                description: "Withdraw a question you no longer need answered. Omit `id` to withdraw every open question.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "id": ["type": "string", "description": "The question to withdraw."],
+                    ],
+                    "required": [String](),
+                ]
+            ),
+            ToolSpec(
+                name: "motive_activity",
+                description: "What has happened to \(spriteName), oldest first: commands, questions asked, and the human's answers. Pass `since` (the `nextSeq` from your last call) to get only what is new — this is how you catch up after being away, without holding an event stream open.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "since": ["type": "number", "description": "Sequence number of the last entry you saw. Omit for the beginning."],
+                        "limit": ["type": "number", "description": "How many entries (default 100, max 500)."],
+                    ],
+                    "required": [String](),
+                ]
+            ),
+            ToolSpec(
+                name: "motive_clear_activity",
+                description: "Delete stored activity. Omit `keep` to clear everything.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "keep": ["type": "number", "description": "Retain the newest N entries."],
+                    ],
+                    "required": [String](),
+                ]
+            ),
+            ToolSpec(
+                name: "motive_question_history",
+                description: "Past questions and their answers, newest first.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "limit": ["type": "number", "description": "How many records (default 50, max 500)."],
+                    ],
+                    "required": [String](),
                 ]
             ),
             ToolSpec(
@@ -230,12 +307,47 @@ public final class MCPServer: @unchecked Sendable {
             case "motive_skip":
                 payload = encodeJSON(try await transport.skip())
 
+            case "motive_pause":
+                payload = encodeJSON(try await transport.pause())
+
+            case "motive_resume":
+                payload = encodeJSON(try await transport.resume())
+
             case "motive_say":
                 guard let text = arguments["text"] as? String else {
                     return toolFailure(id: id, message: "missing required argument: text")
                 }
                 let ttl = (arguments["ttl"] as? NSNumber)?.intValue
-                payload = encodeJSON(try await transport.say(text, ttlMS: ttl))
+                var respond: ResponseSpec?
+                if let raw = arguments["respond"] {
+                    guard let data = try? JSONSerialization.data(withJSONObject: raw),
+                          let spec = try? JSONDecoder().decode(ResponseSpec.self, from: data)
+                    else {
+                        return toolFailure(id: id, message: "invalid respond block (form must be confirm, choice, or text)")
+                    }
+                    respond = spec
+                }
+                payload = encodeJSON(try await transport.say(text, ttlMS: ttl, respond: respond))
+
+            case "motive_questions":
+                payload = encodeJSON(try await transport.questions(id: arguments["id"] as? String))
+
+            case "motive_cancel_question":
+                payload = encodeJSON(try await transport.cancelQuestion(id: arguments["id"] as? String))
+
+            case "motive_activity":
+                let since = (arguments["since"] as? NSNumber)?.uint64Value
+                let limit = (arguments["limit"] as? NSNumber)?.intValue
+                payload = encodeJSON(try await transport.activity(since: since, limit: limit))
+
+            case "motive_clear_activity":
+                payload = encodeJSON(
+                    try await transport.clearActivity(keep: (arguments["keep"] as? NSNumber)?.intValue)
+                )
+
+            case "motive_question_history":
+                let limit = (arguments["limit"] as? NSNumber)?.intValue
+                payload = encodeJSON(try await transport.questionHistory(limit: limit))
 
             case "motive_dismiss_speech":
                 payload = encodeJSON(try await transport.dismissSpeech())
@@ -303,6 +415,9 @@ public final class MCPServer: @unchecked Sendable {
     private func encodeJSON<T: Encodable>(_ value: T) -> String {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
+        // Match the REST plane: without this, question timestamps render as
+        // raw reference-date doubles that no agent can read.
+        encoder.dateEncodingStrategy = .iso8601
         guard let data = try? encoder.encode(value) else { return "{}" }
         return String(decoding: data, as: UTF8.self)
     }
