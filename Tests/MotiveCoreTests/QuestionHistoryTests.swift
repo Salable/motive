@@ -167,4 +167,23 @@ final class QuestionHistoryTests: XCTestCase {
         let onDisk = await store.recent(limit: 10)
         XCTAssertTrue(onDisk.isEmpty, "culling from settings or the API must reach the file")
     }
+
+    /// The gap a restart exposes: the engine restores history from disk, so a
+    /// surface that seeds itself from the engine shows it. Without this, the
+    /// persistence is invisible exactly where a user would look for it.
+    func testRestoredHistoryIsReadableImmediately() async throws {
+        let store = makeStore()
+        let definition = BehaviorDefinition(
+            states: ["idle": StateBehavior(name: "idle", frameDurations: [0.1])]
+        )
+        let first = MotiveEngine(definition: definition, history: store)
+        let id = try await first.ask("Deploy?", respond: ResponseSpec(form: .confirm), now: t0).get().id
+        _ = try await first.answerQuestion(id: id, content: .confirm(true), now: t0).get()
+
+        let restarted = MotiveEngine(definition: definition, history: store)
+        await restarted.restoreHistory()
+        let history = await restarted.questionHistory()
+        XCTAssertEqual(history.map(\.id), [id], "a surface can render this without waiting for a live event")
+        XCTAssertEqual(history.first?.answer, .confirm(true))
+    }
 }

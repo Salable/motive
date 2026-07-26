@@ -73,6 +73,15 @@ public final class SpriteHost: ObservableObject {
         }
     }
 
+    /// Seed the presented history from the engine's durable record.
+    ///
+    /// `answeredQuestions` otherwise only accumulates from live events, so a
+    /// restarted pet would show an empty "Answered" list while the file on disk
+    /// was intact — the one place the persistence would be invisible.
+    public func loadAnsweredQuestions(limit: Int = 50) async {
+        answeredQuestions = await engine.questionHistory(limit: limit)
+    }
+
     /// Re-read the queue from the engine. Queue events do this automatically;
     /// surfaces that render the current item's countdown (`QueueWindow`) call
     /// it on their own display clock, between events.
@@ -123,8 +132,9 @@ public final class SpriteHost: ObservableObject {
     ) {
         let engine = MotiveEngine(definition: definition.behaviorDefinition, history: history)
         self.init(definition: definition, engine: engine)
-        Task {
+        Task { [weak self] in
             await engine.restoreHistory()
+            await self?.loadAnsweredQuestions()
             await engine.start()
         }
     }

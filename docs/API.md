@@ -119,6 +119,13 @@ from Settings → Questions in a host app that exposes it.
 An agent that missed an SSE event, or that started after an answer landed, reads
 history rather than re-asking.
 
+**Outstanding questions do not survive a restart** — only resolved ones are
+recorded. A question the pet was still waiting on when it quit is simply gone,
+and polling its id returns `unknown_question`. This is deliberate: the asking
+agent's session is over too, and resurrecting a stale question nobody is waiting
+on would be worse than losing it. Treat `unknown_question` on a poll the same as
+`cancelled`.
+
 `POST /v1/queue` items look like:
 
 ```json

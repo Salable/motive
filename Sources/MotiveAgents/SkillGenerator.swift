@@ -94,6 +94,9 @@ public enum SkillGenerator {
         | `cancelled` | dismissed, or you withdrew it | treat as no answer |
         | `expired` | your `timeout` elapsed | treat as no answer |
 
+        A poll that returns `unknown_question` means the pet restarted while your
+        question was still open — treat it as no answer, same as `cancelled`.
+
         For `confirm`, **both buttons are `accepted`** — read `answer.confirmed` for the
         yes/no. "No" is an answer, not a refusal. For `choice` read `answer.choice`; for
         `text`, `answer.text`.
