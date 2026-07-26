@@ -22,6 +22,8 @@ public enum ActivityKind: String, Codable, Sendable {
     case questionResolved
     case skipped
     case queueCleared
+    case queuePaused
+    case queueResumed
 }
 
 /// One durable line in the pet's story.

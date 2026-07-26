@@ -90,6 +90,16 @@ public final class MCPServer: @unchecked Sendable {
                 inputSchema: ["type": "object", "properties": [String: Any](), "required": [String]()]
             ),
             ToolSpec(
+                name: "motive_pause",
+                description: "Freeze \(spriteName): the current item stops counting down, a spoken line pauses at the next word, and nothing new starts.",
+                inputSchema: ["type": "object", "properties": [String: Any](), "required": [String]()]
+            ),
+            ToolSpec(
+                name: "motive_resume",
+                description: "Resume \(spriteName). A half-played item keeps the half it had left.",
+                inputSchema: ["type": "object", "properties": [String: Any](), "required": [String]()]
+            ),
+            ToolSpec(
                 name: "motive_play_script",
                 description: "Replace \(spriteName)'s queue with this sequence (flush, then play these steps in order).\(stateList)\(triggerList)",
                 inputSchema: Self.stepsSchema(key: "steps", description: "Steps executed in order.")
@@ -296,6 +306,12 @@ public final class MCPServer: @unchecked Sendable {
 
             case "motive_skip":
                 payload = encodeJSON(try await transport.skip())
+
+            case "motive_pause":
+                payload = encodeJSON(try await transport.pause())
+
+            case "motive_resume":
+                payload = encodeJSON(try await transport.resume())
 
             case "motive_say":
                 guard let text = arguments["text"] as? String else {

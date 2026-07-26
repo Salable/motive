@@ -437,3 +437,88 @@ final class ActionQueueTests: XCTestCase {
         XCTAssertEqual(queue.depth, ActionQueue.maxOutstandingQuestions, "queue untouched")
     }
 }
+
+extension ActionQueueTests {
+    // MARK: pause / resume / pacing
+
+    func testPauseFreezesTheClockAndResumeGivesTheTimeBack() throws {
+        var queue = makeQueue()
+        let item = QueueItem(action: .say(text: "hello"), holdMS: 10_000)
+        _ = try queue.enqueue([item], now: t0).get()
+
+        XCTAssertTrue(queue.pause(now: t0.addingTimeInterval(2)))
+        // Ten seconds of wall clock pass while paused; nothing advances.
+        XCTAssertEqual(queue.tick(now: t0.addingTimeInterval(12)), [])
+        XCTAssertTrue(queue.isPaused)
+
+        _ = queue.resume(now: t0.addingTimeInterval(12))
+        XCTAssertFalse(queue.isPaused)
+        // 8s of the hold were left when we paused, so it ends at 12 + 8.
+        XCTAssertEqual(queue.tick(now: t0.addingTimeInterval(19.9)), [])
+        XCTAssertEqual(queue.tick(now: t0.addingTimeInterval(20)), [
+            .emit(.itemFinished(id: item.id)),
+            .emit(.drained),
+        ])
+    }
+
+    func testPauseIsIdempotentAndNoOpsWhenIdle() {
+        var queue = makeQueue()
+        XCTAssertFalse(queue.pause(now: t0), "nothing to pause")
+        let item = QueueItem(action: .say(text: "hi"), holdMS: 1000)
+        _ = try? queue.enqueue([item], now: t0).get()
+        XCTAssertTrue(queue.pause(now: t0))
+        XCTAssertFalse(queue.pause(now: t0), "already paused")
+        XCTAssertEqual(queue.resume(now: t0).count, 0, "resuming at the same instant changes nothing")
+    }
+
+    func testNothingNewStartsWhilePaused() throws {
+        var queue = makeQueue()
+        let first = QueueItem(action: .say(text: "one"), holdMS: 1000)
+        let second = QueueItem(action: .say(text: "two"), holdMS: 1000)
+        _ = try queue.enqueue([first, second], now: t0).get()
+        XCTAssertTrue(queue.pause(now: t0.addingTimeInterval(0.5)))
+
+        XCTAssertEqual(queue.tick(now: t0.addingTimeInterval(5)), [], "the second item must not start")
+        XCTAssertEqual(queue.snapshot(now: t0.addingTimeInterval(5)).current?.id, first.id)
+    }
+
+    func testElapsedReportsRunningTimeAndStopsWhilePaused() throws {
+        var queue = makeQueue()
+        let item = QueueItem(action: .say(text: "hello"), holdMS: 10_000)
+        _ = try queue.enqueue([item], now: t0).get()
+        XCTAssertEqual(queue.snapshot(now: t0.addingTimeInterval(3)).currentElapsed ?? -1, 3, accuracy: 0.001)
+
+        _ = queue.pause(now: t0.addingTimeInterval(4))
+        let paused = queue.snapshot(now: t0.addingTimeInterval(9))
+        XCTAssertEqual(paused.currentElapsed ?? -1, 4, accuracy: 0.001, "elapsed freezes with the clock")
+        XCTAssertTrue(paused.isPaused)
+
+        // And picks up where it left off rather than jumping: paused time is
+        // not time the item spent running.
+        _ = queue.resume(now: t0.addingTimeInterval(9))
+        let resumed = queue.snapshot(now: t0.addingTimeInterval(10))
+        XCTAssertEqual(resumed.currentElapsed ?? -1, 5, accuracy: 0.001)
+    }
+
+    func testGapHoldsABeatBetweenItems() throws {
+        var queue = makeQueue()
+        queue.gapMS = 500
+        let first = QueueItem(action: .say(text: "one"), holdMS: 1000)
+        let second = QueueItem(action: .say(text: "two"), holdMS: 1000)
+        _ = try queue.enqueue([first, second], now: t0).get()
+
+        // First finishes at 1s, but the second waits out the gap.
+        let atFinish = queue.tick(now: t0.addingTimeInterval(1))
+        XCTAssertEqual(ids(atFinish), [], "the next item waits for the gap")
+        XCTAssertEqual(ids(queue.tick(now: t0.addingTimeInterval(1.4))), [])
+        XCTAssertEqual(ids(queue.tick(now: t0.addingTimeInterval(1.5))), [second.id])
+    }
+
+    func testZeroGapIsTheShippedBehaviour() throws {
+        var queue = makeQueue()
+        let first = QueueItem(action: .say(text: "one"), holdMS: 1000)
+        let second = QueueItem(action: .say(text: "two"), holdMS: 1000)
+        _ = try queue.enqueue([first, second], now: t0).get()
+        XCTAssertEqual(ids(queue.tick(now: t0.addingTimeInterval(1))), [second.id])
+    }
+}

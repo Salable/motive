@@ -61,6 +61,14 @@ struct LazyDiscoveryTransport: MotiveCommandTransport {
         try await RESTCommandTransport.discover().skip()
     }
 
+    func pause() async throws -> ControlReceipt {
+        try await RESTCommandTransport.discover().pause()
+    }
+
+    func resume() async throws -> ControlReceipt {
+        try await RESTCommandTransport.discover().resume()
+    }
+
     func questions(id: String?) async throws -> QuestionList {
         try await RESTCommandTransport.discover().questions(id: id)
     }

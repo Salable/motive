@@ -16,6 +16,8 @@ public protocol MotiveCommandTransport: Sendable {
     func queueStatus() async throws -> QueueStatus
     func clearQueue() async throws -> ControlReceipt
     func skip() async throws -> ControlReceipt
+    func pause() async throws -> ControlReceipt
+    func resume() async throws -> ControlReceipt
     func questions(id: String?) async throws -> QuestionList
     func cancelQuestion(id: String?) async throws -> ControlReceipt
     func activity(since: UInt64?, limit: Int?) async throws -> ActivityPage
@@ -90,6 +92,9 @@ public struct LocalCommandTransport: MotiveCommandTransport {
     public func skip() async throws -> ControlReceipt {
         await control.skip()
     }
+
+    public func pause() async throws -> ControlReceipt { await control.pause() }
+    public func resume() async throws -> ControlReceipt { await control.resume() }
 
     public func questions(id: String?) async throws -> QuestionList {
         try unwrapValue(await control.questions(id: id))
@@ -209,6 +214,14 @@ public struct RESTCommandTransport: MotiveCommandTransport {
 
     public func skip() async throws -> ControlReceipt {
         try await send(request(path: "/v1/queue/current", method: "DELETE", body: nil))
+    }
+
+    public func pause() async throws -> ControlReceipt {
+        try await post("/v1/queue/pause", body: [:])
+    }
+
+    public func resume() async throws -> ControlReceipt {
+        try await post("/v1/queue/resume", body: [:])
     }
 
     public func questions(id: String?) async throws -> QuestionList {

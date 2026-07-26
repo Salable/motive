@@ -522,6 +522,18 @@ final class MotiveHTTPHandler: ChannelInboundHandler, @unchecked Sendable {
                 Self.respondJSON(channel: channel, status: .ok, json: MotiveServer.encode(await control.skip()))
             }
 
+        case (.POST, "/v1/queue/pause"):
+            guard allowMutation(context: context) else { return }
+            Task { [control] in
+                Self.respondJSON(channel: channel, status: .ok, json: MotiveServer.encode(await control.pause()))
+            }
+
+        case (.POST, "/v1/queue/resume"):
+            guard allowMutation(context: context) else { return }
+            Task { [control] in
+                Self.respondJSON(channel: channel, status: .ok, json: MotiveServer.encode(await control.resume()))
+            }
+
         case (.GET, "/v1/questions"):
             let id = query["id"]
             let wait = query["wait"].flatMap(Int.init).map { min(max(0, $0), Self.maxWaitMS) } ?? 0

@@ -46,6 +46,14 @@ All notable changes to Motive are documented here. The format follows
   requirement cannot drift from the enforced one. `docs/EMBEDDING.md` gains
   "Ship an app bundle" and "Recipe: speech"; the demo's `Info.plist` gains both
   usage descriptions now, a milestone before anything requests them.
+- **Pause and resume** (`POST /v1/queue/pause` / `/resume`, `motive_pause` /
+  `motive_resume`). Freezes the clock rather than stopping the queue: the
+  current item keeps the time it had left, a spoken line pauses at the next word
+  boundary rather than mid-syllable, and nothing behind it starts. `GET /v1/queue`
+  gains `paused` and `currentElapsed`, which stops advancing while paused and
+  resumes where it left off. Plus a configurable inter-item gap
+  (`MotiveEngine.gapMS`, default 0 — the behaviour everything shipped with) for
+  hosts that want a beat of quiet between items.
 - **`GET /v1/activity` — a durable, sequence-numbered record of what happened.**
   Commands accepted, questions asked, and how the human resolved each, oldest
   first, with an `actor` saying who did it. Poll with `?since=<nextSeq>` to get

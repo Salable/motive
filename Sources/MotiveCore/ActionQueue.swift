@@ -150,14 +150,26 @@ public struct QueueSnapshot: Equatable, Sendable {
     /// current item advances on the next tick, or when it is parked waiting on
     /// something outside the queue).
     public let currentRemaining: TimeInterval?
+    /// Seconds the current item has been running.
+    public let currentElapsed: TimeInterval?
     public let pending: [Entry]
+    /// True while playback is paused: nothing finishes and nothing starts.
+    public let isPaused: Bool
 
     public var depth: Int { (current == nil ? 0 : 1) + pending.count }
 
-    public init(current: Entry?, currentRemaining: TimeInterval?, pending: [Entry]) {
+    public init(
+        current: Entry?,
+        currentRemaining: TimeInterval?,
+        pending: [Entry],
+        currentElapsed: TimeInterval? = nil,
+        isPaused: Bool = false
+    ) {
         self.current = current
         self.currentRemaining = currentRemaining
+        self.currentElapsed = currentElapsed
         self.pending = pending
+        self.isPaused = isPaused
     }
 }
 
@@ -227,12 +239,23 @@ public struct ActionQueue: Sendable {
     private let definition: BehaviorDefinition
     private var pending: [QueueItem] = []
     private var current: (item: QueueItem, deadline: Date?)?
+    /// When playback was paused. The queue stays timer-free: pausing records a
+    /// moment, and resuming pushes the deadline out by however long it lasted.
+    private var pausedAt: Date?
+    /// Earliest the next item may start — the inter-item gap.
+    private var gapUntil: Date?
+    /// When the current item started, for elapsed reporting.
+    private var startedAt: Date?
+    /// Milliseconds of quiet between items. 0 (the default) is the behaviour
+    /// everything shipped with.
+    public var gapMS: Int = 0
 
     public init(definition: BehaviorDefinition) {
         self.definition = definition
     }
 
     public var isActive: Bool { current != nil }
+    public var isPaused: Bool { pausedAt != nil }
     public var depth: Int { (current == nil ? 0 : 1) + pending.count }
 
     // MARK: enqueue / flush
@@ -382,6 +405,40 @@ public struct ActionQueue: Sendable {
         return pending.first { $0.id == id }
     }
 
+    // MARK: pause / resume
+
+    /// Freeze the current item. A parked item (a question, a line being spoken)
+    /// has no clock to freeze — pausing marks the queue paused so nothing new
+    /// starts behind it, and the owner pauses the audio itself.
+    @discardableResult
+    public mutating func pause(now: Date) -> Bool {
+        guard pausedAt == nil, current != nil else { return false }
+        pausedAt = now
+        return true
+    }
+
+    /// Resume, pushing the current deadline out by the paused duration so a
+    /// half-played item keeps the half it had left.
+    @discardableResult
+    public mutating func resume(now: Date) -> [Effect] {
+        guard let pausedAt else { return [] }
+        let elapsed = max(0, now.timeIntervalSince(pausedAt))
+        self.pausedAt = nil
+        if var running = current, let deadline = running.deadline {
+            running.deadline = deadline.addingTimeInterval(elapsed)
+            current = running
+        }
+        // Push the start forward too, or elapsed jumps the moment we resume:
+        // paused time is not time the item spent running.
+        if let started = startedAt {
+            startedAt = started.addingTimeInterval(elapsed)
+        }
+        if let gap = gapUntil {
+            gapUntil = gap.addingTimeInterval(elapsed)
+        }
+        return advanceIfDue(now: now)
+    }
+
     // MARK: clock
 
     public mutating func tick(now: Date) -> [Effect] {
@@ -395,6 +452,7 @@ public struct ActionQueue: Sendable {
         let remaining: TimeInterval? = isParked
             ? nil
             : current?.deadline.map { max(0, $0.timeIntervalSince(now)) }
+        let elapsed = startedAt.map { max(0, (pausedAt ?? now).timeIntervalSince($0)) }
         return QueueSnapshot(
             current: current.map {
                 QueueSnapshot.Entry(
@@ -406,7 +464,9 @@ public struct ActionQueue: Sendable {
             currentRemaining: remaining,
             pending: pending.map {
                 QueueSnapshot.Entry(id: $0.id, step: $0.step, awaiting: Self.awaiting(for: $0))
-            }
+            },
+            currentElapsed: elapsed,
+            isPaused: pausedAt != nil
         )
     }
 
@@ -421,6 +481,9 @@ public struct ActionQueue: Sendable {
     /// Finish due items and start the next ones; zero-hold items chain in one
     /// call. Bounded: each iteration consumes one admitted item.
     private mutating func advanceIfDue(now: Date) -> [Effect] {
+        // Paused: nothing finishes and nothing starts. The deadline is shifted
+        // on resume rather than recomputed here, so time truly stands still.
+        guard pausedAt == nil else { return [] }
         var effects: [Effect] = []
         while true {
             if let running = current {
@@ -439,6 +502,14 @@ public struct ActionQueue: Sendable {
             }
             guard current == nil else { break }
             guard !pending.isEmpty else { break }
+            // Inter-item gap: a beat of quiet before the next item starts.
+            if let gapUntil {
+                guard now >= gapUntil else { break }
+                self.gapUntil = nil
+            } else if gapMS > 0, !effects.isEmpty {
+                gapUntil = now.addingTimeInterval(min(Self.maxHold, TimeInterval(gapMS) / 1_000))
+                break
+            }
 
             let item = pending.removeFirst()
             effects.append(.emit(.itemStarted(id: item.id, remaining: pending.count)))
@@ -471,6 +542,7 @@ public struct ActionQueue: Sendable {
                 }
                 effects.append(.emit(.itemAwaiting(id: item.id, timeoutAt: timeoutAt)))
                 current = (item, timeoutAt)
+                startedAt = now
                 break
             }
 
@@ -509,6 +581,7 @@ public struct ActionQueue: Sendable {
 
             if hold > 0 {
                 current = (item, now.addingTimeInterval(hold))
+                startedAt = now
                 break
             }
             // Zero-hold: finish immediately and keep chaining.

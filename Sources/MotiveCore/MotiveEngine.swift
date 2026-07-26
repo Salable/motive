@@ -276,6 +276,40 @@ public actor MotiveEngine: SpeechOutputSink {
         return current.id
     }
 
+    /// Freeze playback: the current item stops counting down and nothing new
+    /// starts. A line being spoken pauses at the next word boundary rather than
+    /// mid-syllable. Returns false when there was nothing to pause.
+    @discardableResult
+    public func pauseQueue(now: Date = Date()) -> Bool {
+        guard queue.pause(now: now) else { return false }
+        if let speechOutput {
+            Task { await speechOutput.pause() }
+        }
+        record(.queuePaused, actor: .human, summary: "Paused", now: now)
+        return true
+    }
+
+    @discardableResult
+    public func resumeQueue(now: Date = Date()) -> Bool {
+        guard queue.isPaused else { return false }
+        let effects = queue.resume(now: now)
+        if let speechOutput {
+            Task { await speechOutput.resume() }
+        }
+        applyQueueEffects(effects, now: now)
+        record(.queueResumed, actor: .human, summary: "Resumed", now: now)
+        return true
+    }
+
+    public var isQueuePaused: Bool { queue.isPaused }
+
+    /// Milliseconds of quiet between queue items. A pacing setting, not a verb:
+    /// it is how the pet feels, not something an agent should retune per call.
+    public var gapMS: Int {
+        get { queue.gapMS }
+        set { queue.gapMS = max(0, newValue) }
+    }
+
     public var queueDepth: Int { queue.depth }
 
     public func queueSnapshot(now: Date = Date()) -> QueueSnapshot {

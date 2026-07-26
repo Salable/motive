@@ -42,6 +42,8 @@ curl -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
 | `GET /v1/queue` | Inspect: depth, current item + remaining hold, pending items. |
 | `DELETE /v1/queue` | Flush the queue and return to the default state. |
 | `DELETE /v1/queue/current` | Skip the current item: it ends now, the next pending item plays. Pending preserved. |
+| `POST /v1/queue/pause` | Freeze playback: the current item stops counting down, a spoken line pauses at the next word, and nothing new starts. |
+| `POST /v1/queue/resume` | Resume. A half-played item keeps the half it had left. |
 | `POST /v1/script` | Compat sugar: **replace** the queue with these steps (v0.1.0 wire shape). |
 | `DELETE /v1/script` | Same as `DELETE /v1/queue`. |
 | `GET /v1/questions` | `?id`, `?wait` (ms, ≤ 30000) — open questions; long-poll for an answer. |
@@ -49,6 +51,17 @@ curl -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
 | `GET /v1/questions/history` | `?limit` — past questions and answers, newest first. |
 | `GET /v1/activity` | `?since`, `?limit` — everything that happened, oldest first, sequence-numbered. |
 | `DELETE /v1/activity` | `{"keep"?}` — cull stored activity (and with it, question history). |
+
+## Pausing
+
+Pause freezes the clock rather than stopping the queue: the current item keeps
+whatever time it had left, a spoken line pauses at the next word boundary, and
+nothing behind it starts. `GET /v1/queue` reports `paused`, plus
+`currentElapsed` — which stops advancing while paused and picks up where it left
+off, because paused time is not time the item spent running.
+
+A parked question has no clock to freeze; pausing simply stops anything new
+starting behind it.
 
 ## Queue semantics
 

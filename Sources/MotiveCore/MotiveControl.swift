@@ -41,13 +41,18 @@ public struct QueueStatus: Codable, Equatable, Sendable {
     /// Seconds until the current item's hold elapses. Absent while the current
     /// item is parked — a question has no countdown.
     public let currentRemaining: Double?
+    /// Seconds the current item has been running.
+    public let currentElapsed: Double?
     public let pending: [Item]
+    public let paused: Bool
 
     public init(snapshot: QueueSnapshot) {
         self.depth = snapshot.depth
         self.current = snapshot.current.map(Item.init(entry:))
         self.currentRemaining = snapshot.currentRemaining
+        self.currentElapsed = snapshot.currentElapsed
         self.pending = snapshot.pending.map(Item.init(entry:))
+        self.paused = snapshot.isPaused
     }
 }
 
@@ -152,8 +157,10 @@ public struct ControlReceipt: Codable, Equatable, Sendable {
     public let questionID: String?
     /// Set by `cancel-question`: the questions withdrawn.
     public let cancelledIDs: [String]?
-    /// Set by `clear-question-history`: records deleted.
+    /// Set by `clear-activity`: records deleted.
     public let removed: Int?
+    /// Set by `pause`/`resume`: whether playback is now frozen.
+    public let paused: Bool?
 
     init(
         state: String,
@@ -166,7 +173,8 @@ public struct ControlReceipt: Codable, Equatable, Sendable {
         skippedID: String? = nil,
         questionID: String? = nil,
         cancelledIDs: [String]? = nil,
-        removed: Int? = nil
+        removed: Int? = nil,
+        paused: Bool? = nil
     ) {
         self.ok = true
         self.state = state
@@ -180,6 +188,7 @@ public struct ControlReceipt: Codable, Equatable, Sendable {
         self.questionID = questionID
         self.cancelledIDs = cancelledIDs
         self.removed = removed
+        self.paused = paused
     }
 }
 
@@ -273,6 +282,14 @@ public struct ControlSchema: Codable, Equatable, Sendable {
         VerbInfo(
             name: "skip", method: "DELETE", path: "/v1/queue/current", params: [:],
             description: "Skip the current queue item: it ends now and the next pending item plays immediately. Pending items are preserved."
+        ),
+        VerbInfo(
+            name: "pause", method: "POST", path: "/v1/queue/pause", params: [:],
+            description: "Freeze playback: the current item stops counting down, a spoken line pauses at the next word, and nothing new starts. Idempotent."
+        ),
+        VerbInfo(
+            name: "resume", method: "POST", path: "/v1/queue/resume", params: [:],
+            description: "Resume playback. A half-played item keeps the half it had left."
         ),
         VerbInfo(
             name: "questions", method: "GET", path: "/v1/questions",
@@ -512,6 +529,18 @@ public actor MotiveControl {
                 queueDepth: receipt.queueDepth
             ))
         }
+    }
+
+    public func pause() async -> ControlReceipt {
+        let paused = await engine.pauseQueue()
+        let current = await engine.machine.currentStateName
+        return ControlReceipt(state: current, paused: paused)
+    }
+
+    public func resume() async -> ControlReceipt {
+        let resumed = await engine.resumeQueue()
+        let current = await engine.machine.currentStateName
+        return ControlReceipt(state: current, paused: resumed ? false : nil)
     }
 
     public func queueStatus() async -> QueueStatus {
