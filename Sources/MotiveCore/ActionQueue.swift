@@ -29,7 +29,10 @@ public struct QueueItem: Equatable, Sendable, Identifiable {
 
     public let id: String
     public let action: Action
-    public let completion: Completion
+    /// Mutable so the engine can promote a `say` to external completion when
+    /// spoken output is installed, without minting a new id the caller has
+    /// already been given.
+    public var completion: Completion
 
     /// Preserved as a computed accessor so every call site written against the
     /// pre-questions queue keeps working. An external item has no hold.

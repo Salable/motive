@@ -98,6 +98,17 @@ public actor MotiveEngine {
     /// Serial chain of pending history appends — see `enqueueHistoryWrite`.
     private var historyWrite: Task<Void, Never>?
 
+    /// Where spoken output goes, when a host installs one. Nil means
+    /// bubble-only, which is every pre-voice pet and every headless one.
+    private var speechOutput: SpeechOutput?
+    /// Utterances we have asked for and not yet heard back about, and whether
+    /// each was ever observed to start.
+    private var speaking: [String: Bool] = [:]
+    /// Serial chain of pending utterance dispatches — see `startSpeaking`.
+    private var speechRequest: Task<Void, Never>?
+    /// Voice preferences a sprite declared; user settings override these.
+    public var voicePreferences: VoicePreferences?
+
     public static let maxRecentQuestions = 500
 
     public init(
@@ -124,6 +135,23 @@ public actor MotiveEngine {
         // `recent` is newest-first; the ring is oldest-first.
         recentQuestions = stored.reversed()
     }
+
+    /// Install spoken output. A `say` will then occupy the queue for exactly as
+    /// long as its audio, so the sprite's talking state and the sound stop
+    /// together instead of drifting apart.
+    public func setSpeechOutput(_ output: SpeechOutput?) {
+        speechOutput = output
+    }
+
+    public func setVoicePreferences(_ preferences: VoicePreferences?) {
+        voicePreferences = preferences
+    }
+
+    public var isSpeechOutputInstalled: Bool { speechOutput != nil }
+
+    /// Why the last utterance did not play, when one didn't. Read by voice
+    /// diagnostics so a broken audio route is visible rather than merely quiet.
+    public private(set) var lastSpeechFailure: String?
 
     deinit {
         tickTask?.cancel()
@@ -178,6 +206,7 @@ public actor MotiveEngine {
         at position: ActionQueue.Position = .tail,
         now: Date = Date()
     ) -> Result<EnqueueReceipt, ControlFailure> {
+        let items = items.map(withSpokenCompletion)
         switch queue.enqueue(items, at: position, now: now) {
         case .failure(let failure):
             return .failure(failure)
@@ -476,6 +505,40 @@ public actor MotiveEngine {
         }
     }
 
+    // MARK: SpeechOutputSink
+
+    public func speechDidStart(id: String, at date: Date) {
+        guard speaking[id] != nil else { return }
+        speaking[id] = true
+    }
+
+    public func speechDidFinish(id: String, outcome: SpeechOutcome, at date: Date) {
+        guard let observedStart = speaking.removeValue(forKey: id) else { return }
+        // Finishing without ever having started means the audio never played —
+        // a broken route, not a spoken line. Reporting it as success would let
+        // a silent queue masquerade as a spoken one.
+        // Whatever happened, the queue must move on — a wedged synthesizer
+        // must not park the pet forever. The distinction between a spoken line
+        // and a silently-dropped one is surfaced by MotiveVoice's diagnostics,
+        // which is where a user can act on it.
+        let reason: ActionQueue.ResolutionReason
+        switch outcome {
+        case .cancelled:
+            reason = .cancelled(.skipped)
+        case .finished where !observedStart:
+            lastSpeechFailure = "audio never started for \(id)"
+            reason = .signalled
+        case .failed(let why):
+            lastSpeechFailure = why
+            reason = .signalled
+        case .finished:
+            reason = .signalled
+        }
+        if case .success(let effects) = queue.resolveExternal(id: id, reason: reason, now: date) {
+            applyQueueEffects(effects, now: date)
+        }
+    }
+
     private func alreadyResolvedOrUnknown(_ id: String) -> ControlFailure {
         recentQuestions.contains { $0.id == id }
             ? ControlFailure(error: "already_resolved")
@@ -494,6 +557,7 @@ public actor MotiveEngine {
             switch effect {
             case .perform(.say(let id, let text, let ttl, _)):
                 lastPostedBubble = applySay(id: id, text, ttl: ttl > 0 ? ttl : nil, now: now)
+                startSpeaking(id: id, text: text)
             case .perform(.setState(let name, let duration)):
                 lastMachineOutcome = applyState(name, duration: duration, now: now)
             case .perform(.trigger(let name)):
@@ -583,6 +647,53 @@ public actor MotiveEngine {
             broadcast(.speechDismissed(id: bubble.id))
         }
         broadcast(.questionResolved(resolved))
+    }
+
+    // MARK: spoken output
+
+    private func startSpeaking(id: String, text: String) {
+        guard let speechOutput else { return }
+        speaking[id] = false
+        let utterance = SpeechUtterance(
+            id: id,
+            text: text,
+            voiceID: voicePreferences?.voiceID,
+            rate: voicePreferences?.rate
+        )
+        // Chained rather than detached: two lines queued back to back must
+        // reach the synthesizer in the order they were said, and the engine
+        // must not block on it.
+        let previous = speechRequest
+        speechRequest = Task {
+            await previous?.value
+            await speechOutput.speak(utterance)
+        }
+    }
+
+    /// Wait for queued utterance dispatches to reach the output. Tests and
+    /// shutdown need this; nothing in normal operation does.
+    public func drainSpeechRequests() async {
+        await speechRequest?.value
+    }
+
+    /// A `say` becomes an external item when audio is installed: its duration
+    /// is the audio's, which nobody knows in advance, so the talking state and
+    /// the sound end together instead of drifting apart.
+    private func withSpokenCompletion(_ item: QueueItem) -> QueueItem {
+        guard speechOutput != nil, case .say = item.action, case .hold = item.completion else {
+            return item
+        }
+        var copy = item
+        copy.completion = .external(timeoutMS: Self.spokenTimeoutMS(for: item))
+        return copy
+    }
+
+    /// A generous ceiling derived from length: the delegate is the real
+    /// detector, this only stops a wedged engine parking the queue forever.
+    static func spokenTimeoutMS(for item: QueueItem) -> Int {
+        guard case .say(let text) = item.action else { return 60_000 }
+        let seconds = Double(text.count) / 8.0 + 15.0
+        return Int(min(seconds, ActionQueue.maxExternalTimeout) * 1_000)
     }
 
     private func recordResolved(_ record: QuestionRecord) {
