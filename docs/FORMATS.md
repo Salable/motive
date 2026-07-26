@@ -8,6 +8,11 @@ A sprite package is a directory containing a manifest plus one or more atlas ima
 `motive/1` (`motive.json`, loaded by `MotiveRunner`) is the only built-in format.
 Consumers can register additional runners with `SpriteRunnerRegistry.register`.
 
+Drawing one rather than looking one up? This is the reference;
+[guides/SPRITE-DESIGN.md](guides/SPRITE-DESIGN.md) is the walkthrough, and it
+starts by copying a package out of
+[../Sprites/starter/](../Sprites/starter/).
+
 The format's posture: **tolerant decode, loud validation** — unknown keys pass
 (forward compatibility); invalid values fail with messages naming the valid
 vocabulary. Every package load goes through the validator. Atlas paths must be relative

@@ -55,14 +55,19 @@ A sprite package is a directory with a manifest and one or more atlas images.
 Nothing in it executes: **sprites are data, never code**, which is what makes it
 safe to load a package you did not write.
 
-The fastest start is to copy the bundled one:
+The fastest start is to copy one of the starter packages, which are drawn to be
+repainted:
 
 ```sh
-cp -R /path/to/motive/Sprites/winston ./Sprites/mysprite
+cp -R /path/to/motive/Sprites/starter/pip ./Sprites/mysprite
 ```
 
-To author your own, you need a sprite sheet — a grid of equally sized cells,
-one animation per row — and a `motive.json` beside it:
+`Sprites/starter/template` is the same grid with guides and labels instead of a
+character, and [SPRITE-DESIGN.md](SPRITE-DESIGN.md) walks through turning either
+one into your own art. `Sprites/winston` is the fuller worked example.
+
+To author your own from scratch, you need a sprite sheet — a grid of equally
+sized cells, one animation per row — and a `motive.json` beside it:
 
 ```jsonc
 {
@@ -91,7 +96,9 @@ verbatim in `/v1/schema`, and they are how an agent decides that "the build
 failed" means `failed` and not `waiting`.
 
 [../FORMATS.md](../FORMATS.md) has the full vocabulary: non-row frame layouts,
-multiple atlases, crossfades, and per-frame timings.
+multiple atlases, crossfades, and per-frame timings;
+[../reference/STATE-PROFILES.md](../reference/STATE-PROFILES.md) says which
+states are worth drawing for the host you have in mind.
 
 Validate it before writing any Swift:
 
@@ -253,6 +260,7 @@ usage-description keys if you use speech input, and a signature.
 
 | You want… | Read |
 | --- | --- |
+| art of your own | [SPRITE-DESIGN.md](SPRITE-DESIGN.md) — grid, loops, timing, and the checks people skip |
 | agents to drive it | [../INTEGRATIONS.md](../INTEGRATIONS.md) — and ship `MotiveAgents` installers so users get one-click setup |
 | MCP without a REST hop | [components/MCP.md](../components/MCP.md) — `MCPServer(transport: LocalCommandTransport(control:))` |
 | it to speak | [concepts/VOICE.md](../concepts/VOICE.md) |

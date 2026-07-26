@@ -49,6 +49,7 @@ docs/
     QUICKSTART.md          five minutes: run the demo, drive it from a terminal
     DEMO.md                the full motive-demo user guide
     FIRST-APP.md           build your own companion from an empty package
+    SPRITE-DESIGN.md       draw the art: grid, loops, timing, the checks
     TROUBLESHOOTING.md     symptom → cause → fix
 
   concepts/              the mental model
@@ -65,6 +66,7 @@ docs/
   reference/             exact facts, no narrative
     ENVIRONMENT.md         every environment variable and runtime file
     CLI.md                 executables, arguments, and scripts/
+    STATE-PROFILES.md      which states to draw, per host
 
   ARCHITECTURE.md        layering and the invariants that hold it together
   EMBEDDING.md           recipe book for building on the packages

@@ -11,6 +11,10 @@ wave-and-say, and — when the server is bound publicly (0.0.0.0) — tells the 
 that you will provide the machine's base address. Re-copy after any server restart
 (tokens rotate).
 
+Which *states* each of these hosts can actually drive — and therefore which rows
+your sprite needs — is
+[reference/STATE-PROFILES.md](reference/STATE-PROFILES.md).
+
 Beyond that, Motive integrates with agents two ways, both over the same command
 surface:
 

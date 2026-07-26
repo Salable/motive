@@ -111,6 +111,15 @@ looping GIFs in `docs/images/` — the hero and the four state cards. Run manual
 changes; nothing runs it automatically, so nothing will tell you it has gone
 stale.
 
+### `scripts/make-starter-sprites.py`
+
+Deterministic. Draws both packages of the starter sprite kit —
+`Sprites/starter/pip` (a complete companion) and `Sprites/starter/template`
+(the same grid as guides and labels) — from the state table at the top of the
+script. Needs Pillow. Run it when the starter vocabulary or palette changes;
+edits made directly to the committed PNGs are overwritten by the next run. See
+[../guides/SPRITE-DESIGN.md](../guides/SPRITE-DESIGN.md).
+
 ## Build and test
 
 ```sh

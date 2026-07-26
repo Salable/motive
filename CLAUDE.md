@@ -17,6 +17,7 @@ scripts/build-demo-app.sh  # dist/MotiveDemo.app bundle (--universal, --zip)
 scripts/demo-curl.sh       # drive a running demo through every REST verb
 scripts/worktree.sh new <name>   # feature branch + worktree in .worktrees/<name>
 scripts/check-doc-links.py       # every relative link in the docs resolves
+scripts/make-starter-sprites.py  # redraw Sprites/starter/ (needs Pillow)
 scripts/sync-wiki.py --out build/wiki   # preview the wiki mirror locally
 swift package generate-documentation --target MotiveCore   # DocC archive
 ```
@@ -44,7 +45,8 @@ at the top — go there to verify a claim rather than trusting the prose.
 | "Help me build my own companion." | `docs/guides/FIRST-APP.md` (tutorial) or `docs/EMBEDDING.md` (recipes). `Sources/MotiveDemo/main.swift` is the everything-at-once reference. |
 | "What are the parameters of X?" | `docs/components/<PRODUCT>.md`, then the `///` comments |
 | "Why does it behave like that?" | `docs/concepts/` — QUEUE, STATES, QUESTIONS, VOICE, RUNTIME |
-| "Author a sprite?" | `docs/FORMATS.md`. Test with `MOTIVE_SPRITE=path swift run motive-demo`. |
+| "Author a sprite?" | `docs/guides/SPRITE-DESIGN.md` to draw one (start from `Sprites/starter/`), `docs/FORMATS.md` for the manifest. Test with `MOTIVE_SPRITE=path swift run motive-demo`. |
+| "Which states should my sprite have?" | `docs/reference/STATE-PROFILES.md` — per host: lifecycle, Claude Code, Codex CLI, Claude Desktop |
 | REST wire details | `docs/API.md` |
 | Agent / MCP hookup | `docs/INTEGRATIONS.md` |
 | Env vars, files, limits | `docs/reference/ENVIRONMENT.md` |
