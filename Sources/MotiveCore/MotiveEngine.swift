@@ -412,6 +412,19 @@ public actor MotiveEngine {
         Array(recentQuestions.reversed().prefix(max(0, limit)))
     }
 
+    /// Drop stored history. `keep: nil` clears everything. Returns how many
+    /// records were removed.
+    @discardableResult
+    public func clearQuestionHistory(keep: Int? = nil) -> Int {
+        let before = recentQuestions.count
+        if let keep, keep > 0 {
+            recentQuestions = Array(recentQuestions.suffix(keep))
+        } else {
+            recentQuestions.removeAll()
+        }
+        return before - recentQuestions.count
+    }
+
     private func resolveQuestion(
         id: String,
         resolution: QuestionResolution,

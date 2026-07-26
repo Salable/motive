@@ -101,9 +101,64 @@ public final class MCPServer: @unchecked Sendable {
                     "type": "object",
                     "properties": [
                         "text": ["type": "string", "description": "What the sprite says."],
-                        "ttl": ["type": "number", "description": "Optional milliseconds the bubble stays up (default 8000)."],
+                        "ttl": ["type": "number", "description": "Optional milliseconds the bubble stays up (default 8000). Ignored when `respond` is set."],
+                        "respond": [
+                            "type": "object",
+                            "description": "Ask a question instead of just speaking. Blocks the queue until a human answers. Poll motive_questions for the outcome — only the human can answer.",
+                            "properties": [
+                                "form": ["type": "string", "enum": ["confirm", "choice", "text"], "description": "confirm: yes/no buttons. choice: one button per option. text: a reply field."],
+                                "choices": ["type": "array", "items": ["type": "string"], "description": "choice form: 2-6 short options."],
+                                "placeholder": ["type": "string", "description": "text form: hint shown in the field."],
+                                "timeout": ["type": "number", "description": "Milliseconds until the question expires. Strongly recommended — without one it waits indefinitely."],
+                            ],
+                            "required": ["form"],
+                        ],
                     ],
                     "required": ["text"],
+                ]
+            ),
+            ToolSpec(
+                name: "motive_questions",
+                description: "List the questions \(spriteName) is waiting on, or one by id. Poll this after a motive_say that carried `respond`. Statuses: awaiting (keep polling), accepted (read `answer`), declined, cancelled, expired.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "id": ["type": "string", "description": "A specific question, open or already resolved."],
+                    ],
+                    "required": [String](),
+                ]
+            ),
+            ToolSpec(
+                name: "motive_cancel_question",
+                description: "Withdraw a question you no longer need answered. Omit `id` to withdraw every open question.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "id": ["type": "string", "description": "The question to withdraw."],
+                    ],
+                    "required": [String](),
+                ]
+            ),
+            ToolSpec(
+                name: "motive_question_history",
+                description: "Past questions and their answers, newest first.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "limit": ["type": "number", "description": "How many records (default 50, max 500)."],
+                    ],
+                    "required": [String](),
+                ]
+            ),
+            ToolSpec(
+                name: "motive_clear_question_history",
+                description: "Delete stored question history. Omit `keep` to clear everything.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "keep": ["type": "number", "description": "Retain the newest N records."],
+                    ],
+                    "required": [String](),
                 ]
             ),
             ToolSpec(
@@ -235,7 +290,30 @@ public final class MCPServer: @unchecked Sendable {
                     return toolFailure(id: id, message: "missing required argument: text")
                 }
                 let ttl = (arguments["ttl"] as? NSNumber)?.intValue
-                payload = encodeJSON(try await transport.say(text, ttlMS: ttl))
+                var respond: ResponseSpec?
+                if let raw = arguments["respond"] {
+                    guard let data = try? JSONSerialization.data(withJSONObject: raw),
+                          let spec = try? JSONDecoder().decode(ResponseSpec.self, from: data)
+                    else {
+                        return toolFailure(id: id, message: "invalid respond block (form must be confirm, choice, or text)")
+                    }
+                    respond = spec
+                }
+                payload = encodeJSON(try await transport.say(text, ttlMS: ttl, respond: respond))
+
+            case "motive_questions":
+                payload = encodeJSON(try await transport.questions(id: arguments["id"] as? String))
+
+            case "motive_cancel_question":
+                payload = encodeJSON(try await transport.cancelQuestion(id: arguments["id"] as? String))
+
+            case "motive_question_history":
+                let limit = (arguments["limit"] as? NSNumber)?.intValue
+                payload = encodeJSON(try await transport.questionHistory(limit: limit))
+
+            case "motive_clear_question_history":
+                let keep = (arguments["keep"] as? NSNumber)?.intValue
+                payload = encodeJSON(try await transport.clearQuestionHistory(keep: keep))
 
             case "motive_dismiss_speech":
                 payload = encodeJSON(try await transport.dismissSpeech())
@@ -303,6 +381,9 @@ public final class MCPServer: @unchecked Sendable {
     private func encodeJSON<T: Encodable>(_ value: T) -> String {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
+        // Match the REST plane: without this, question timestamps render as
+        // raw reference-date doubles that no agent can read.
+        encoder.dateEncodingStrategy = .iso8601
         guard let data = try? encoder.encode(value) else { return "{}" }
         return String(decoding: data, as: UTF8.self)
     }

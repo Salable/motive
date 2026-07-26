@@ -33,8 +33,8 @@ struct LazyDiscoveryTransport: MotiveCommandTransport {
         try await RESTCommandTransport.discover().fireTrigger(name)
     }
 
-    func say(_ text: String, ttlMS: Int?) async throws -> ControlReceipt {
-        try await RESTCommandTransport.discover().say(text, ttlMS: ttlMS)
+    func say(_ text: String, ttlMS: Int?, respond: ResponseSpec?) async throws -> ControlReceipt {
+        try await RESTCommandTransport.discover().say(text, ttlMS: ttlMS, respond: respond)
     }
 
     func dismissSpeech() async throws -> ControlReceipt {
@@ -59,5 +59,21 @@ struct LazyDiscoveryTransport: MotiveCommandTransport {
 
     func skip() async throws -> ControlReceipt {
         try await RESTCommandTransport.discover().skip()
+    }
+
+    func questions(id: String?) async throws -> QuestionList {
+        try await RESTCommandTransport.discover().questions(id: id)
+    }
+
+    func cancelQuestion(id: String?) async throws -> ControlReceipt {
+        try await RESTCommandTransport.discover().cancelQuestion(id: id)
+    }
+
+    func questionHistory(limit: Int?) async throws -> QuestionHistoryPage {
+        try await RESTCommandTransport.discover().questionHistory(limit: limit)
+    }
+
+    func clearQuestionHistory(keep: Int?) async throws -> ControlReceipt {
+        try await RESTCommandTransport.discover().clearQuestionHistory(keep: keep)
     }
 }

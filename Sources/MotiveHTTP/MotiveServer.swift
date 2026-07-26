@@ -26,6 +26,7 @@ public final class MotiveServer: @unchecked Sendable {
     private let preferredPort: Int
     private let group: MultiThreadedEventLoopGroup
     private let sseHub = SSEHub()
+    private let waiters = WaiterBudget()
     private let rateLimiter: RateLimiter
     private var channel: Channel?
     private var currentToken: String?
@@ -53,6 +54,7 @@ public final class MotiveServer: @unchecked Sendable {
         let control = self.control
         let sseHub = self.sseHub
         let rateLimiter = self.rateLimiter
+        let waiters = self.waiters
         let tokenProvider: @Sendable () -> String? = { [weak self] in self?.currentToken }
 
         let bootstrap = ServerBootstrap(group: group)
@@ -67,7 +69,8 @@ public final class MotiveServer: @unchecked Sendable {
                             control: control,
                             tokenProvider: tokenProvider,
                             rateLimiter: rateLimiter,
-                            sseHub: sseHub
+                            sseHub: sseHub,
+                            waiters: waiters
                         )
                     )
                 }
@@ -281,6 +284,31 @@ final class SSEHub: @unchecked Sendable {
 
 // MARK: - HTTP handler
 
+/// Bounds how many long-polls may park at once. Process-wide: the NIO group
+/// runs a single thread and every parked poll holds a connection open, so this
+/// is the same class of protection `SSEHub.maxClients` gives the event stream.
+final class WaiterBudget: @unchecked Sendable {
+    private let lock = NSLock()
+    private var inFlight = 0
+    private let limit: Int
+
+    init(limit: Int = 8) { self.limit = limit }
+
+    func acquire() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard inFlight < limit else { return false }
+        inFlight += 1
+        return true
+    }
+
+    func release() {
+        lock.lock()
+        inFlight = max(0, inFlight - 1)
+        lock.unlock()
+    }
+}
+
 final class MotiveHTTPHandler: ChannelInboundHandler, @unchecked Sendable {
     typealias InboundIn = HTTPServerRequestPart
     typealias OutboundOut = HTTPServerResponsePart
@@ -291,6 +319,7 @@ final class MotiveHTTPHandler: ChannelInboundHandler, @unchecked Sendable {
     private let tokenProvider: @Sendable () -> String?
     private let rateLimiter: RateLimiter
     private let sseHub: SSEHub
+    private let waiters: WaiterBudget
 
     private var head: HTTPRequestHead?
     private var body: ByteBuffer?
@@ -300,12 +329,14 @@ final class MotiveHTTPHandler: ChannelInboundHandler, @unchecked Sendable {
         control: MotiveControl,
         tokenProvider: @escaping @Sendable () -> String?,
         rateLimiter: RateLimiter,
-        sseHub: SSEHub
+        sseHub: SSEHub,
+        waiters: WaiterBudget
     ) {
         self.control = control
         self.tokenProvider = tokenProvider
         self.rateLimiter = rateLimiter
         self.sseHub = sseHub
+        self.waiters = waiters
     }
 
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
@@ -341,10 +372,30 @@ final class MotiveHTTPHandler: ChannelInboundHandler, @unchecked Sendable {
         context.close(promise: nil)
     }
 
+    /// Long-poll ceiling. Callers loop rather than waiting once for minutes:
+    /// the event loop runs on a single thread and every parked poll pins a
+    /// connection.
+    static let maxWaitMS = 30_000
+
+    static func parseQuery(_ uri: String) -> [String: String] {
+        guard let queryPart = uri.split(separator: "?", maxSplits: 1).dropFirst().first else {
+            return [:]
+        }
+        var result: [String: String] = [:]
+        for pair in queryPart.split(separator: "&") {
+            let halves = pair.split(separator: "=", maxSplits: 1)
+            guard let key = halves.first else { continue }
+            let value = halves.count > 1 ? String(halves[1]) : ""
+            result[String(key)] = value.removingPercentEncoding ?? value
+        }
+        return result
+    }
+
     // MARK: routing
 
     private func route(context: ChannelHandlerContext, head: HTTPRequestHead, body: Data) {
         let path = head.uri.split(separator: "?").first.map(String.init) ?? head.uri
+        let query = Self.parseQuery(head.uri)
 
         if head.method == .GET, path == "/v1/ping" {
             respondJSON(context: context, status: .ok, json: #"{"ok":true,"version":"\#(MotiveVersion.current)"}"#)
@@ -411,8 +462,19 @@ final class MotiveHTTPHandler: ChannelInboundHandler, @unchecked Sendable {
                 return
             }
             let ttl = (json["ttl"] as? NSNumber).map { max(0, $0.intValue) }
+            var respond: ResponseSpec?
+            if let raw = json["respond"] {
+                guard let data = try? JSONSerialization.data(withJSONObject: raw),
+                      let spec = try? JSONDecoder().decode(ResponseSpec.self, from: data)
+                else {
+                    respondJSON(context: context, status: .badRequest, json: #"{"ok":false,"error":"invalid_respond"}"#)
+                    return
+                }
+                respond = spec
+            }
+            let spec = respond
             Task { [control] in
-                Self.respond(channel: channel, result: await control.say(text, ttlMS: ttl))
+                Self.respond(channel: channel, result: await control.say(text, ttlMS: ttl, respond: spec))
             }
 
         case (.DELETE, "/v1/speech"):
@@ -458,6 +520,75 @@ final class MotiveHTTPHandler: ChannelInboundHandler, @unchecked Sendable {
             guard allowMutation(context: context) else { return }
             Task { [control] in
                 Self.respondJSON(channel: channel, status: .ok, json: MotiveServer.encode(await control.skip()))
+            }
+
+        case (.GET, "/v1/questions"):
+            let id = query["id"]
+            let wait = query["wait"].flatMap(Int.init).map { min(max(0, $0), Self.maxWaitMS) } ?? 0
+            guard wait == 0 || waiters.acquire() else {
+                // Too many parked polls: answer immediately rather than
+                // holding another connection on a single-threaded loop.
+                Task { [control] in
+                    Self.respond(channel: channel, result: await control.questions(id: id))
+                }
+                return
+            }
+            Task { [control, waiters] in
+                defer { if wait > 0 { waiters.release() } }
+                let deadline = Date().addingTimeInterval(TimeInterval(wait) / 1_000)
+                while true {
+                    let result = await control.questions(id: id)
+                    // A resolved question, or an unknown one, returns at once —
+                    // `wait` only ever delays an answer that might still come.
+                    if case .success(let list) = result {
+                        if let question = list.question, question.status != "awaiting" {
+                            Self.respond(channel: channel, result: result)
+                            return
+                        }
+                        if id == nil, !list.open.isEmpty {
+                            Self.respond(channel: channel, result: result)
+                            return
+                        }
+                    } else {
+                        Self.respond(channel: channel, result: result)
+                        return
+                    }
+                    if Date() >= deadline || Task.isCancelled {
+                        // A timed-out long poll is a 200 with status
+                        // "awaiting", never an error: that is what makes the
+                        // caller's loop trivially correct.
+                        Self.respond(channel: channel, result: result)
+                        return
+                    }
+                    try? await Task.sleep(nanoseconds: 100_000_000)
+                }
+            }
+
+        case (.DELETE, "/v1/questions"):
+            guard allowMutation(context: context) else { return }
+            let id = (decodeObject(body)?["id"] as? String) ?? query["id"]
+            Task { [control] in
+                Self.respond(channel: channel, result: await control.cancelQuestion(id: id))
+            }
+
+        case (.GET, "/v1/questions/history"):
+            let limit = query["limit"].flatMap(Int.init)
+            Task { [control] in
+                Self.respondJSON(
+                    channel: channel, status: .ok,
+                    json: MotiveServer.encode(await control.questionHistory(limit: limit))
+                )
+            }
+
+        case (.DELETE, "/v1/questions/history"):
+            guard allowMutation(context: context) else { return }
+            let keep = (decodeObject(body)?["keep"] as? NSNumber)?.intValue
+                ?? query["keep"].flatMap(Int.init)
+            Task { [control] in
+                Self.respondJSON(
+                    channel: channel, status: .ok,
+                    json: MotiveServer.encode(await control.clearQuestionHistory(keep: keep))
+                )
             }
 
         case (.POST, "/v1/script"):
@@ -534,10 +665,13 @@ final class MotiveHTTPHandler: ChannelInboundHandler, @unchecked Sendable {
         Self.respondJSON(channel: context.channel, status: status, json: json)
     }
 
-    static func respond(channel: Channel, result: Result<ControlReceipt, ControlFailure>) {
+    static func respond<Success: Encodable>(
+        channel: Channel,
+        result: Result<Success, ControlFailure>
+    ) {
         switch result {
-        case .success(let receipt):
-            respondJSON(channel: channel, status: .ok, json: MotiveServer.encode(receipt))
+        case .success(let value):
+            respondJSON(channel: channel, status: .ok, json: MotiveServer.encode(value))
         case .failure(let failure):
             respondJSON(channel: channel, status: .badRequest, json: MotiveServer.encode(failure))
         }

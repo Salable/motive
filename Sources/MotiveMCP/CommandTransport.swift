@@ -9,13 +9,17 @@ public protocol MotiveCommandTransport: Sendable {
     func status() async throws -> ControlStatus
     func setState(_ name: String, durationMS: Int?) async throws -> ControlReceipt
     func fireTrigger(_ name: String) async throws -> ControlReceipt
-    func say(_ text: String, ttlMS: Int?) async throws -> ControlReceipt
+    func say(_ text: String, ttlMS: Int?, respond: ResponseSpec?) async throws -> ControlReceipt
     func dismissSpeech() async throws -> ControlReceipt
     func playScript(_ run: ScriptRun) async throws -> ControlReceipt
     func enqueue(_ steps: [ScriptStep]) async throws -> ControlReceipt
     func queueStatus() async throws -> QueueStatus
     func clearQueue() async throws -> ControlReceipt
     func skip() async throws -> ControlReceipt
+    func questions(id: String?) async throws -> QuestionList
+    func cancelQuestion(id: String?) async throws -> ControlReceipt
+    func questionHistory(limit: Int?) async throws -> QuestionHistoryPage
+    func clearQuestionHistory(keep: Int?) async throws -> ControlReceipt
 }
 
 public struct TransportError: Error, CustomStringConvertible {
@@ -58,8 +62,8 @@ public struct LocalCommandTransport: MotiveCommandTransport {
         try unwrap(await control.fireTrigger(name))
     }
 
-    public func say(_ text: String, ttlMS: Int?) async throws -> ControlReceipt {
-        try unwrap(await control.say(text, ttlMS: ttlMS))
+    public func say(_ text: String, ttlMS: Int?, respond: ResponseSpec?) async throws -> ControlReceipt {
+        try unwrap(await control.say(text, ttlMS: ttlMS, respond: respond))
     }
 
     public func dismissSpeech() async throws -> ControlReceipt {
@@ -84,6 +88,29 @@ public struct LocalCommandTransport: MotiveCommandTransport {
 
     public func skip() async throws -> ControlReceipt {
         await control.skip()
+    }
+
+    public func questions(id: String?) async throws -> QuestionList {
+        try unwrapValue(await control.questions(id: id))
+    }
+
+    public func cancelQuestion(id: String?) async throws -> ControlReceipt {
+        try unwrap(await control.cancelQuestion(id: id))
+    }
+
+    public func questionHistory(limit: Int?) async throws -> QuestionHistoryPage {
+        await control.questionHistory(limit: limit)
+    }
+
+    public func clearQuestionHistory(keep: Int?) async throws -> ControlReceipt {
+        await control.clearQuestionHistory(keep: keep)
+    }
+
+    private func unwrapValue<T>(_ result: Result<T, ControlFailure>) throws -> T {
+        switch result {
+        case .success(let value): return value
+        case .failure(let failure): throw TransportError(message: failure.error, valid: failure.valid)
+        }
     }
 
     private func unwrap(_ result: Result<ControlReceipt, ControlFailure>) throws -> ControlReceipt {
@@ -142,9 +169,13 @@ public struct RESTCommandTransport: MotiveCommandTransport {
         try await post("/v1/trigger", body: ["name": name])
     }
 
-    public func say(_ text: String, ttlMS: Int?) async throws -> ControlReceipt {
+    public func say(_ text: String, ttlMS: Int?, respond: ResponseSpec?) async throws -> ControlReceipt {
         var body: [String: Any] = ["text": text]
         if let ttlMS { body["ttl"] = ttlMS }
+        if let respond {
+            let data = try JSONEncoder().encode(respond)
+            body["respond"] = try JSONSerialization.jsonObject(with: data)
+        }
         return try await post("/v1/say", body: body)
     }
 
@@ -175,6 +206,28 @@ public struct RESTCommandTransport: MotiveCommandTransport {
         try await send(request(path: "/v1/queue/current", method: "DELETE", body: nil))
     }
 
+    public func questions(id: String?) async throws -> QuestionList {
+        // No `wait` from MCP: hosts time tool calls out, so an agent polls
+        // repeatedly rather than parking a call for half a minute.
+        let query = id.map { "?id=\($0.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? $0)" } ?? ""
+        return try await get("/v1/questions" + query)
+    }
+
+    public func cancelQuestion(id: String?) async throws -> ControlReceipt {
+        let data = id.map { try? JSONSerialization.data(withJSONObject: ["id": $0]) } ?? nil
+        return try await send(request(path: "/v1/questions", method: "DELETE", body: data))
+    }
+
+    public func questionHistory(limit: Int?) async throws -> QuestionHistoryPage {
+        let query = limit.map { "?limit=\($0)" } ?? ""
+        return try await get("/v1/questions/history" + query)
+    }
+
+    public func clearQuestionHistory(keep: Int?) async throws -> ControlReceipt {
+        let data = keep.map { try? JSONSerialization.data(withJSONObject: ["keep": $0]) } ?? nil
+        return try await send(request(path: "/v1/questions/history", method: "DELETE", body: data))
+    }
+
     // MARK: internals
 
     private func get<T: Decodable>(_ path: String) async throws -> T {
@@ -187,7 +240,15 @@ public struct RESTCommandTransport: MotiveCommandTransport {
     }
 
     private func request(path: String, method: String, body: Data?) -> URLRequest {
-        var request = URLRequest(url: baseURL.appendingPathComponent(path))
+        // Split the query off before appending: `appendingPathComponent`
+        // percent-encodes `?`, which would turn a query into part of the path.
+        let parts = path.split(separator: "?", maxSplits: 1)
+        var url = baseURL.appendingPathComponent(String(parts[0]))
+        if parts.count > 1, var components = URLComponents(url: url, resolvingAgainstBaseURL: false) {
+            components.percentEncodedQuery = String(parts[1])
+            url = components.url ?? url
+        }
+        var request = URLRequest(url: url)
         request.httpMethod = method
         request.httpBody = body
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -204,6 +265,11 @@ public struct RESTCommandTransport: MotiveCommandTransport {
             }
             throw TransportError(message: "control plane returned HTTP \(status)")
         }
-        return try JSONDecoder().decode(T.self, from: data)
+        // Dates cross this hop as ISO8601 (the server encodes them that way);
+        // without the matching strategy every question timestamp fails to
+        // decode and the whole payload is lost.
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode(T.self, from: data)
     }
 }
