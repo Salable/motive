@@ -140,23 +140,35 @@ public final class MCPServer: @unchecked Sendable {
                 ]
             ),
             ToolSpec(
+                name: "motive_activity",
+                description: "What has happened to \(spriteName), oldest first: commands, questions asked, and the human's answers. Pass `since` (the `nextSeq` from your last call) to get only what is new — this is how you catch up after being away, without holding an event stream open.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "since": ["type": "number", "description": "Sequence number of the last entry you saw. Omit for the beginning."],
+                        "limit": ["type": "number", "description": "How many entries (default 100, max 500)."],
+                    ],
+                    "required": [String](),
+                ]
+            ),
+            ToolSpec(
+                name: "motive_clear_activity",
+                description: "Delete stored activity. Omit `keep` to clear everything.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "keep": ["type": "number", "description": "Retain the newest N entries."],
+                    ],
+                    "required": [String](),
+                ]
+            ),
+            ToolSpec(
                 name: "motive_question_history",
                 description: "Past questions and their answers, newest first.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
                         "limit": ["type": "number", "description": "How many records (default 50, max 500)."],
-                    ],
-                    "required": [String](),
-                ]
-            ),
-            ToolSpec(
-                name: "motive_clear_question_history",
-                description: "Delete stored question history. Omit `keep` to clear everything.",
-                inputSchema: [
-                    "type": "object",
-                    "properties": [
-                        "keep": ["type": "number", "description": "Retain the newest N records."],
                     ],
                     "required": [String](),
                 ]
@@ -307,13 +319,19 @@ public final class MCPServer: @unchecked Sendable {
             case "motive_cancel_question":
                 payload = encodeJSON(try await transport.cancelQuestion(id: arguments["id"] as? String))
 
+            case "motive_activity":
+                let since = (arguments["since"] as? NSNumber)?.uint64Value
+                let limit = (arguments["limit"] as? NSNumber)?.intValue
+                payload = encodeJSON(try await transport.activity(since: since, limit: limit))
+
+            case "motive_clear_activity":
+                payload = encodeJSON(
+                    try await transport.clearActivity(keep: (arguments["keep"] as? NSNumber)?.intValue)
+                )
+
             case "motive_question_history":
                 let limit = (arguments["limit"] as? NSNumber)?.intValue
                 payload = encodeJSON(try await transport.questionHistory(limit: limit))
-
-            case "motive_clear_question_history":
-                let keep = (arguments["keep"] as? NSNumber)?.intValue
-                payload = encodeJSON(try await transport.clearQuestionHistory(keep: keep))
 
             case "motive_dismiss_speech":
                 payload = encodeJSON(try await transport.dismissSpeech())

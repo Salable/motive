@@ -1,0 +1,63 @@
+<!-- @dsCard group="Components" name="Reply composer" subtitle="The killer feature: type or speak an answer to a note that asked for one. Pauses the whole queue until resolved." -->
+<meta charset="utf-8"><title>Reply composer</title>
+<style>
+  :root {
+    --bg: #f5f5f7; --surface: #ffffff; --text: #1d1d1f; --muted: #86868b; --border: #d8d8dd;
+    --accent: #0a7cff; --info: #e3eefc; --info-ink: #2d6ac0; --destructive: #d0342c;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text);
+         font: 13px/1.5 -apple-system, "SF Pro Text", Helvetica, sans-serif;
+         padding: 20px; }
+  h1 { font-size: 17px; font-weight: 600; margin-bottom: 4px; }
+  h2 { font-size: 13px; font-weight: 600; color: var(--muted);
+       text-transform: uppercase; letter-spacing: 0.06em; margin: 18px 0 8px; }
+  p.lead { color: var(--muted); margin-bottom: 12px; max-width: 62ch; }
+  .card { background:var(--info); border-radius:16px; padding:14px; max-width:640px; margin:10px 0; }
+  .field { flex:1; background:#fff; border:1px solid var(--border); border-radius:8px; padding:7px 10px; color:var(--muted); }
+  .btn { display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 12px; border-radius:8px; font-size:12px; }
+  .note { color: var(--muted); font-size: 11px; margin-top: 10px; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { text-align: left; padding: 5px 10px 5px 0; font-size: 12px;
+           border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 500; }
+</style>
+
+<h1>Reply composer</h1><p class="lead">When an agent POSTs <code>{"expects_response":true}</code> and that note finishes speaking, the whole queue pauses — nothing else speaks until the person answers here. This card takes the Now-speaking card's slot; the two never appear together.</p>
+
+<div class="card">
+  <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px"><span style="color:var(--accent)">ⓘ</span><div><div style="color:var(--info-ink);font-size:12px;font-weight:600">AWAITING YOUR REPLY</div><div>Ready to deploy version two point one. Say go ahead or stop.</div></div></div>
+  <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+    <div class="field">Type your reply...</div>
+    <div class="btn" style="background:#fff;border:1px solid var(--border)">●</div>
+  </div>
+  <div style="display:flex;gap:8px;justify-content:flex-end">
+    <div class="btn" style="color:var(--muted)">Decline</div>
+    <div class="btn" style="background:var(--accent);color:#fff">Send</div>
+  </div>
+</div>
+
+<h2>The three answers</h2>
+<table>
+<tr><th>Path</th><th>How</th><th>response_via</th></tr>
+<tr><td>Type</td><td>the text field, Enter or Send</td><td><code>typed</code></td></tr>
+<tr><td>Speak</td><td>mic button → record → stop → on-device transcript lands in the SAME field for review → Send</td><td><code>voice</code></td></tr>
+<tr><td>Decline</td><td>the Decline button</td><td>none — no response text</td></tr>
+</table>
+
+<h2>Voice sub-states</h2>
+<table>
+<tr><td>Idle — mic button shown ONLY if <code>voiceRepliesEnabled</code> (Settings → REPLIES). Off by default so no one who never wants this ever sees a mic permission prompt.</td></tr>
+<tr><td>Recording — button becomes a filled destructive "Stop recording"; a 90s watchdog auto-stops if forgotten.</td></tr>
+<tr><td>Transcribing — mic controls hide, a muted "Transcribing…" line shows; on-device Speech framework, streaming — no audio file is ever written, matching the TTS side's own invariant.</td></tr>
+<tr><td>The transcript is populated for REVIEW, never auto-sent — a misheard word can be fixed before Send.</td></tr>
+</table>
+
+<h2>Escape hatches (mandatory, not polish)</h2>
+<table>
+<tr><td>Skip (⌘E) doubles as Decline while a reply is awaited — no separate shortcut to learn.</td></tr>
+<tr><td>Clear reaches a stuck awaiting reply even with an empty pending queue — the confirm dialog resolves it as declined too.</td></tr>
+<tr><td>The tray gets a 3rd icon state + a "Reply" row so the queue's stuck-ness is visible without the window open.</td></tr>
+<tr><td>An awaiting reply survives an app restart (persisted, restored straight back into place) rather than being silently dropped.</td></tr>
+</table>
+<p class="note">There is no HTTP route to submit a reply — deliberately UI-only. An agent polls <code>GET /jobs/{id}</code> for <code>response_state</code> (none→awaiting→answered/declined); only a person, in the app, can resolve it. See AGENTS.md's "Asking for a reply" section for the full agent-side contract, including that a reply is real input (corrections, new instructions), not just yes/no.</p>

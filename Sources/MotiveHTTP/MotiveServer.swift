@@ -571,23 +571,33 @@ final class MotiveHTTPHandler: ChannelInboundHandler, @unchecked Sendable {
                 Self.respond(channel: channel, result: await control.cancelQuestion(id: id))
             }
 
-        case (.GET, "/v1/questions/history"):
+        case (.GET, "/v1/activity"):
+            let since = query["since"].flatMap(UInt64.init)
             let limit = query["limit"].flatMap(Int.init)
             Task { [control] in
                 Self.respondJSON(
                     channel: channel, status: .ok,
-                    json: MotiveServer.encode(await control.questionHistory(limit: limit))
+                    json: MotiveServer.encode(await control.activity(since: since, limit: limit))
                 )
             }
 
-        case (.DELETE, "/v1/questions/history"):
+        case (.DELETE, "/v1/activity"):
             guard allowMutation(context: context) else { return }
             let keep = (decodeObject(body)?["keep"] as? NSNumber)?.intValue
                 ?? query["keep"].flatMap(Int.init)
             Task { [control] in
                 Self.respondJSON(
                     channel: channel, status: .ok,
-                    json: MotiveServer.encode(await control.clearQuestionHistory(keep: keep))
+                    json: MotiveServer.encode(await control.clearActivity(keep: keep))
+                )
+            }
+
+        case (.GET, "/v1/questions/history"):
+            let limit = query["limit"].flatMap(Int.init)
+            Task { [control] in
+                Self.respondJSON(
+                    channel: channel, status: .ok,
+                    json: MotiveServer.encode(await control.questionHistory(limit: limit))
                 )
             }
 

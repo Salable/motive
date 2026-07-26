@@ -1,0 +1,42 @@
+name: Feature request
+description: Propose a new capability for TalkBox
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: Lead with the problem, not the solution. What can't you (or your agent) do today?
+      placeholder: "My agent can't tell whether the user actually heard a note before..."
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: What should happen, from the user's / agent's point of view?
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Surface affected
+      multiple: true
+      options:
+        - Queue / playback
+        - Replies (voice or typed)
+        - Settings
+        - Tray / menu bar
+        - HTTP API
+        - Packaging / distribution
+        - Docs
+    validations:
+      required: true
+  - type: textarea
+    id: api
+    attributes:
+      label: API implications (if any)
+      description: >
+        TalkBox keeps UI/API twin parity, with ONE deliberate exception:
+        replies are UI-only (no HTTP route can answer a reply — it's a
+        human-in-the-loop check). Note how your proposal fits.

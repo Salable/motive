@@ -69,11 +69,16 @@ struct LazyDiscoveryTransport: MotiveCommandTransport {
         try await RESTCommandTransport.discover().cancelQuestion(id: id)
     }
 
+    func activity(since: UInt64?, limit: Int?) async throws -> ActivityPage {
+        try await RESTCommandTransport.discover().activity(since: since, limit: limit)
+    }
+
+    func clearActivity(keep: Int?) async throws -> ControlReceipt {
+        try await RESTCommandTransport.discover().clearActivity(keep: keep)
+    }
+
     func questionHistory(limit: Int?) async throws -> QuestionHistoryPage {
         try await RESTCommandTransport.discover().questionHistory(limit: limit)
     }
 
-    func clearQuestionHistory(keep: Int?) async throws -> ControlReceipt {
-        try await RESTCommandTransport.discover().clearQuestionHistory(keep: keep)
-    }
 }

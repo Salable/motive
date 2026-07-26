@@ -1,0 +1,45 @@
+<!-- @dsCard group="Windows" name="Menu-bar status item" subtitle="Three icon states (dynamic tray icon, an SDK patch), glance-and-nudge dropdown." -->
+<meta charset="utf-8"><title>Menu-bar status item</title>
+<style>
+  :root {
+    --bg: #f5f5f7; --surface: #ffffff; --text: #1d1d1f; --muted: #86868b; --border: #d8d8dd; --accent: #0a7cff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text);
+         font: 13px/1.5 -apple-system, "SF Pro Text", Helvetica, sans-serif;
+         padding: 20px; }
+  h1 { font-size: 17px; font-weight: 600; margin-bottom: 4px; }
+  h2 { font-size: 13px; font-weight: 600; color: var(--muted);
+       text-transform: uppercase; letter-spacing: 0.06em; margin: 18px 0 8px; }
+  p.lead { color: var(--muted); margin-bottom: 12px; max-width: 62ch; }
+  .icon { width:22px; height:22px; border-radius:6px; background:#2a2a2a; display:inline-flex; align-items:center; justify-content:center; color:#fff; font-size:11px; }
+  .note { color: var(--muted); font-size: 11px; margin-top: 10px; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { text-align: left; padding: 5px 10px 5px 0; font-size: 12px;
+           border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 500; }
+</style>
+
+<h1>Menu-bar status item</h1><p class="lead">Glance and one-click control; managing/reordering stays in the main window. The icon itself carries state (an SDK patch was needed — <code>StatusItemState</code> had no icon channel before this project added one, preserved as <code>docs/sdk-patches/dynamic-tray-icon.patch</code>).</p>
+
+<h2>Three icon states</h2>
+<table>
+<tr><th>Icon</th><th>Title</th><th>When</th></tr>
+<tr><td><span class="icon">▤</span> logo (dark square, light band)</td><td>(empty)</td><td>nothing current, nothing awaiting</td></tr>
+<tr><td><span class="icon" style="background:var(--accent)">▶</span> play triangle</td><td>♪ / ⏸</td><td>speaking / paused</td></tr>
+<tr><td><span class="icon" style="background:var(--accent)">●</span> bold dot</td><td>?</td><td>a reply is awaited — demands attention</td></tr>
+</table>
+<p class="note">macOS can't swap a template ICON live in this SDK's older path — only the title text updates freely — so the icon channel itself needed the patch above; the title text still carries the finer ♪/⏸ distinction beside it.</p>
+
+<h2>Dropdown (state-dependent rows)</h2>
+<div style="max-width:230px;background:#fff;border:1px solid var(--border);border-radius:8px;padding:4px;font-size:13px">
+  <div style="padding:4px 10px">Reply <span class="note" style="float:right">only while awaiting</span></div>
+  <div style="padding:4px 10px">Play <span class="note" style="float:right">only while queued, not awaiting</span></div>
+  <div style="padding:4px 10px">Show Queue</div>
+  <div style="padding:4px 10px">View Settings</div>
+</div>
+<h2>Rules</h2><table>
+<tr><td>"Reply" is the tray's own escape hatch: raises the window onto the Queue tab (same command as Show Queue) — the one state most likely to need a nudge when the app isn't in view.</td></tr>
+<tr><td>"Play" is one-button transport: idle → starts playback; already playing → skips to the next item (arms <code>play_requested</code> so the next item starts even with autoplay off).</td></tr>
+<tr><td>"Show Queue" / "View Settings" both switch tabs AND raise the window — macOS doesn't activate an app when its status-item menu is clicked, and this SDK has no window-front seam for TEA apps, so the model spawns <code>osascript</code> asking System Events to raise our own pid (one-time Automation permission; works for unbundled <code>native dev</code> binaries too).</td></tr>
+<tr><td>Pause/Skip/Clear are NOT in the tray — the window is one click away via Show Queue, and they remain in the app menu, shortcuts, and transport.</td></tr></table>

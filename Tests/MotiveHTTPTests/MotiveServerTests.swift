@@ -544,7 +544,7 @@ final class MotiveServerTests: XCTestCase {
         )
     }
 
-    func testQuestionHistorySurvivesCullSettings() async throws {
+    func testQuestionHistoryAndActivityShareOneTimeline() async throws {
         for index in 0..<3 {
             let asked = try await request(
                 "POST", "/v1/say", body: #"{"text":"Q\#(index)?","respond":{"form":"confirm"}}"#
@@ -552,12 +552,57 @@ final class MotiveServerTests: XCTestCase {
             let id = try XCTUnwrap(asked.json["questionID"] as? String)
             _ = await engine.answerQuestion(id: id, content: .confirm(true))
         }
-        let full = try await request("GET", "/v1/questions/history")
-        XCTAssertEqual(full.json["total"] as? Int, 3)
+        let history = try await request("GET", "/v1/questions/history")
+        XCTAssertEqual(history.json["total"] as? Int, 3, "history is a filtered view")
 
-        let culled = try await request("DELETE", "/v1/questions/history", body: #"{"keep":1}"#)
-        XCTAssertEqual(culled.json["removed"] as? Int, 2)
+        // Each question contributes two activity entries: asked, then resolved.
+        let activity = try await request("GET", "/v1/activity")
+        let entries = try XCTUnwrap(activity.json["entries"] as? [[String: Any]])
+        XCTAssertEqual(entries.count, 6)
+        XCTAssertEqual(entries.first?["kind"] as? String, "asked")
+
+        // One store, one retention control.
+        let culled = try await request("DELETE", "/v1/activity", body: #"{"keep":2}"#)
+        XCTAssertEqual(culled.json["removed"] as? Int, 4)
         let after = try await request("GET", "/v1/questions/history")
-        XCTAssertEqual(after.json["total"] as? Int, 1)
+        XCTAssertEqual(after.json["total"] as? Int, 1, "one resolved question survived")
+    }
+
+    /// The cursor is what makes polling a real alternative to holding the SSE
+    /// stream open: ask for everything after the last sequence you saw.
+    func testActivityCursorReturnsOnlyWhatIsNew() async throws {
+        _ = try await request("POST", "/v1/say", body: #"{"text":"first"}"#)
+        let first = try await request("GET", "/v1/activity")
+        let cursor = try XCTUnwrap(first.json["nextSeq"] as? Int)
+        XCTAssertGreaterThan(cursor, 0)
+
+        _ = try await request("POST", "/v1/state", body: #"{"state":"running"}"#)
+        let next = try await request("GET", "/v1/activity?since=\(cursor)")
+        let entries = try XCTUnwrap(next.json["entries"] as? [[String: Any]])
+        XCTAssertEqual(entries.count, 1, "only what happened since")
+        XCTAssertEqual(entries.first?["kind"] as? String, "stateRequested")
+        XCTAssertEqual(entries.first?["actor"] as? String, "agent")
+
+        // Nothing new: an empty page and the cursor held steady.
+        let latest = try XCTUnwrap(next.json["nextSeq"] as? Int)
+        let idle = try await request("GET", "/v1/activity?since=\(latest)")
+        XCTAssertEqual((idle.json["entries"] as? [[String: Any]])?.count, 0)
+        XCTAssertEqual(idle.json["nextSeq"] as? Int, latest, "the cursor must not rewind")
+    }
+
+    func testActivityRecordsWhoDidWhat() async throws {
+        let asked = try await request(
+            "POST", "/v1/say", body: #"{"text":"Deploy?","respond":{"form":"confirm"}}"#
+        )
+        let id = try XCTUnwrap(asked.json["questionID"] as? String)
+        _ = await engine.answerQuestion(id: id, content: .confirm(true))
+
+        let activity = try await request("GET", "/v1/activity")
+        let entries = try XCTUnwrap(activity.json["entries"] as? [[String: Any]])
+        let asking = try XCTUnwrap(entries.first { $0["kind"] as? String == "asked" })
+        XCTAssertEqual(asking["actor"] as? String, "agent")
+        let answering = try XCTUnwrap(entries.first { $0["kind"] as? String == "questionResolved" })
+        XCTAssertEqual(answering["actor"] as? String, "human", "the answer was the human's")
+        XCTAssertEqual(answering["summary"] as? String, "Answered yes")
     }
 }

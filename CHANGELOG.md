@@ -46,6 +46,20 @@ All notable changes to Motive are documented here. The format follows
   requirement cannot drift from the enforced one. `docs/EMBEDDING.md` gains
   "Ship an app bundle" and "Recipe: speech"; the demo's `Info.plist` gains both
   usage descriptions now, a milestone before anything requests them.
+- **`GET /v1/activity` — a durable, sequence-numbered record of what happened.**
+  Commands accepted, questions asked, and how the human resolved each, oldest
+  first, with an `actor` saying who did it. Poll with `?since=<nextSeq>` to get
+  only what is new: SSE has no replay, so this is how an agent answers "what did
+  I miss" after a disconnect or a restart. Sequence numbers are monotonic and
+  survive restarts, so a cursor held across one stays valid.
+
+  It records *decisions*, not frames — an agent asking for a state, not the
+  transitions and auto-reverts that follow — because a render trace would bury
+  exactly the signal an agent polls this for. Question history is now a filtered
+  view over the same timeline rather than a second file: one store, one
+  retention policy, no two records that can disagree about what happened.
+  `DELETE /v1/questions/history` is therefore gone, replaced by
+  `DELETE /v1/activity`, and the on-disk file is `history/activity.jsonl`.
 - **Answer out loud (`speech.input`).** On-device transcription via
   `SFSpeechRecognizer`, off by default, with a mic button beside the question's
   buttons. A spoken answer goes through exactly the same path as a typed one and

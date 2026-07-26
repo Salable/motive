@@ -166,16 +166,16 @@ public final class SpriteHost: ObservableObject, SpeechInputSink {
     }
 
     /// Convenience: build the engine from the definition and start its clock.
-    /// `history` defaults to the standard runtime home, so a pet that asks
-    /// questions remembers the answers across restarts without the host
-    /// wiring anything. Pass nil for an ephemeral pet.
+    /// `activity` defaults to the standard runtime home, so a pet remembers
+    /// what happened across restarts without the host wiring anything. Pass nil
+    /// for an ephemeral pet.
     public convenience init(
         definition: SpriteDefinition,
-        history: QuestionHistoryStore? = FileQuestionHistoryStore(
-            url: RuntimePaths.standard.questionHistoryURL
+        activity: ActivityStore? = FileActivityStore(
+            url: RuntimePaths.standard.activityURL
         )
     ) {
-        let engine = MotiveEngine(definition: definition.behaviorDefinition, history: history)
+        let engine = MotiveEngine(definition: definition.behaviorDefinition, activity: activity)
         self.init(definition: definition, engine: engine)
         Task { [weak self] in
             await engine.restoreHistory()

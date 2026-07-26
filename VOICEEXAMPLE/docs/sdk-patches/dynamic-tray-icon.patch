@@ -1,0 +1,210 @@
+--- a/src/platform/macos/appkit_host.h
++++ b/src/platform/macos/appkit_host.h
+@@ -594,6 +594,7 @@
+  * the icon-only square well, or the app-name initial when there is no
+  * icon either — the same fallbacks as create. */
+ void native_sdk_appkit_update_tray_title(native_sdk_appkit_host_t *host, const char *title, size_t title_len);
++void native_sdk_appkit_update_tray_icon(native_sdk_appkit_host_t *host, const char *icon_path, size_t icon_path_len);
+ void native_sdk_appkit_remove_tray(native_sdk_appkit_host_t *host);
+ void native_sdk_appkit_set_tray_callback(native_sdk_appkit_host_t *host, native_sdk_appkit_tray_callback_t callback, void *context);
+ 
+--- a/src/platform/macos/appkit_host.m
++++ b/src/platform/macos/appkit_host.m
+@@ -10371,6 +10371,26 @@
+             [menu addItem:item];
+         }
+         object.statusItem.menu = menu;
++    }
++}
++
++void native_sdk_appkit_update_tray_icon(native_sdk_appkit_host_t *host, const char *icon_path, size_t icon_path_len) {
++    NativeSdkAppKitHost *object = (__bridge NativeSdkAppKitHost *)host;
++    @autoreleasepool {
++        if (!object.statusItem) return;
++        if (!icon_path || icon_path_len == 0) {
++            object.statusItem.button.image = nil;
++            return;
++        }
++        NSString *path = [[NSString alloc] initWithBytes:icon_path length:icon_path_len encoding:NSUTF8StringEncoding];
++        NSImage *image = path ? [[NSImage alloc] initWithContentsOfFile:path] : nil;
++        if (image) {
++            // Same template treatment as create: monochrome adaptive
++            // glyph at the standard status-item point size.
++            image.template = YES;
++            image.size = NSMakeSize(18, 18);
++            object.statusItem.button.image = image;
++        }
+     }
+ }
+ 
+--- a/src/platform/macos/root.zig
++++ b/src/platform/macos/root.zig
+@@ -338,6 +338,7 @@
+ extern fn native_sdk_appkit_create_tray(host: *AppKitHost, icon_path: [*]const u8, icon_path_len: usize, title: [*]const u8, title_len: usize, tooltip: [*]const u8, tooltip_len: usize) void;
+ extern fn native_sdk_appkit_update_tray_menu(host: *AppKitHost, item_ids: [*]const u32, labels: [*]const [*]const u8, label_lens: [*]const usize, separators: [*]const c_int, enabled_flags: [*]const c_int, count: usize) void;
+ extern fn native_sdk_appkit_update_tray_title(host: *AppKitHost, title: [*]const u8, title_len: usize) void;
++extern fn native_sdk_appkit_update_tray_icon(host: *AppKitHost, icon_path: [*]const u8, icon_path_len: usize) void;
+ extern fn native_sdk_appkit_remove_tray(host: *AppKitHost) void;
+ extern fn native_sdk_appkit_set_tray_callback(host: *AppKitHost, callback: AppKitTrayCallback, context: ?*anyopaque) void;
+ 
+@@ -614,6 +615,7 @@
+                 .create_tray_fn = createTray,
+                 .update_tray_menu_fn = updateTrayMenu,
+                 .update_tray_title_fn = updateTrayTitle,
++                .update_tray_icon_fn = updateTrayIcon,
+                 .remove_tray_fn = removeTray,
+                 .configure_security_policy_fn = configureSecurityPolicy,
+                 .configure_menus_fn = configureMenus,
+@@ -2031,6 +2033,11 @@
+     native_sdk_appkit_update_tray_title(self.host, title.ptr, title.len);
+ }
+ 
++fn updateTrayIcon(context: ?*anyopaque, icon_path: []const u8) anyerror!void {
++    const self: *MacPlatform = @ptrCast(@alignCast(context.?));
++    native_sdk_appkit_update_tray_icon(self.host, icon_path.ptr, icon_path.len);
++}
++
+ fn removeTray(context: ?*anyopaque) anyerror!void {
+     const self: *MacPlatform = @ptrCast(@alignCast(context.?));
+     native_sdk_appkit_remove_tray(self.host);
+--- a/src/platform/types.zig
++++ b/src/platform/types.zig
+@@ -1999,6 +1999,7 @@
+     create_tray_fn: ?*const fn (context: ?*anyopaque, options: TrayOptions) anyerror!void = null,
+     update_tray_menu_fn: ?*const fn (context: ?*anyopaque, items: []const TrayMenuItem) anyerror!void = null,
+     update_tray_title_fn: ?*const fn (context: ?*anyopaque, title: []const u8) anyerror!void = null,
++    update_tray_icon_fn: ?*const fn (context: ?*anyopaque, icon_path: []const u8) anyerror!void = null,
+     remove_tray_fn: ?*const fn (context: ?*anyopaque) anyerror!void = null,
+     configure_security_policy_fn: ?*const fn (context: ?*anyopaque, policy: security.Policy) anyerror!void = null,
+     configure_menus_fn: ?*const fn (context: ?*anyopaque, menus: []const Menu) anyerror!void = null,
+@@ -2412,6 +2413,11 @@
+     /// (re-creating flickers and can reshuffle the macOS menu bar). Added
+     /// for model-driven tray state (e.g. an open-count badge in the
+     /// title).
++    pub fn updateTrayIcon(self: PlatformServices, icon_path: []const u8) anyerror!void {
++        const icon_fn = self.update_tray_icon_fn orelse return error.UnsupportedService;
++        try icon_fn(self.context, icon_path);
++    }
++
+     pub fn updateTrayTitle(self: PlatformServices, title: []const u8) anyerror!void {
+         const title_fn = self.update_tray_title_fn orelse return error.UnsupportedService;
+         return title_fn(self.context, title);
+--- a/src/platform/null_platform.zig
++++ b/src/platform/null_platform.zig
+@@ -593,6 +593,7 @@
+                 .create_tray_fn = createTray,
+                 .update_tray_menu_fn = updateTrayMenu,
+                 .update_tray_title_fn = updateTrayTitle,
++                .update_tray_icon_fn = updateTrayIcon,
+                 .remove_tray_fn = removeTray,
+                 .open_external_url_fn = openExternalUrl,
+                 .reveal_path_fn = revealPath,
+@@ -1169,6 +1170,13 @@
+         self.tray_title = undefined;
+         self.tray_title_len = (try copyInto(&self.tray_title, title)).len;
+         self.tray_title_update_count += 1;
++    }
++
++    fn updateTrayIcon(context: ?*anyopaque, icon_path: []const u8) anyerror!void {
++        const self: *NullPlatform = @ptrCast(@alignCast(context.?));
++        self.tray_icon_path = undefined;
++        self.tray_icon_path_len = (try copyInto(&self.tray_icon_path, icon_path)).len;
++        self.tray_update_count += 1;
+     }
+ 
+     fn removeTray(context: ?*anyopaque) anyerror!void {
+--- a/src/runtime/system_services.zig
++++ b/src/runtime/system_services.zig
+@@ -130,6 +130,10 @@
+             try validateTrayTitle(title);
+             try self.options.platform.services.updateTrayTitle(title);
+             self.tray_title = try copyInto(&self.tray_title_storage, title);
++        }
++
++        pub fn updateTrayIcon(self: *Runtime, icon_path: []const u8) anyerror!void {
++            try self.options.platform.services.updateTrayIcon(icon_path);
+         }
+ 
+         pub fn removeTray(self: *Runtime) anyerror!void {
+--- a/src/runtime/core.zig
++++ b/src/runtime/core.zig
+@@ -564,6 +564,7 @@
+     pub const createTray = SystemServiceMethods.createTray;
+     pub const updateTrayMenu = SystemServiceMethods.updateTrayMenu;
+     pub const updateTrayTitle = SystemServiceMethods.updateTrayTitle;
++    pub const updateTrayIcon = SystemServiceMethods.updateTrayIcon;
+     pub const removeTray = SystemServiceMethods.removeTray;
+     const trayCommandNameForItem = SystemServiceMethods.trayCommandNameForItem;
+     const supportsFeatureFromJson = SystemServiceMethods.supportsFeatureFromJson;
+--- a/src/runtime/ui_app.zig
++++ b/src/runtime/ui_app.zig
+@@ -238,6 +238,10 @@
+         /// runtime and platform copy what they keep).
+         pub const StatusItemState = struct {
+             title: []const u8 = "",
++            /// Template-image path for the status button icon. Empty
++            /// keeps the static `Options.status_item.icon_path`; a
++            /// changed non-empty path swaps the button image live.
++            icon_path: []const u8 = "",
+             items: []const platform.TrayMenuItem = &.{},
+         };
+ 
+@@ -809,6 +813,8 @@
+         /// Scratch handed to `status_item_fn`; on the app struct so the
+         /// returned slices outlive the apply.
+         tray_scratch: StatusItemScratch = .{},
++        tray_icon_hash: u64 = 0,
++        tray_icon_unsupported: bool = false,
+         /// Press-and-hold gesture state (`ElementOptions.on_hold`): the
+         /// widget id whose press armed the hold timer, and whether the
+         /// timer fired for the current gesture (a fired hold suppresses
+@@ -2529,14 +2535,16 @@
+             const static = self.options.status_item orelse StatusItemOptions{};
+             var title = static.title;
+             var items = static.items;
++            var icon_path = static.icon_path;
+             if (self.options.status_item_fn) |state_fn| {
+                 const state = state_fn(&self.model, &self.tray_scratch);
+                 title = state.title;
+                 items = state.items;
++                if (state.icon_path.len > 0) icon_path = state.icon_path;
+             }
+             runtime.createTray(.{
+                 .title = title,
+-                .icon_path = static.icon_path,
++                .icon_path = icon_path,
+                 .tooltip = static.tooltip,
+                 .items = items,
+             }) catch |err| {
+@@ -2545,6 +2553,7 @@
+             };
+             self.tray_created = true;
+             self.tray_title_hash = hashTrayTitle(title);
++            self.tray_icon_hash = hashTrayTitle(icon_path);
+             self.tray_menu_hash = hashTrayMenu(items);
+         }
+ 
+@@ -2569,6 +2578,23 @@
+                             ui_app_log.warn("status item title update failed: {s}", .{@errorName(err)});
+                         }
+                     };
++                }
++            }
++
++            if (state.icon_path.len > 0) {
++                const icon_hash = hashTrayTitle(state.icon_path);
++                if (icon_hash != self.tray_icon_hash) {
++                    self.tray_icon_hash = icon_hash;
++                    if (!self.tray_icon_unsupported) {
++                        runtime.updateTrayIcon(state.icon_path) catch |err| {
++                            if (err == error.UnsupportedService) {
++                                self.tray_icon_unsupported = true;
++                                ui_app_log.warn("status item icon updates unsupported on this platform: the icon stays static", .{});
++                            } else {
++                                ui_app_log.warn("status item icon update failed: {s}", .{@errorName(err)});
++                            }
++                        };
++                    }
+                 }
+             }
+ 

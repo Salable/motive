@@ -1,0 +1,78 @@
+name: Release
+
+# Tag-triggered: pushing a `v*` tag builds the .app and publishes a
+# GitHub Release with TalkBox.app.zip attached. Plain pushes to main
+# run CI only (check + test) — packaging is intentional, not automatic.
+# workflow_dispatch also builds the .app and uploads it as an artifact
+# (no Release) for an on-demand test build.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Keep in lockstep with ci.yml (see the comment there).
+  NATIVE_CLI_VERSION: 0.4.2
+
+jobs:
+  package:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    permissions:
+      # gh release create needs write; the default token is read-only.
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Guard: release tag must match app.zon's version"
+        # The version pair (app.zon + openapi) drifted once; lint keeps
+        # THOSE in sync, and this keeps the TAG honest too — you can't
+        # publish v0.8.0 while the app calls itself 0.7.0.
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          ZON_VERSION=$(sed -n 's/^ *\.version = "\([^"]*\)",$/\1/p' app.zon)
+          if [ "$TAG_VERSION" != "$ZON_VERSION" ]; then
+            echo "tag says $TAG_VERSION but app.zon says $ZON_VERSION - bump app.zon (and openapi) first" >&2
+            exit 1
+          fi
+
+      - name: Cache the Zig toolchain (downloaded by the Native SDK CLI)
+        uses: actions/cache@v4
+        with:
+          path: ~/.native/toolchains
+          key: native-toolchains-${{ runner.os }}-${{ runner.arch }}-cli${{ env.NATIVE_CLI_VERSION }}
+
+      - name: Install the Native SDK CLI
+        run: npm install -g @native-sdk/cli@${{ env.NATIVE_CLI_VERSION }}
+
+      - name: Apply the dynamic-tray-icon SDK patch
+        run: patch -p1 -d "$(npm root -g)/@native-sdk/cli" < docs/sdk-patches/dynamic-tray-icon.patch
+
+      - name: Build the complete .app (sidecars + fresh binary + plist keys)
+        run: tools/package-app.sh
+
+      # ditto -k preserves the executable bits and bundle structure that
+      # a plain `zip -r` mangles; unzipping gives back a launchable .app.
+      - name: Zip the bundle
+        run: ditto -c -k --keepParent zig-out/package/TalkBox.app TalkBox.app.zip
+
+      - name: Upload the .app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TalkBox.app
+          path: TalkBox.app.zip
+          if-no-files-found: error
+          retention-days: 14
+
+      # Tag pushes (v*) additionally publish a GitHub Release with the
+      # zip attached, so a download link exists outside Actions retention.
+      - name: Attach to a GitHub Release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" TalkBox.app.zip --title "TalkBox ${GITHUB_REF_NAME}" --generate-notes

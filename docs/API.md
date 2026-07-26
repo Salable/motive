@@ -47,7 +47,8 @@ curl -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
 | `GET /v1/questions` | `?id`, `?wait` (ms, ≤ 30000) — open questions; long-poll for an answer. |
 | `DELETE /v1/questions` | `{"id"?}` — withdraw a question (all open ones when `id` is omitted). |
 | `GET /v1/questions/history` | `?limit` — past questions and answers, newest first. |
-| `DELETE /v1/questions/history` | `{"keep"?}` — cull stored history. |
+| `GET /v1/activity` | `?since`, `?limit` — everything that happened, oldest first, sequence-numbered. |
+| `DELETE /v1/activity` | `{"keep"?}` — cull stored activity (and with it, question history). |
 
 ## Queue semantics
 
@@ -107,14 +108,38 @@ Questions block at the head of the queue; a second question waits behind the
 first. A human may answer a *pending* question out of order, which resolves it
 in place without disturbing the one on screen.
 
+### Activity
+
+`GET /v1/activity` is the durable record of what the pet and the human did:
+commands accepted, questions asked, and how each was resolved. It records
+*decisions*, not frames — an agent asking for a state, not the dozen transitions
+and auto-reverts that follow.
+
+Each entry carries a monotonic `seq`, an `actor` (`agent`, `human`, `system`),
+a `kind`, a one-line `summary`, and — for question entries — the whole
+`question` including its answer. Poll with the cursor:
+
+```
+GET /v1/activity?since=<nextSeq from your last call>
+```
+
+You get only what is new. `hasMore: true` means poll again immediately rather
+than waiting. Sequence numbers survive restarts and never repeat, so a cursor
+held across a restart stays valid. This is the reliable way to answer "what did
+I miss" — SSE has no replay.
+
+`GET /v1/questions/history` is a filtered view over the same timeline, for when
+you only care about answers.
+
 ### History
 
 Resolved questions and their answers persist to
-`$MOTIVE_HOME/history/questions.jsonl` (default `~/.motive/history/`), owner-only,
+`$MOTIVE_HOME/history/activity.jsonl` (default `~/.motive/history/`), owner-only,
 and survive restarts — deliberately a sibling of `runtime/`, whose contents are
 deleted on shutdown. Read it with `GET /v1/questions/history?limit=N`; cull it
-with `DELETE /v1/questions/history` (`{"keep": N}` to retain the newest N), or
-from Settings → Questions in a host app that exposes it.
+with `DELETE /v1/activity` (`{"keep": N}` to retain the newest N), or from
+Settings → Questions in a host app that exposes it. One store, one retention
+control: culling activity culls question history with it.
 
 An agent that missed an SSE event, or that started after an answer landed, reads
 history rather than re-asking.

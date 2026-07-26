@@ -38,8 +38,10 @@ public struct RuntimePaths: Sendable {
     /// Durable state. Deliberately a sibling of `runtime/`: `MotiveServer.stop()`
     /// deletes the files it wrote there, and history must survive that.
     public var historyURL: URL { rootURL.appendingPathComponent("history", isDirectory: true) }
-    public var questionHistoryURL: URL {
-        historyURL.appendingPathComponent("questions.jsonl", isDirectory: false)
+    /// One timeline: questions, answers, and everything else the pet and the
+    /// human did.
+    public var activityURL: URL {
+        historyURL.appendingPathComponent("activity.jsonl", isDirectory: false)
     }
 
     public func prepare() throws {

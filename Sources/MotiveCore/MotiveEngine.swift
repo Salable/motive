@@ -92,11 +92,15 @@ public actor MotiveEngine: SpeechOutputSink {
     /// How a resolution the engine initiated should be recorded. The queue
     /// only knows "signalled"; whether that was an answer or a decline is ours.
     private var pendingResolutions: [String: QuestionResolution] = [:]
-    /// Durable history. Nil by default so no existing test touches disk and a
-    /// headless embedder opts in rather than out.
-    private let history: QuestionHistoryStore?
-    /// Serial chain of pending history appends — see `enqueueHistoryWrite`.
+    /// Durable record of what happened. Nil by default so no existing test
+    /// touches disk and a headless embedder opts in rather than out.
+    private let activity: ActivityStore?
+    /// Serial chain of pending appends — see `record`.
     private var historyWrite: Task<Void, Never>?
+    /// In-process activity ring: the read path for polling, so an agent asking
+    /// "what changed" never waits on disk.
+    private var recentActivity: [ActivityRecord] = []
+    private var nextSequence: UInt64 = 1
 
     /// Where spoken output goes, when a host installs one. Nil means
     /// bubble-only, which is every pre-voice pet and every headless one.
@@ -110,30 +114,42 @@ public actor MotiveEngine: SpeechOutputSink {
     public var voicePreferences: VoicePreferences?
 
     public static let maxRecentQuestions = 500
+    public static let maxRecentActivity = 2_000
 
     public init(
         definition: BehaviorDefinition,
         initialState: String = "idle",
         tickInterval: TimeInterval = 0.1,
-        history: QuestionHistoryStore? = nil
+        activity: ActivityStore? = nil
     ) {
         let machine = ActorStateMachine(definition: definition, initialState: initialState)
         self.machine = machine
         self.defaultState = machine.defaultStateName
         self.queue = ActionQueue(definition: definition)
         self.tickInterval = tickInterval
-        self.history = history
+        self.activity = activity
     }
 
     /// Read durable history back into the in-memory window. Call once next to
     /// `start()`; without it a restarted pet answers history reads from an
     /// empty ring even though the file is intact.
     public func restoreHistory() async {
-        guard let history else { return }
+        guard let activity else { return }
         await drainHistoryWrites()
-        let stored = await history.recent(limit: Self.maxRecentQuestions)
+        let stored = await activity.recent(limit: Self.maxRecentActivity)
         // `recent` is newest-first; the ring is oldest-first.
-        recentQuestions = stored.reversed()
+        recentActivity = stored.reversed()
+        // Continue the numbering: an agent holding a cursor from a previous run
+        // must not have it invalidated by a restart.
+        //
+        // Never *lower* it. Restoring races whatever the pet is already doing
+        // — an onboarding line can be recorded before this returns — and
+        // rewinding would hand out a sequence number twice, which silently
+        // breaks every cursor that skips the duplicate.
+        nextSequence = max(nextSequence, (await activity.lastSequence()) + 1)
+        recentQuestions = recentActivity.compactMap {
+            $0.kind == .questionResolved ? $0.question : nil
+        }
     }
 
     /// Install spoken output. A `say` will then occupy the queue for exactly as
@@ -232,6 +248,10 @@ public actor MotiveEngine: SpeechOutputSink {
         if revertToDefault {
             applyState(defaultState, duration: nil, now: now)
         }
+        if dropped > 0 || !effects.isEmpty {
+            record(.queueCleared, actor: .human, summary: "Cleared the queue",
+                   detail: ["dropped": String(dropped)], now: now)
+        }
         return dropped
     }
 
@@ -251,6 +271,8 @@ public actor MotiveEngine: SpeechOutputSink {
             broadcast(.speechDismissed(id: bubble.id))
         }
         applyQueueEffects(queue.skip(now: now), now: now)
+        record(.skipped, actor: .human, summary: "Skipped the current step",
+               detail: ["itemID": current.id], now: now)
         return current.id
     }
 
@@ -285,6 +307,8 @@ public actor MotiveEngine: SpeechOutputSink {
         if case .failure = enqueue([item], at: .head, now: now) {
             return .noChange // queue full — pathological; nothing dropped
         }
+        record(.stateRequested, actor: .agent, summary: "State → \(name)",
+               detail: ["state": name], now: now)
         return lastMachineOutcome ?? .noChange
     }
 
@@ -300,6 +324,8 @@ public actor MotiveEngine: SpeechOutputSink {
         if case .failure = enqueue([item], at: .head, now: now) {
             return .noChange
         }
+        record(.triggerFired, actor: .agent, summary: "Trigger \(name)",
+               detail: ["trigger": name], now: now)
         return lastMachineOutcome ?? .noChange
     }
 
@@ -314,6 +340,7 @@ public actor MotiveEngine: SpeechOutputSink {
         if case .failure = enqueue([item], at: .head, now: now) {
             return SpeechBubble(id: item.id, text: text, ttl: ttl, postedAt: now)
         }
+        record(.said, actor: .agent, summary: text, detail: ["itemID": item.id], now: now)
         return lastPostedBubble ?? SpeechBubble(id: item.id, text: text, ttl: ttl, postedAt: now)
     }
 
@@ -372,6 +399,7 @@ public actor MotiveEngine: SpeechOutputSink {
             // Announce before applying effects so an observer sees "asked"
             // before "presented" even when it parks in this same call.
             broadcast(.questionAsked(record))
+            self.record(.asked, actor: .agent, summary: trimmed, question: record, now: now)
             applyQueueEffects(effects, now: now)
             return .success(
                 QuestionReceipt(id: item.id, queueDepth: queue.depth, outstandingAhead: ahead)
@@ -465,25 +493,7 @@ public actor MotiveEngine: SpeechOutputSink {
 
     /// Drop stored history. `keep: nil` clears everything. Returns how many
     /// records were removed.
-    @discardableResult
-    public func clearQuestionHistory(keep: Int? = nil) async -> Int {
-        let before = recentQuestions.count
-        if let keep, keep > 0 {
-            recentQuestions = Array(recentQuestions.suffix(keep))
-        } else {
-            recentQuestions.removeAll()
-        }
-        var removedFromDisk = 0
-        if let history {
-            await drainHistoryWrites()
-            if let keep, keep > 0 {
-                removedFromDisk = await history.cull(keepingNewest: keep)
-            } else {
-                removedFromDisk = await history.clear()
-            }
-        }
-        return max(before - recentQuestions.count, removedFromDisk)
-    }
+
 
     private func resolveQuestion(
         id: String,
@@ -644,7 +654,7 @@ public actor MotiveEngine: SpeechOutputSink {
             }
         }
         let resolved = record.resolved(resolution, at: now)
-        recordResolved(resolved)
+        recordResolved(resolved, now: now)
         // Take the bubble down with the question: leaving an unanswerable
         // affordance on screen is worse than an empty stage.
         if let bubble = speech, bubble.id == id {
@@ -701,12 +711,35 @@ public actor MotiveEngine: SpeechOutputSink {
         return Int(min(seconds, ActionQueue.maxExternalTimeout) * 1_000)
     }
 
-    private func recordResolved(_ record: QuestionRecord) {
+    private func recordResolved(_ record: QuestionRecord, now: Date) {
         recentQuestions.append(record)
         if recentQuestions.count > Self.maxRecentQuestions {
             recentQuestions.removeFirst(recentQuestions.count - Self.maxRecentQuestions)
         }
-        enqueueHistoryWrite(record)
+        self.record(
+            .questionResolved,
+            // An answer or a decline is the human's; a timeout is nobody's.
+            actor: record.via != nil ? .human : (record.status == .expired ? .system : .agent),
+            summary: Self.summary(for: record),
+            question: record,
+            now: now
+        )
+    }
+
+    private static func summary(for record: QuestionRecord) -> String {
+        switch record.status {
+        case .accepted:
+            switch record.answer {
+            case .confirm(let yes): return yes ? "Answered yes" : "Answered no"
+            case .choice(let value, _): return "Chose \(value)"
+            case .text(let value): return "Replied “\(value)”"
+            case nil: return "Answered"
+            }
+        case .declined: return "Declined to answer"
+        case .cancelled: return "Question \(record.cancelReason?.rawValue ?? "cancelled")"
+        case .expired: return "Question timed out"
+        case .awaiting: return "Waiting"
+        }
     }
 
     /// Observers must not wait on disk, but writes still have to *land* in
@@ -714,13 +747,77 @@ public actor MotiveEngine: SpeechOutputSink {
     /// append would let a clear overtake an in-flight write and resurrect the
     /// record it was meant to delete. Chaining keeps the engine unblocked and
     /// the file ordered.
-    private func enqueueHistoryWrite(_ record: QuestionRecord) {
-        guard let history else { return }
+    /// Record something a human or an agent did.
+    ///
+    /// Decisions only — an agent asking for a state, not the transitions that
+    /// follow. A frame-by-frame trace would bury exactly the signal an agent
+    /// polls this for.
+    @discardableResult
+    private func record(
+        _ kind: ActivityKind,
+        actor: ActivityActor,
+        summary: String,
+        question: QuestionRecord? = nil,
+        detail: [String: String]? = nil,
+        now: Date
+    ) -> ActivityRecord {
+        let entry = ActivityRecord(
+            seq: nextSequence,
+            at: now,
+            actor: actor,
+            kind: kind,
+            summary: summary,
+            question: question,
+            detail: detail
+        )
+        nextSequence += 1
+        recentActivity.append(entry)
+        if recentActivity.count > Self.maxRecentActivity {
+            recentActivity.removeFirst(recentActivity.count - Self.maxRecentActivity)
+        }
+        guard let activity else { return entry }
+        // Chained rather than detached: writes must land in order relative to
+        // each other and to a later cull, or a clear can overtake an in-flight
+        // append and resurrect the record it was meant to delete.
         let previous = historyWrite
         historyWrite = Task {
             await previous?.value
-            await history.append(record)
+            await activity.append(entry)
         }
+        return entry
+    }
+
+    // MARK: activity
+
+    /// Everything after `seq`, oldest first. The polling cursor that lets an
+    /// agent catch up without holding an event stream open.
+    public func activityEntries(after seq: UInt64 = 0, limit: Int = 100) -> [ActivityRecord] {
+        Array(recentActivity.filter { $0.seq > seq }.prefix(max(0, limit)))
+    }
+
+    public func latestSequence() -> UInt64 { nextSequence - 1 }
+
+    @discardableResult
+    public func clearActivity(keep: Int? = nil) async -> Int {
+        let before = recentActivity.count
+        if let keep, keep > 0 {
+            recentActivity = Array(recentActivity.suffix(keep))
+        } else {
+            recentActivity.removeAll()
+        }
+        recentQuestions = recentActivity.compactMap {
+            $0.kind == .questionResolved ? $0.question : nil
+        }
+        var removedFromDisk = 0
+        if let activity {
+            await drainHistoryWrites()
+            if let keep, keep > 0 {
+                removedFromDisk = await activity.cull(keepingNewest: keep)
+            } else {
+                removedFromDisk = await activity.clear()
+            }
+        }
+        return max(before - recentActivity.count, removedFromDisk)
     }
 
     /// Wait for queued history writes to land. Cull, restore, and shutdown all

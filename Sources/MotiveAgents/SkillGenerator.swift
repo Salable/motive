@@ -109,6 +109,22 @@ public enum SkillGenerator {
         endpoint for answering your own question: if you want one, you don't want a
         question — you want a decision. Make it, and say what you decided.
 
+        ## Catching up after being away
+
+        You do not have to hold the event stream open. `GET /v1/activity` is the
+        durable record of what happened — commands, questions, and the human's
+        answers — oldest first, each with a sequence number:
+
+        ```sh
+        curl -s -H "Authorization: Bearer $TOKEN" "http://127.0.0.1:$PORT/v1/activity?since=$SEQ"
+        ```
+
+        Keep the `nextSeq` from each response and pass it back as `since` on the
+        next call; you get only what is new. `hasMore: true` means poll again
+        straight away rather than waiting. This survives restarts, so it is the
+        reliable way to answer "what did I miss" — including answers that landed
+        while you were not looking.
+
         ## Conventions
 
         - Lifecycle narration: `working` while you run tasks, `waiting` when you need

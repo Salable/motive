@@ -18,8 +18,9 @@ public protocol MotiveCommandTransport: Sendable {
     func skip() async throws -> ControlReceipt
     func questions(id: String?) async throws -> QuestionList
     func cancelQuestion(id: String?) async throws -> ControlReceipt
+    func activity(since: UInt64?, limit: Int?) async throws -> ActivityPage
+    func clearActivity(keep: Int?) async throws -> ControlReceipt
     func questionHistory(limit: Int?) async throws -> QuestionHistoryPage
-    func clearQuestionHistory(keep: Int?) async throws -> ControlReceipt
 }
 
 public struct TransportError: Error, CustomStringConvertible {
@@ -98,12 +99,16 @@ public struct LocalCommandTransport: MotiveCommandTransport {
         try unwrap(await control.cancelQuestion(id: id))
     }
 
-    public func questionHistory(limit: Int?) async throws -> QuestionHistoryPage {
-        await control.questionHistory(limit: limit)
+    public func activity(since: UInt64?, limit: Int?) async throws -> ActivityPage {
+        await control.activity(since: since, limit: limit)
     }
 
-    public func clearQuestionHistory(keep: Int?) async throws -> ControlReceipt {
-        await control.clearQuestionHistory(keep: keep)
+    public func clearActivity(keep: Int?) async throws -> ControlReceipt {
+        await control.clearActivity(keep: keep)
+    }
+
+    public func questionHistory(limit: Int?) async throws -> QuestionHistoryPage {
+        await control.questionHistory(limit: limit)
     }
 
     private func unwrapValue<T>(_ result: Result<T, ControlFailure>) throws -> T {
@@ -218,14 +223,22 @@ public struct RESTCommandTransport: MotiveCommandTransport {
         return try await send(request(path: "/v1/questions", method: "DELETE", body: data))
     }
 
+    public func activity(since: UInt64?, limit: Int?) async throws -> ActivityPage {
+        var parts: [String] = []
+        if let since { parts.append("since=\(since)") }
+        if let limit { parts.append("limit=\(limit)") }
+        let query = parts.isEmpty ? "" : "?" + parts.joined(separator: "&")
+        return try await get("/v1/activity" + query)
+    }
+
+    public func clearActivity(keep: Int?) async throws -> ControlReceipt {
+        let data = keep.map { try? JSONSerialization.data(withJSONObject: ["keep": $0]) } ?? nil
+        return try await send(request(path: "/v1/activity", method: "DELETE", body: data))
+    }
+
     public func questionHistory(limit: Int?) async throws -> QuestionHistoryPage {
         let query = limit.map { "?limit=\($0)" } ?? ""
         return try await get("/v1/questions/history" + query)
-    }
-
-    public func clearQuestionHistory(keep: Int?) async throws -> ControlReceipt {
-        let data = keep.map { try? JSONSerialization.data(withJSONObject: ["keep": $0]) } ?? nil
-        return try await send(request(path: "/v1/questions/history", method: "DELETE", body: data))
     }
 
     // MARK: internals

@@ -102,6 +102,22 @@ public struct QuestionList: Codable, Equatable, Sendable {
     }
 }
 
+/// Wire shape of `GET /v1/activity`.
+public struct ActivityPage: Codable, Equatable, Sendable {
+    /// Oldest first, so a caller can apply them in order.
+    public let entries: [ActivityRecord]
+    /// Pass this back as `since` on the next poll.
+    public let nextSeq: UInt64
+    /// True when more is waiting — poll again immediately rather than sleeping.
+    public let hasMore: Bool
+
+    public init(entries: [ActivityRecord], nextSeq: UInt64, hasMore: Bool) {
+        self.entries = entries
+        self.nextSeq = nextSeq
+        self.hasMore = hasMore
+    }
+}
+
 /// Wire shape of `GET /v1/questions/history`.
 public struct QuestionHistoryPage: Codable, Equatable, Sendable {
     /// Newest first.
@@ -272,14 +288,22 @@ public struct ControlSchema: Codable, Equatable, Sendable {
             description: "Withdraw a question you no longer need an answer to. Resolves it as cancelled and the queue moves on."
         ),
         VerbInfo(
+            name: "activity", method: "GET", path: "/v1/activity",
+            params: [
+                "since": "integer (optional; sequence number of the last entry you saw — omit for the beginning)",
+                "limit": "integer (optional; default 100, max 500)",
+            ],
+            description: "What has happened, oldest first: commands, questions, and the human's answers. Poll with `since` to catch up without holding the event stream open."
+        ),
+        VerbInfo(
+            name: "clear-activity", method: "DELETE", path: "/v1/activity",
+            params: ["keep": "integer (optional; retain the newest N; omit to clear everything)"],
+            description: "Delete stored activity. Also available in Settings."
+        ),
+        VerbInfo(
             name: "question-history", method: "GET", path: "/v1/questions/history",
             params: ["limit": "integer (optional; default 50, max 500)"],
             description: "Past questions and their answers, newest first."
-        ),
-        VerbInfo(
-            name: "clear-question-history", method: "DELETE", path: "/v1/questions/history",
-            params: ["keep": "integer (optional; retain the newest N; omit to clear everything)"],
-            description: "Delete stored question history. Also available in Settings."
         ),
         VerbInfo(
             name: "play-script", method: "POST", path: "/v1/script",
@@ -434,6 +458,27 @@ public actor MotiveControl {
         ))
     }
 
+    public func activity(since: UInt64? = nil, limit: Int? = nil) async -> ActivityPage {
+        let capped = min(max(1, limit ?? 100), 500)
+        let cursor = since ?? 0
+        // Ask for one more than requested: that is how we know whether to tell
+        // the caller to poll again immediately rather than wait.
+        let fetched = await engine.activityEntries(after: cursor, limit: capped + 1)
+        let page = Array(fetched.prefix(capped))
+        let latest = await engine.latestSequence()
+        return ActivityPage(
+            entries: page,
+            nextSeq: page.last?.seq ?? cursor,
+            hasMore: fetched.count > capped || (page.last.map { $0.seq < latest } ?? false)
+        )
+    }
+
+    public func clearActivity(keep: Int? = nil) async -> ControlReceipt {
+        let removed = await engine.clearActivity(keep: keep)
+        let current = await engine.machine.currentStateName
+        return ControlReceipt(state: current, removed: removed)
+    }
+
     public func questionHistory(limit: Int? = nil) async -> QuestionHistoryPage {
         let capped = min(max(1, limit ?? 50), 500)
         let entries = await engine.questionHistory(limit: capped)
@@ -443,11 +488,7 @@ public actor MotiveControl {
         )
     }
 
-    public func clearQuestionHistory(keep: Int? = nil) async -> ControlReceipt {
-        let removed = await engine.clearQuestionHistory(keep: keep)
-        let current = await engine.machine.currentStateName
-        return ControlReceipt(state: current, removed: removed)
-    }
+
 
     public func dismissSpeech() async -> ControlReceipt {
         await engine.dismissSpeech()

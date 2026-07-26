@@ -1,0 +1,41 @@
+<!-- @dsCard group="Components" name="View switcher" subtitle="Segmented Queue/Settings tabs, top-right of the right pane. Replaces the old single-pane toolbar entirely." -->
+<meta charset="utf-8"><title>View switcher</title>
+<style>
+  :root {
+    --bg: #f5f5f7; --surface: #ffffff; --surface-pressed: #e4e4e9;
+    --text: #1d1d1f; --muted: #86868b; --border: #d8d8dd;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text);
+         font: 13px/1.5 -apple-system, "SF Pro Text", Helvetica, sans-serif;
+         padding: 20px; }
+  h1 { font-size: 17px; font-weight: 600; margin-bottom: 4px; }
+  h2 { font-size: 13px; font-weight: 600; color: var(--muted);
+       text-transform: uppercase; letter-spacing: 0.06em; margin: 18px 0 8px; }
+  p.lead { color: var(--muted); margin-bottom: 12px; max-width: 62ch; }
+  .note { color: var(--muted); font-size: 11px; margin-top: 10px; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { text-align: left; padding: 5px 10px 5px 0; font-size: 12px;
+           border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 500; }
+</style>
+
+<h1>View switcher</h1><p class="lead">There is no title bar with a gear icon anymore — v2 replaced the single-pane "unified toolbar" with a two-pane appliance whose traffic lights sit over the speaker bay, and Settings became a TAB, not a separate window.</p>
+
+<div style="display:flex;gap:16px;margin:10px 0">
+  <div style="background:var(--surface-pressed);border-radius:14px;padding:2px;display:inline-flex;gap:2px">
+    <div style="background:var(--surface);border-radius:10px;padding:6px 16px;font-size:13px">Queue</div>
+    <div style="padding:6px 16px;font-size:13px;color:var(--muted)">Settings</div>
+  </div>
+  <div style="background:var(--surface-pressed);border-radius:14px;padding:2px;display:inline-flex;gap:2px">
+    <div style="padding:6px 16px;font-size:13px;color:var(--muted)">Queue</div>
+    <div style="background:var(--surface);border-radius:10px;padding:6px 16px;font-size:13px">Settings</div>
+  </div>
+</div>
+
+<h2>Rules</h2>
+<table>
+<tr><td>White active pill on a gray track, top-right of the right pane. Both segments are pressable (<code>nav_queue</code> / <code>nav_settings</code>).</td></tr>
+<tr><td>⌘, and the tray's "View Settings" row both dispatch the same nav Msg the tab click does — one command, three entry points.</td></tr>
+<tr><td>Built as a real <code>&lt;tabs&gt;</code> control: <code>&lt;button&gt;</code> children lower to segmented triggers with the SDK's house pill treatment (white active pill + hairline, muted inactive label; the track keeps the design's <code>surface_pressed</code> gray via <code>background=</code>). It replaced hand-rolled pressable panels wrapping <code>&lt;text&gt;</code> — static text is drag-selectable in this SDK, so a slightly-moving click on a panel-built tab label started a copy selection instead of the press. A button's label is control chrome and can't be selected.</td></tr>
+</table>

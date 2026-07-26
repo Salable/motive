@@ -53,7 +53,7 @@ final class MCPServerTests: XCTestCase {
              "motive_dismiss_speech", "motive_play_script", "motive_enqueue",
              "motive_queue", "motive_clear_queue", "motive_skip",
              "motive_questions", "motive_cancel_question",
-             "motive_question_history", "motive_clear_question_history"]
+             "motive_question_history", "motive_activity", "motive_clear_activity"]
         )
         let setState = try XCTUnwrap(tools.first { $0["name"] as? String == "motive_set_state" })
         let description = try XCTUnwrap(setState["description"] as? String)

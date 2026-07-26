@@ -249,14 +249,14 @@ final class QuestionHistoryModel: ObservableObject {
 
     func clearAll() {
         Task {
-            _ = await engine.clearQuestionHistory()
+            _ = await engine.clearActivity()
             refresh()
         }
     }
 
     func keepRecent(_ count: Int) {
         Task {
-            _ = await engine.clearQuestionHistory(keep: count)
+            _ = await engine.clearActivity(keep: count)
             refresh()
         }
     }
@@ -276,12 +276,12 @@ struct QuestionHistorySection: View {
         }
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text("Kept in ~/.motive/history/questions.jsonl, owner-readable only.")
+                Text("Kept in ~/.motive/history/activity.jsonl, owner-readable only.")
                     .font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 Button("Refresh") { model.refresh() }
-                Button("Keep last 20") { model.keepRecent(20) }
-                    .disabled(model.entries.count <= 20)
+                Button("Keep last 100") { model.keepRecent(100) }
+                    .disabled(model.entries.count <= 100)
                 Button("Clear", role: .destructive) { model.clearAll() }
                     .disabled(model.entries.isEmpty)
             }

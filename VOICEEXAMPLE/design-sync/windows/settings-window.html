@@ -1,0 +1,40 @@
+<!-- @dsCard group="Windows" name="Settings tab" subtitle="Not a window anymore - v2 folded Settings into the main window as a tab. Four cards, immediate-apply." -->
+<meta charset="utf-8"><title>Settings tab</title>
+<style>
+  :root {
+    --bg: #f5f5f7; --surface: #ffffff; --text: #1d1d1f; --muted: #86868b; --border: #d8d8dd;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text);
+         font: 13px/1.5 -apple-system, "SF Pro Text", Helvetica, sans-serif;
+         padding: 20px; }
+  h1 { font-size: 17px; font-weight: 600; margin-bottom: 4px; }
+  h2 { font-size: 13px; font-weight: 600; color: var(--muted);
+       text-transform: uppercase; letter-spacing: 0.06em; margin: 18px 0 8px; }
+  p.lead { color: var(--muted); margin-bottom: 12px; max-width: 62ch; }
+  .note { color: var(--muted); font-size: 11px; margin-top: 10px; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { text-align: left; padding: 5px 10px 5px 0; font-size: 12px;
+           border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 500; }
+</style>
+
+<h1>Settings tab</h1><p class="lead">Reached via the Queue/Settings segmented control, ⌘,, or the tray's "View Settings" row — all three raise the window onto this same tab. <b>This used to be a separate modeless window</b> in the pre-v2 design; v2 folded it in, so there's no second window to manage, position, or close.</p>
+
+<img src="../screenshots/settings.jpg" style="max-width:100%;border-radius:10px;border:1px solid var(--border)" alt="Settings tab: Speech, Server (with Restart server), General, Replies cards">
+
+<h2>Cards, top to bottom</h2>
+<table>
+<tr><th>SPEECH</th><td>Voice select (dropdown-menu: Samantha/Alex/Daniel/Karen/Moira), Speaking rate (radio row, 0.5–2.0×), Gap between items (radio row, 0–5s). Presets, not sliders — this SDK's markup sliders need an <code>Options.sync</code> mirror this app doesn't use.</td></tr>
+<tr><th>SERVER</th><td>Port field + Make-public switch (both edit DRAFTS; a "Save and restart" row appears only once a draft differs from the live listener) — <b>Restart server</b> (new: forces the same stop+rebind with NO settings change, for a listener wedged by e.g. a Mac sleep/wake cycle) — Copy AGENTS.md.</td></tr>
+<tr><th>GENERAL</th><td>Appearance (radio row: System/Light/Dark — System follows the macOS appearance live; Light/Dark pin the scheme), Launch at login (writes/removes a LaunchAgent plist), Test mode (silent simulated timing, for agents/CI).</td></tr>
+<tr><th>REPLIES</th><td>Voice replies (off by default — no mic/speech-recognition permission prompt for anyone who never turns it on).</td></tr>
+<tr><th>Footer row</th><td>Speaker sidecar health text + a "Restart speaker" ghost button.</td></tr>
+</table>
+
+<h2>Rules</h2>
+<table>
+<tr><td>Everything applies immediately through the shared model (and mirrors <code>POST /settings</code> within ~100ms) — no OK/Apply row, except the one deliberate exception below.</td></tr>
+<tr><td>Port/Make-public are the one exception: they edit drafts, because a live rebind briefly drops the listener and shouldn't fire on every keystroke. Every other switch/radio in this view is instant.</td></tr>
+<tr><td>Cards are bordered panels with padded, all-caps section headers — padding on a bare <code>&lt;text&gt;</code> is ignored in this SDK, so each header is wrapped in a <code>&lt;row&gt;</code>.</td></tr>
+</table>
