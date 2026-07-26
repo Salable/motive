@@ -57,7 +57,7 @@ public struct TransportError: Error, CustomStringConvertible {
 
 /// In-process transport over a `MotiveControl`.
 ///
-/// Use when the app hosting the pet is also the MCP server: no REST hop, no
+/// Use when the app hosting the companion is also the MCP server: no REST hop, no
 /// token, no discovery. An app that ships only this never needs `MotiveHTTP`.
 public struct LocalCommandTransport: MotiveCommandTransport {
     private let control: MotiveControl
@@ -166,7 +166,7 @@ public struct RESTCommandTransport: MotiveCommandTransport {
     /// Reads `runtime/server.json` for the port and `runtime/token` for the
     /// bearer token. Call this per request rather than once at startup: the
     /// token rotates on every app start, so a cached transport stops working
-    /// the first time the pet restarts — which it does far more often than an
+    /// the first time the companion restarts — which it does far more often than an
     /// MCP host does.
     ///
     /// - Parameter paths: Runtime home; `.standard` honors `MOTIVE_HOME`, read

@@ -224,7 +224,7 @@ struct ServerStatusSection: View {
     }
 }
 
-/// Question history: what the pet asked and what you answered, plus the way to
+/// Question history: what the companion asked and what you answered, plus the way to
 /// forget it. Answers can be personal — this is the surface that makes the
 /// stored record visible and deletable rather than an invisible file.
 @MainActor
@@ -285,7 +285,7 @@ struct QuestionHistorySection: View {
                 Button("Clear", role: .destructive) { model.clearAll() }
                     .disabled(model.entries.isEmpty)
             }
-            Text("Agents can read this history to pick up an answer they missed. Clearing it does not cancel anything the pet is still waiting on.")
+            Text("Agents can read this history to pick up an answer they missed. Clearing it does not cancel anything the companion is still waiting on.")
                 .font(.caption2).foregroundStyle(.tertiary)
         }
     }

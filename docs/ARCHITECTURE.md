@@ -8,7 +8,7 @@ Motive is layered so that all decision logic is pure, testable, and UI-free, wit
 adapters at the edges.
 
 ```
-contracts (data)      sprite packages: pet.json (codex/1) · motive.json (motive/1)
+contracts (data)      sprite packages: motive.json (motive/1)
         │
 MotiveSprite          runners parse packages → normalized SpriteDefinition
         │
@@ -49,12 +49,12 @@ Each product is a target under `Sources/` with a matching test target under
 | Product | Owns | Key types |
 | --- | --- | --- |
 | `MotiveCore` | Decision logic, no UI, no I/O beyond runtime discovery. | `ActorStateMachine` (pure, timer-free), `MotiveEngine` (actor: tick clock, action queue, speech, event fan-out), `ActionQueue`, `MotiveControl` + `ControlSchema` (the one command surface), `CapabilityRegistry`/`CapabilityStore`, `RuntimePaths`/`ServerInfo`/`TokenManager`, `MotiveVersion`. |
-| `MotiveSprite` | Sprite packages → normalized model. | `SpriteDefinition`, `SpriteRunner` protocol + `SpriteRunnerRegistry`, `CodexRunner` (`pet.json`), `MotiveRunner` (`motive.json`), `ValidationFinding`. |
+| `MotiveSprite` | Sprite packages → normalized model. | `SpriteDefinition`, `SpriteRunner` protocol + `SpriteRunnerRegistry`, `MotiveRunner` (`motive.json`), `ValidationFinding`. |
 | `MotiveUI` | AppKit/SwiftUI surfaces. | `SpriteHost` (engine ↔ SwiftUI bridge, publishes `queueActive` + the live `queue` snapshot), `SpriteView` (atlas renderer), `SpriteBoxWindow` (bubbles, hover skip/clear queue controls, optional chat + action buttons), `QueueWindow` (live queue list + skip/clear, `QueueEntryPresentation`), `NotificationMenu`, `SettingsWindow` (capability-driven, `extraSections` for custom panes). |
 | `MotiveHTTP` | Loopback REST control plane (SwiftNIO). | `MotiveServer` — token auth, rate limit, SSE; see [API.md](API.md). |
 | `MotiveMCP` | MCP tool layer over the same surface. | `MCPServer` (newline-delimited JSON-RPC stdio), `MotiveCommandTransport` with `LocalCommandTransport` (in-process) and `RESTCommandTransport` (proxy); the `motive-mcp` executable is the discovery shim. |
 | `MotiveVoice` | Speech out (and, next, in) — in-process, no sidecars. | `AVSpeechOutput` (implements Core's `SpeechOutput`), `VoiceRequirements` + `VoicePreflight` (the build-capability gate), `VoiceCatalog`, `MotiveVoice` façade. |
-| `MotiveAgents` | Teaching agents about the pet. | `AgentInstaller` implementations (Claude Code, Codex, OpenCode, Claude Desktop config merge), `SkillGenerator`, `ConnectPrompt`. |
+| `MotiveAgents` | Teaching agents about the companion. | `AgentInstaller` implementations (Claude Code, Codex, OpenCode, Claude Desktop config merge), `SkillGenerator`, `ConnectPrompt`. |
 | `MotiveDemo` | Reference composition of everything above; ships as the downloadable demo app with the Winston sprite. | — |
 
 Supporting directories: `Sprites/winston/` (the bundled sprite package, in both

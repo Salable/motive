@@ -2,56 +2,22 @@
 
 > **Audience:** sprite authors, and anyone adding a format runner.
 > **Prerequisites:** none. Test a package with `MOTIVE_SPRITE=path swift run motive-demo`.
-> **Source of truth:** `Sources/MotiveSprite/` — `CodexRunner.swift`, `MotiveRunner.swift`, `SpriteDefinition.swift`.
+> **Source of truth:** `Sources/MotiveSprite/` — `MotiveRunner.swift`, `SpriteDefinition.swift`.
 
 A sprite package is a directory containing a manifest plus one or more atlas images.
-Format detection is by manifest file: `motive.json` → `motive/1` (MotiveRunner) wins,
-otherwise `pet.json` → `codex/1` (CodexRunner). Consumers can register additional
-runners with `SpriteRunnerRegistry.register`.
+`motive/1` (`motive.json`, loaded by `MotiveRunner`) is the only built-in format.
+Consumers can register additional runners with `SpriteRunnerRegistry.register`.
 
-Both formats follow the same posture: **tolerant decode, loud validation** — unknown
-keys pass (forward compatibility); invalid values fail with messages naming the valid
+The format's posture: **tolerant decode, loud validation** — unknown keys pass
+(forward compatibility); invalid values fail with messages naming the valid
 vocabulary. Every package load goes through the validator. Atlas paths must be relative
 and stay inside the package. Sprites are data, never code.
 
-## codex/1 (`pet.json`)
-
-Compatible with the Codex/Fido pet contract. Fixed-grid sprite-sheet atlases; each
-animation state occupies (part of) one row.
-
-```jsonc
-{
-  "id": "winston",
-  "displayName": "Winston",
-  "description": "…",
-  "atlases": {
-    "sprite": { "path": "spritesheet.png", "cell": [192, 208], "grid": [25, 9] }
-  },
-  "states": {
-    "idle":    { "atlas": "sprite", "row": 0, "frames": 25, "ms": [100, "…"], "loop": true },
-    "running": { "atlas": "sprite", "row": 7, "frames": 12, "from": 13, "ms": [70, "…"] }
-  },
-  "aliases":     { "working": "running" },          // optional
-  "triggers":    { "wave": { "state": "waving", "once": true } },  // optional
-  "transitions": [{ "from": "*", "to": "*", "ms": 180 }],          // optional
-  "voice":       { "voice": "Daniel", "rate": 1.0, "talkingState": "idle" }  // optional
-}
-```
-
-- `cell` `[w, h]` and `grid` `[columns, rows]` define the atlas; per state, `row` is
-  authoritative (layouts differ per sprite), `frames` counts columns, `from` offsets the
-  starting column, `ms` gives per-frame durations, `loop` defaults true.
-- A bare four-field manifest (`id`/`displayName`/`description`/`spritesheetPath`)
-  resolves to the classic 8×9 @ 192×208 Codex contract with its default row order.
-- Synthesized defaults: aliases `working→running`, `done→review`, `error→failed`
-  (when the targets exist); triggers `wave`/`jump` when `waving`/`jumping` rows exist
-  and no triggers are declared; `waving`/`jumping` enter `after-loop`.
-
 ## motive/1 (`motive.json`)
 
-The Motive-native format. Everything is explicit — no default contract, no synthesized
-vocabulary. Improvements over codex/1: frame layouts that aren't rows, multiple atlases
-per state, duration shorthand, and a full metadata block.
+Everything is explicit — no default contract, no synthesized vocabulary. Frame
+layouts need not be rows, a state may draw from multiple atlases, durations have a
+shorthand, and metadata is a first-class block.
 
 ```jsonc
 {
@@ -102,8 +68,7 @@ one loop. Transitions declare crossfade durations; specificity order is exact
 
 ## The voice block
 
-Both formats accept an optional `voice` block — top-level in `pet.json`, under
-`metadata` in `motive.json` — decoding to a `VoicePreferences`:
+`metadata.voice` is an optional block decoding to a `VoicePreferences`:
 
 | Field | Meaning |
 | --- | --- |
@@ -112,7 +77,7 @@ Both formats accept an optional `voice` block — top-level in `pet.json`, under
 | `talkingState` | The state to hold while an utterance plays, so the mouth moves for exactly the audio and not a guessed duration. |
 
 This is a *declaration, not a setting*. Loading a package with a voice block does
-not make the pet speak — nothing speaks until the host app installs a
+not make the companion speak — nothing speaks until the host app installs a
 `SpeechOutput` (see [concepts/VOICE.md](concepts/VOICE.md)). What the block gives
 the host is a sensible starting point: the demo uses `metadata.voice.voiceID` as
 the default value of its `voice.output.voice` capability, so the sprite author's
@@ -121,3 +86,32 @@ intent is what a user hears first, and a user's own choice wins from then on.
 Unknown voice names do not fail validation. A package authored on a machine with
 a voice you have not downloaded should still load and animate; the worst outcome
 is the system default reading the lines.
+
+## Migrating from codex/1 (`pet.json`)
+
+Motive used to ship a second built-in runner for `codex/1`, the Codex/Fido
+`pet.json` contract. It is gone — `motive/1` does everything it did, and carrying
+two formats meant two vocabularies for one idea. Rewrite a `pet.json` as a
+`motive.json` field by field:
+
+| codex/1 | motive/1 |
+| --- | --- |
+| *(no format field)* | `"format": "motive/1"` — required |
+| `id`, `displayName`, `description` at top level | the same, under `metadata` (`displayName` → `name`) |
+| `voice` at top level | `metadata.voice` |
+| `spritesheetPath` | an entry in `atlases` with an explicit `cell` and `grid` |
+| state `atlas` | unchanged (still defaults to `"sprite"`) |
+| state `row` / `frames` / `from` | `frames: { row, count, from }` |
+| `ms: [100, 100, …]` | `ms: 100` when uniform, or keep the array |
+| `loop`, `then`, `interrupt` | unchanged |
+| `aliases`, `triggers`, `transitions` | unchanged |
+
+Two behaviors have no equivalent, by design. The bare four-field manifest that
+resolved to the classic 8×9 @ 192×208 grid must now name its atlas explicitly, and
+the synthesized defaults (aliases `working→running`, `done→review`, `error→failed`;
+`wave`/`jump` triggers; `after-loop` on `waving`/`jumping`) must be declared. Both
+were guesses about what a package meant; `motive/1` asks it to say so.
+
+If you have packages you cannot re-author, `SpriteRunner` and
+`SpriteRunnerRegistry.register` are still public — a `codex/1` runner can live in
+your own app and be registered at startup. Motive simply no longer ships one.

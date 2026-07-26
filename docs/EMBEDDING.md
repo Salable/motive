@@ -1,7 +1,7 @@
 # Embedding Motive in Your App
 
-> **Audience:** developers building their own pet on the Motive packages.
-> **Prerequisites:** macOS 13+, Swift 5.10+. Read [guides/FIRST-PET.md](guides/FIRST-PET.md) first if you want the guided version.
+> **Audience:** developers building their own companion on the Motive packages.
+> **Prerequisites:** macOS 13+, Swift 5.10+. Read [guides/FIRST-APP.md](guides/FIRST-APP.md) first if you want the guided version.
 > **Source of truth:** `Sources/MotiveDemo/main.swift` — the reference composition of every recipe here.
 
 Motive is a component library, not a framework you inherit from: you compose the
@@ -32,12 +32,12 @@ then depend on the products you need per target:
 
 | You are building… | Depend on |
 | --- | --- |
-| a desktop pet with a visible sprite | `MotiveCore` + `MotiveSprite` + `MotiveUI` |
+| a desktop companion with a visible sprite | `MotiveCore` + `MotiveSprite` + `MotiveUI` |
 | … that agents can drive over REST | add `MotiveHTTP` |
 | … that MCP hosts can drive | add `MotiveMCP` (in-process, or ship the `motive-mcp` shim) |
 | … with one-click agent setup in your UI | add `MotiveAgents` |
 | a headless tool that animates decision state (no UI) | `MotiveCore` (+ `MotiveSprite` if you load packages) |
-| a client that drives someone else's pet | none — use the [REST API](API.md) directly |
+| a client that drives someone else's companion | none — use the [REST API](API.md) directly |
 
 ## Recommendations
 
@@ -58,7 +58,7 @@ and get every control surface for free:
 - **Treat sprites as data.** Load packages through `SpriteRunnerRegistry` so
   they pass validation; never execute anything from a package.
 
-## Recipe: a minimal pet
+## Recipe: a minimal companion
 
 Load a sprite package, put it on the desktop, and expose the REST control
 plane:
@@ -69,7 +69,7 @@ import MotiveSprite
 import MotiveUI
 import MotiveHTTP
 
-// Parse + validate the package (pet.json or motive.json — see FORMATS.md).
+// Parse + validate the package (motive.json — see FORMATS.md).
 let definition = try SpriteRunnerRegistry.standard.load(spriteFolderURL)
 
 // Engine + SwiftUI bridge, and a desktop window with chat input,
@@ -94,7 +94,7 @@ token (see [API.md](API.md) for the client side).
 ## Recipe: show the queue
 
 Everything the sprite does — agent commands, scripts, REST calls — is a queue
-item, so the queue is the honest answer to "why is the pet doing that?".
+item, so the queue is the honest answer to "why is the companion doing that?".
 `QueueWindow` is a standalone window over it: the running item with its
 countdown, the pending items behind it, and skip / clear controls.
 
@@ -131,7 +131,7 @@ Task {
 
 ## Recipe: MCP
 
-Two ways to give MCP hosts (Claude Desktop, ChatGPT Desktop) the pet:
+Two ways to give MCP hosts (Claude Desktop, ChatGPT Desktop) the companion:
 
 - **Ship the shim.** The `motive-mcp` executable is a standalone stdio MCP
   server that discovers your running app via `~/.motive/runtime/` and proxies
@@ -166,8 +166,8 @@ registry.register(CapabilityDescriptor(
     kind: .number(min: 96, max: 320, step: 16), defaultValue: .number(160)
 ))
 
-let settings = SettingsWindow(registry: registry, title: "My Pet Settings")
-let menu = NotificationMenu(accessibilityLabel: "My Pet", items: [
+let settings = SettingsWindow(registry: registry, title: "My Companion Settings")
+let menu = NotificationMenu(accessibilityLabel: "My Companion", items: [
     .init(title: "Settings…", keyEquivalent: ",") { settings.show() },
     .separator,
     .init(title: "Quit", keyEquivalent: "q") { NSApp.terminate(nil) },
@@ -283,8 +283,8 @@ Installing output changes queue semantics rather than filtering on the way out:
 a `say` then holds the queue for exactly as long as its audio, so a talking
 state runs for the utterance instead of a guessed hold. Voice and rate are
 ordinary capabilities (`.choice` and `.number`), so `SettingsWindow` renders
-them with no new UI. A sprite may declare its own `voice`/`rate` in `pet.json`
-or `motive.json`; use it as the capability's `defaultValue` and a user's choice
+them with no new UI. A sprite may declare its own `voice`/`rate` in
+`motive.json`; use it as the capability's `defaultValue` and a user's choice
 wins automatically.
 
 Listening is different, and the difference is not cosmetic: **macOS kills a
@@ -312,14 +312,14 @@ XCTAssertEqual(VoiceRequirements.speechInput.audit(appBundleAt: builtApp), [])
 ## Ship an app bundle
 
 Nothing above needs a bundle except speech input — but a `.app` is how you ship
-a pet to anyone else, and there is no SwiftPM step that produces one. You need:
+a companion to anyone else, and there is no SwiftPM step that produces one. You need:
 
-1. **A bundle layout.** `YourPet.app/Contents/MacOS/<executable>`,
+1. **A bundle layout.** `YourCompanion.app/Contents/MacOS/<executable>`,
    `Contents/Resources/` (sprite package, icon), and `Contents/Info.plist`.
    `scripts/build-demo-app.sh` in this repo is a working 80-line example —
    copy it rather than starting from scratch.
 2. **An `Info.plist`.** At minimum `CFBundleExecutable`, `CFBundleIdentifier`,
-   `CFBundlePackageType`, and `LSMinimumSystemVersion`. A menu-bar-only pet
+   `CFBundlePackageType`, and `LSMinimumSystemVersion`. A menu-bar-only app
    also wants `LSUIElement` set to `true` so it keeps no Dock icon.
 3. **Usage descriptions, if you use speech input.** Paste
    `VoiceRequirements.speechInput.plistFragmentXML` and write your own purpose

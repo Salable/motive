@@ -4,7 +4,7 @@
 > **Prerequisites:** [../INTEGRATIONS.md](../INTEGRATIONS.md) for what gets installed where.
 > **Source of truth:** `Sources/MotiveAgents/`; `Tests/MotiveAgentsTests/`.
 
-Writes the configuration that teaches an agent about your pet. Small product,
+Writes the configuration that teaches an agent about your companion. Small product,
 narrow job: the difference between "here are some curl commands, good luck" and a
 checkbox in your settings window.
 
@@ -81,7 +81,7 @@ Generates the markdown. The important part is where the content comes from:
 
 ```swift
 SkillGenerator.skillName            // "motive-companion"
-SkillGenerator.markdownBody(appHint: "Winston, a Motive-powered pet")
+SkillGenerator.markdownBody(appHint: "Winston, a Motive-powered companion")
 SkillGenerator.claudeCodeSkill()    // with Claude Code frontmatter
 SkillGenerator.promptDocument()     // plain prompt form
 ```
@@ -94,7 +94,7 @@ documentation is code, not prose, because prose is what drifts.
 
 What the generated skill does *not* hard-code is the sprite's vocabulary. It
 teaches the agent to read `/v1/schema` and trust it over anything it remembers,
-so one skill works for every Motive pet.
+so one skill works for every Motive companion.
 
 ## `ConnectPrompt`
 

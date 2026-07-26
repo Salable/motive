@@ -2,35 +2,38 @@ import XCTest
 @testable import MotiveSprite
 
 final class MotiveRunnerTests: XCTestCase {
-    // MARK: Winston dual-format equivalence
+    // MARK: Winston (the bundled happy-path sprite)
 
-    func testWinstonMotiveAndCodexRunnersAgree() throws {
-        let codex = try CodexRunner().load(Fixtures.winston)
-        let motive = try MotiveRunner().load(Fixtures.winston)
+    func testLoadsWinston() throws {
+        let definition = try MotiveRunner().load(Fixtures.winston)
+        XCTAssertEqual(definition.format, "motive/1")
+        XCTAssertEqual(definition.metadata.id, "winston")
+        XCTAssertEqual(definition.metadata.displayName, "Winston")
 
-        XCTAssertEqual(motive.format, "motive/1")
-        XCTAssertEqual(Set(codex.states.keys), Set(motive.states.keys))
-        for (name, codexState) in codex.states {
-            let motiveState = try XCTUnwrap(motive.states[name], "missing state '\(name)'")
-            // Geometry and behavior must match exactly; motive/1 may be richer
-            // in prose (purpose) and metadata.
-            XCTAssertEqual(codexState.frames, motiveState.frames, "frames differ for '\(name)'")
-            XCTAssertEqual(codexState.loop, motiveState.loop, "loop differs for '\(name)'")
-            XCTAssertEqual(codexState.interrupt, motiveState.interrupt, "interrupt differs for '\(name)'")
-            XCTAssertEqual(codexState.then, motiveState.then, "then differs for '\(name)'")
-        }
-        XCTAssertEqual(codex.aliases, motive.aliases)
-        XCTAssertEqual(Set(codex.triggers.keys), Set(motive.triggers.keys))
-        for (name, codexTrigger) in codex.triggers {
-            XCTAssertEqual(codexTrigger.state, motive.triggers[name]?.state)
-            XCTAssertEqual(codexTrigger.once, motive.triggers[name]?.once)
-        }
-        XCTAssertEqual(codex.transitions, motive.transitions)
-        XCTAssertEqual(codex.atlases, motive.atlases)
+        let atlas = try XCTUnwrap(definition.atlases["sprite"])
+        XCTAssertEqual(atlas.pixelWidth, 4800)
+        XCTAssertEqual(atlas.pixelHeight, 1872)
+
+        // All 9 states, each a clean full 25-frame row.
+        XCTAssertEqual(definition.states.count, 9)
+        let idle = try XCTUnwrap(definition.states["idle"])
+        XCTAssertEqual(idle.frames.count, 25)
+        XCTAssertEqual(idle.frames[0].rect, FrameRect(x: 0, y: 0, width: 192, height: 208))
+        XCTAssertEqual(idle.frames[1].rect.x, 192)
+        XCTAssertEqual(idle.frames[0].duration, 0.1)
+        XCTAssertTrue(idle.loop)
+        XCTAssertEqual(definition.states["waving"]?.interrupt, .afterLoop)
+
+        // Winston declares his full vocabulary, incl. the dash gestures.
+        XCTAssertEqual(definition.aliases["working"], "running")
+        XCTAssertEqual(definition.triggers["wave"]?.state, "waving")
+        XCTAssertEqual(definition.triggers["jump"]?.state, "jumping")
+        XCTAssertEqual(definition.triggers["dash-left"]?.state, "running-left")
+        XCTAssertEqual(definition.triggers["dash-right"]?.state, "running-right")
+        XCTAssertEqual(definition.triggers["dash-left"]?.once, true)
     }
 
-    func testRegistryPrefersMotiveFormat() throws {
-        // Winston has both manifests; motive/1 wins detection.
+    func testRegistryLoadsWinstonAsMotiveFormat() throws {
         let definition = try SpriteRunnerRegistry.standard.load(Fixtures.winston)
         XCTAssertEqual(definition.format, "motive/1")
         XCTAssertEqual(definition.metadata.license, "MIT")
@@ -39,6 +42,17 @@ final class MotiveRunnerTests: XCTestCase {
     func testWinstonMotiveValidatesClean() {
         let findings = MotiveRunner().validate(Fixtures.winston)
         XCTAssertTrue(findings.isEmpty, "unexpected findings: \(findings)")
+    }
+
+    func testWinstonBehaviorDefinitionFeedsStateMachine() throws {
+        let definition = try SpriteRunnerRegistry.standard.load(Fixtures.winston)
+        let t0 = Date(timeIntervalSince1970: 0)
+        var machine = ActorStateMachine(definition: definition.behaviorDefinition, now: t0)
+        XCTAssertEqual(machine.currentStateName, "idle")
+        guard case .changed = machine.requestState("working", now: t0) else {
+            return XCTFail("expected alias 'working' to resolve")
+        }
+        XCTAssertEqual(machine.currentStateName, "running")
     }
 
     // MARK: synthetic packages
@@ -182,5 +196,77 @@ final class MotiveRunnerTests: XCTestCase {
         }
         """)
         XCTAssertNoThrow(try MotiveRunner().load(package))
+    }
+
+    func testRowOutOfBoundsIsLoudError() throws {
+        let package = try makePackage("""
+        {
+          \(header),
+          "atlases": { "sprite": { "path": "spritesheet.png", "cell": [192, 208], "grid": [25, 9] } },
+          "states": { "idle": { "frames": { "row": 9, "count": 5 } } }
+        }
+        """)
+        XCTAssertThrowsError(try SpriteRunnerRegistry.standard.load(package)) { error in
+            XCTAssertTrue("\(error)".contains("row"), "unhelpful error: \(error)")
+        }
+    }
+
+    func testFramesOverflowingColumnsIsLoudError() throws {
+        let package = try makePackage("""
+        {
+          \(header),
+          "atlases": { "sprite": { "path": "spritesheet.png", "cell": [192, 208], "grid": [25, 9] } },
+          "states": { "idle": { "frames": { "row": 0, "count": 20, "from": 10 } } }
+        }
+        """)
+        XCTAssertThrowsError(try SpriteRunnerRegistry.standard.load(package))
+    }
+
+    func testMsCountMismatchIsLoudError() throws {
+        let package = try makePackage("""
+        {
+          \(header),
+          "atlases": { "sprite": { "path": "spritesheet.png", "cell": [192, 208], "grid": [25, 9] } },
+          "states": { "idle": { "frames": { "row": 0, "count": 5 }, "ms": [100, 100] } }
+        }
+        """)
+        XCTAssertThrowsError(try SpriteRunnerRegistry.standard.load(package))
+    }
+
+    func testMissingAtlasImageIsError() throws {
+        let package = try makePackage("""
+        {
+          \(header),
+          "atlases": { "sprite": { "path": "spritesheet.png", "cell": [10, 10], "grid": [2, 2] } },
+          "states": { "idle": { "frames": { "row": 0, "count": 2 } } }
+        }
+        """, sheets: [])
+        let findings = MotiveRunner().validate(package)
+        XCTAssertTrue(findings.contains { $0.code == "atlas-file-missing" && $0.severity == .error })
+    }
+
+    func testPathEscapeIsRejected() throws {
+        let package = try makePackage("""
+        {
+          \(header),
+          "atlases": { "sprite": { "path": "../../etc/passwd", "cell": [10, 10], "grid": [2, 2] } },
+          "states": { "idle": { "frames": { "row": 0, "count": 2 } } }
+        }
+        """)
+        let findings = MotiveRunner().validate(package)
+        XCTAssertTrue(findings.contains { $0.code == "atlas-path-escapes" })
+    }
+
+    func testMissingManifestMeansRunnerDoesNotClaim() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("motive-runner-tests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: dir) }
+        XCTAssertFalse(MotiveRunner.claims(dir))
+        XCTAssertThrowsError(try SpriteRunnerRegistry.standard.load(dir)) { error in
+            guard case SpriteLoadError.manifestNotFound = error else {
+                return XCTFail("expected manifestNotFound, got \(error)")
+            }
+        }
     }
 }

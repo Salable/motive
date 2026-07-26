@@ -14,7 +14,7 @@ motive-demo [sprite-package-path]
 ```
 
 No flags. One optional positional argument. Sprite package lookup order, first
-directory containing a `pet.json` wins:
+directory containing a `motive.json` wins:
 
 1. `$MOTIVE_SPRITE`
 2. the positional argument
@@ -26,14 +26,14 @@ and a ready-to-paste `curl` on start.
 
 ```sh
 swift run motive-demo
-swift run motive-demo ~/sprites/mypet
-MOTIVE_SPRITE=~/sprites/mypet swift run motive-demo
+swift run motive-demo ~/sprites/mysprite
+MOTIVE_SPRITE=~/sprites/mysprite swift run motive-demo
 MOTIVE_HOME=$(pwd)/.motive-home swift run motive-demo
 ```
 
 ## `motive-mcp`
 
-A standalone stdio MCP server. It holds no state and owns no pet: on every call
+A standalone stdio MCP server. It holds no state and owns no companion: on every call
 it rediscovers the running app through `$MOTIVE_HOME/runtime/` and proxies to its
 REST plane. Rediscovering per call rather than at startup is what lets it survive
 the app restarting underneath it — including the token rotation that comes with
@@ -62,7 +62,7 @@ inside `MotiveDemo.app/Contents/MacOS/`. See
 Drives a running demo through every REST verb — ping, schema, status, say, state
 with auto-revert, trigger — and finishes by printing the SSE command for
 `/v1/events`. Reads `${MOTIVE_HOME:-$HOME/.motive}/runtime/`, and tells you to
-start a pet if it finds nothing. The fastest way to confirm the control plane
+start a companion if it finds nothing. The fastest way to confirm the control plane
 works.
 
 ### `scripts/build-demo-app.sh`
@@ -105,9 +105,9 @@ it only when the atlas changes.
 
 ### `scripts/make-readme-art.py`
 
-Deterministic. Reads rows, timings, and aliases from `pet.json` and emits the
+Deterministic. Reads rows, timings, and aliases from `motive.json` and emits the
 looping GIFs in `docs/images/` — the hero and the four state cards. Run manually
-(`python3 scripts/make-readme-art.py`) when the Winston atlas or `pet.json`
+(`python3 scripts/make-readme-art.py`) when the Winston atlas or `motive.json`
 changes; nothing runs it automatically, so nothing will tell you it has gone
 stale.
 

@@ -19,7 +19,7 @@ import MotiveCore
 ## `MotiveEngine`
 
 The actor that owns everything mutable: the state machine, the action queue,
-speech bubbles, questions, and the activity log. One per pet.
+speech bubbles, questions, and the activity log. One per companion.
 
 ```swift
 public init(
@@ -32,10 +32,10 @@ public init(
 
 | Parameter | Default | Notes |
 | --- | --- | --- |
-| `definition` | — | From `SpriteDefinition.behaviorDefinition`, or built by hand for a headless pet. |
+| `definition` | — | From `SpriteDefinition.behaviorDefinition`, or built by hand for a headless companion. |
 | `initialState` | `"idle"` | Also the **default state** — where a flush returns to and where a duration auto-reverts to. Aliases resolve; an unknown name falls back to `idle`, then to the alphabetically first state. |
 | `tickInterval` | 0.1 s | How often `start()`'s loop advances the clock. Only used by `start()`; `tick(now:)` is always available directly. |
-| `activity` | `nil` | Durable log. `nil` means an ephemeral pet that forgets on quit. |
+| `activity` | `nil` | Durable log. `nil` means an ephemeral companion that forgets on quit. |
 
 ```swift
 let engine = MotiveEngine(definition: definition.behaviorDefinition)
@@ -64,7 +64,7 @@ yourself instead when you own the clock — which is what every Core test does.
 | `queueSnapshot(now:)` | `QueueSnapshot` | |
 
 Every one takes `now:` with a `Date()` default. Pass it explicitly in tests and
-you can drive a week of pet-time in a loop.
+you can drive a week of companion-time in a loop.
 
 ### Questions
 
@@ -241,7 +241,7 @@ state, not the dozen transitions and auto-reverts that follow.
 
 ## Headless use
 
-`MotiveCore` never imports AppKit, so a CLI or daemon can run a pet with no
+`MotiveCore` never imports AppKit, so a CLI or daemon can run a companion with no
 window at all — useful when you want the queue and state semantics to drive
 something other than pixels (a dock badge, a Slack status, an LED).
 
@@ -253,5 +253,5 @@ Task {
 }
 ```
 
-Add `MotiveHTTP` and you have a headless pet agents can drive; add nothing and
+Add `MotiveHTTP` and you have a headless companion agents can drive; add nothing and
 you have a testable state machine.

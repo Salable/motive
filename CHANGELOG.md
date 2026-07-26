@@ -9,7 +9,7 @@ All notable changes to Motive are documented here. The format follows
 ### Added
 - **A documentation architecture, and docs to fill it.** `docs/` is now
   organised by what the reader is doing rather than by what the code is called:
-  `guides/` to learn (quickstart, the demo app, build your first pet,
+  `guides/` to learn (quickstart, the demo app, build your first app,
   troubleshooting), `concepts/` for the mental model (queue, states, questions,
   voice, runtime), `components/` for per-product reference with parameters and
   integration patterns, and `reference/` for environment variables, files,
@@ -27,6 +27,22 @@ All notable changes to Motive are documented here. The format follows
 - `scripts/check-doc-links.py` fails CI on a relative link or heading anchor
   that points at nothing.
 
+### Changed
+- **"Pet" is retired from Motive's vocabulary.** The word flattened three
+  distinct things into one, and it competed with the demo character — Winston
+  actually is a pet. The framework now says **companion** for the running entity
+  (it has a queue, asks questions, survives restarts), **sprite** for the moving
+  image and the package defining it, and **app** for the host process. No public
+  API changed: no type, property, product, or JSON key ever contained "pet". What
+  moved is prose, doc comments, user-visible strings, and the generated agent
+  skill, whose trigger vocabulary is now `sprite/companion/character`. The rule
+  is recorded in `CLAUDE.md` and `docs/DOCUMENTATION.md` so it does not drift
+  back. `docs/proposals/` is left as written — it is a design record, and
+  rewriting it would falsify what was thought at the time.
+- `docs/guides/FIRST-PET.md` is now `docs/guides/FIRST-APP.md` ("Build Your First
+  Companion App"), and its sample package is `MyCompanion`. The wiki page moves
+  from `Guides-First-Pet` to `Guides-First-App`.
+
 ### Fixed
 - `docs/INTEGRATIONS.md` listed an MCP tool that does not exist
   (`motive_clear_question_history`) and omitted four that do
@@ -34,12 +50,24 @@ All notable changes to Motive are documented here. The format follows
 - The README component table omitted `MotiveVoice` and both executables.
 - The SwiftPM version pin in `README.md` and `docs/EMBEDDING.md` still said
   `0.3.0`.
-- `docs/FORMATS.md` did not document the `voice` block, which both runners have
+- `docs/FORMATS.md` did not document the `voice` block, which the runner has
   decoded since 0.4.0.
+- The demo's sprite-package discovery probe tested for `pet.json`, so a package
+  shipping only a `motive.json` was invisible to it and had to be passed
+  explicitly. It now probes for `motive.json`.
 - `docs/EMBEDDING.md` named the durable history file `history/questions.jsonl`;
   it is `history/activity.jsonl`.
 
 ### Removed
+- **BREAKING: the `codex/1` sprite format (`pet.json`) and `CodexRunner`.**
+  `motive/1` has been the native format since 0.4.0 and does everything
+  `codex/1` did; shipping both meant two vocabularies for one idea, and the
+  older one guessed — a bare manifest resolved to an assumed grid, and aliases
+  and triggers appeared that nobody wrote. `SpriteRunnerRegistry.standard` now
+  registers `MotiveRunner` alone, and `Sprites/winston` ships only `motive.json`.
+  `docs/FORMATS.md` has a field-by-field migration table. `SpriteRunner` and
+  `SpriteRunnerRegistry.register` remain public, so an app that must keep
+  loading `pet.json` packages can carry a runner of its own.
 - `VOICEEXAMPLE/` — 62 files of an unrelated Zig project, checked in as
   reference material while the voice work was in flight. It contradicted
   Motive's own docs at every turn and misled anything reading the repository.

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate the README's Winston GIFs from the sprite atlas.
 
-Deterministic: reads rows, timings, and aliases from pet.json (so the art
+Deterministic: reads rows, timings, and aliases from motive.json (so the art
 regenerates correctly if the sprite changes), computes crops from the frames'
 alpha bounds, and emits looping GIFs onto warm-paper cards matching the app
 icon. Committed under docs/images/; rerun manually after atlas changes.
@@ -16,7 +16,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SHEET = ROOT / "Sprites/winston/spritesheet.webp"
-PET = ROOT / "Sprites/winston/pet.json"
+MANIFEST = ROOT / "Sprites/winston/motive.json"
 OUT_DIR = ROOT / "docs/images"
 
 BACKGROUND = (245, 236, 224, 255)  # warm paper, same as the app icon
@@ -36,15 +36,31 @@ CARD_STATES = ["working", "waiting", "review", "failed"]
 TOTAL_BUDGET_KIB = 2048
 
 
-def load_pet():
-    pet = json.loads(PET.read_text())
-    cell = tuple(pet["atlases"]["sprite"]["cell"])
-    aliases = pet.get("aliases", {})
+def load_manifest():
+    """Read motive/1 and flatten each state to the row/frames/ms this script draws with.
+
+    motive/1 nests the row under `frames` and allows a scalar `ms` standing for
+    every frame; the drawing code below wants a row, a frame count, and one
+    duration per frame.
+    """
+    manifest = json.loads(MANIFEST.read_text())
+    cell = tuple(manifest["atlases"]["sprite"]["cell"])
+    aliases = manifest.get("aliases", {})
 
     def resolve(name):
-        return pet["states"][aliases.get(name, name)]
+        state = manifest["states"][aliases.get(name, name)]
+        frames = state["frames"]
+        ms = state["ms"]
+        count = frames.get("count", len(ms) if isinstance(ms, list) else None)
+        if count is None:
+            raise SystemExit(f"state '{name}': cannot infer frame count")
+        return {
+            "row": frames["row"],
+            "frames": count,
+            "ms": ms if isinstance(ms, list) else [ms] * count,
+        }
 
-    return pet, cell, resolve
+    return manifest, cell, resolve
 
 
 def load_font(size):
@@ -177,7 +193,7 @@ def state_card(sheet, cell, resolve, font, name, crop):
 
 
 def main():
-    pet, cell, resolve = load_pet()
+    _manifest, cell, resolve = load_manifest()
     sheet = Image.open(SHEET).convert("RGBA")
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 

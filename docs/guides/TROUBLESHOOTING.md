@@ -1,6 +1,6 @@
 # Troubleshooting
 
-> **Audience:** anyone with a pet that will not start, will not connect, or will not talk.
+> **Audience:** anyone with a companion that will not start, will not connect, or will not talk.
 > **Prerequisites:** none.
 > **Source of truth:** the error types named in each entry.
 
@@ -9,18 +9,16 @@ Symptom first, then the cause, then the fix.
 ## Starting up
 
 **`motive-demo: no sprite package found.`**
-Nothing in the lookup chain contained a `pet.json`. The demo checks
+Nothing in the lookup chain contained a `motive.json`. The demo checks
 `$MOTIVE_SPRITE`, then the first command-line argument, then `./Sprites/winston`,
 then `winston` in the app bundle's resources. Run from the repo root, pass a
-path, or set `MOTIVE_SPRITE`. Note that even a `motive/1` package must sit in a
-directory the demo can identify — the demo's probe looks for `pet.json`
-specifically, so a package with only `motive.json` needs to be passed explicitly
-rather than discovered.
+path, or set `MOTIVE_SPRITE`.
 
-**`sprite package not found at …` / `no sprite manifest found in …`**
-`SpriteLoadError`. The path is wrong, or the directory has neither `motive.json`
-nor `pet.json` at its top level. Point at the directory, not at the manifest file
-inside it.
+**`sprite package not found at …` / `no sprite manifest found in … — expected motive.json`**
+`SpriteLoadError`. The path is wrong, or the directory has no `motive.json` at
+its top level. Point at the directory, not at the manifest file inside it. If the
+package is an old `codex/1` (`pet.json`) one, see
+[../FORMATS.md](../FORMATS.md#migrating-from-codex1-petjson).
 
 **`invalid sprite manifest: …`**
 The manifest parsed but failed validation — a state naming a missing `then`
@@ -89,7 +87,7 @@ count: Winston accepts `working` for `running`.
 
 ## Agents
 
-**Claude Desktop does not see the pet.**
+**Claude Desktop does not see the companion.**
 The shim is a separate binary from the app. Build it (`swift build -c release`),
 point `claude_desktop_config.json` at `.build/release/motive-mcp` by absolute
 path, and restart Claude Desktop. The shim rediscovers the running app on every
@@ -157,7 +155,7 @@ before adding the dependency back.
 
 ## Still stuck
 
-`GET /v1/activity` is the durable record of everything the pet and the human did
+`GET /v1/activity` is the durable record of everything the companion and the human did
 — commands accepted, questions asked, how each resolved — with monotonic
 sequence numbers that survive restarts. It is the right first stop for "what
 actually happened", and better than SSE for it, because SSE has no replay.

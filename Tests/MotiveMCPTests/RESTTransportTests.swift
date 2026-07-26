@@ -17,7 +17,7 @@ final class RESTTransportTests: XCTestCase {
                 "review": StateBehavior(name: "review", frameDurations: [0.1]),
             ]
         ))
-        let control = MotiveControl(engine: engine, displayName: "ShimPet")
+        let control = MotiveControl(engine: engine, displayName: "ShimCompanion")
         let paths = RuntimePaths(runtimeURL: runtimeDir)
         let httpServer = MotiveServer(control: control, paths: paths, preferredPort: 0)
         _ = try await httpServer.start()
@@ -37,7 +37,7 @@ final class RESTTransportTests: XCTestCase {
         let statusLine = #"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"motive_status","arguments":{}}}"#
         let rawStatus = await mcp.handle(line: statusLine)
         let statusResponse = try XCTUnwrap(rawStatus)
-        XCTAssertTrue(statusResponse.contains("ShimPet"))
+        XCTAssertTrue(statusResponse.contains("ShimCompanion"))
 
         // Skip over the same path: enqueue two long items, skip the first —
         // proves the DELETE-with-subpath proxying end to end.
@@ -70,7 +70,7 @@ final class RESTTransportTests: XCTestCase {
         let engine = MotiveEngine(definition: BehaviorDefinition(
             states: ["idle": StateBehavior(name: "idle", frameDurations: [0.1])]
         ))
-        let control = MotiveControl(engine: engine, displayName: "ShimPet")
+        let control = MotiveControl(engine: engine, displayName: "ShimCompanion")
         let paths = RuntimePaths(runtimeURL: runtimeDir)
         let httpServer = MotiveServer(control: control, paths: paths, preferredPort: 0)
         _ = try await httpServer.start()

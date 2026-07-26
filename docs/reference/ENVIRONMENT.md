@@ -68,7 +68,7 @@ For an app bundle you build yourself:
 | `CFBundleExecutable`, `CFBundleIdentifier`, `CFBundlePackageType` | always | Minimum viable bundle. |
 | `LSMinimumSystemVersion` | always | macOS 13.0. |
 | `CFBundleShortVersionString` | always | Must match `MotiveVersion.current` — `testBundlePlistMatchesVersionConstant` fails otherwise. |
-| `LSUIElement` = `true` | menu-bar-only pets | No Dock icon, no app switcher entry. |
+| `LSUIElement` = `true` | menu-bar-only apps | No Dock icon, no app switcher entry. |
 | `NSMicrophoneUsageDescription` | speech input | Shown in the permission prompt. Write your own. |
 | `NSSpeechRecognitionUsageDescription` | speech input | Same. |
 

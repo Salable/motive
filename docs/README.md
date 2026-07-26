@@ -9,14 +9,14 @@ want opposite things. Find your row.
 
 | I want to… | Go to |
 | --- | --- |
-| get a pet on my desktop in five minutes | [guides/QUICKSTART.md](guides/QUICKSTART.md) |
+| get a companion on my desktop in five minutes | [guides/QUICKSTART.md](guides/QUICKSTART.md) |
 | know everything the demo app does | [guides/DEMO.md](guides/DEMO.md) |
-| build my own pet, start to finish | [guides/FIRST-PET.md](guides/FIRST-PET.md) |
+| build my own companion, start to finish | [guides/FIRST-APP.md](guides/FIRST-APP.md) |
 | fix something that is broken | [guides/TROUBLESHOOTING.md](guides/TROUBLESHOOTING.md) |
 | understand *why* it behaves like that | [concepts/](#concepts) |
 | look up a product's types and parameters | [components/](#components) |
 | copy a recipe into my app | [EMBEDDING.md](EMBEDDING.md) |
-| drive a running pet over HTTP | [API.md](API.md) |
+| drive a running companion over HTTP | [API.md](API.md) |
 | connect an AI agent | [INTEGRATIONS.md](INTEGRATIONS.md) |
 | author a sprite | [FORMATS.md](FORMATS.md) |
 | contribute to Motive itself | [../CONTRIBUTING.md](../CONTRIBUTING.md), then [ARCHITECTURE.md](ARCHITECTURE.md) |
@@ -28,7 +28,7 @@ Read start to finish; each one has one happy path.
 
 - [QUICKSTART.md](guides/QUICKSTART.md) — run the demo, find the door, drive it
 - [DEMO.md](guides/DEMO.md) — every menu item and setting in `motive-demo`
-- [FIRST-PET.md](guides/FIRST-PET.md) — an empty directory to a working pet
+- [FIRST-APP.md](guides/FIRST-APP.md) — an empty directory to a working companion
 - [TROUBLESHOOTING.md](guides/TROUBLESHOOTING.md) — symptom, cause, fix
 
 ## Concepts
@@ -65,7 +65,7 @@ DocC and published to
 - [INTEGRATIONS.md](INTEGRATIONS.md) — Claude Code, Codex, OpenCode, Claude
   Desktop, ChatGPT Desktop
 - [API.md](API.md) — the REST control plane, endpoint by endpoint
-- [FORMATS.md](FORMATS.md) — `pet.json` (`codex/1`) and `motive.json` (`motive/1`)
+- [FORMATS.md](FORMATS.md) — `motive.json` (`motive/1`)
 
 ## Reference
 
@@ -85,12 +85,12 @@ DocC and published to
 
 ## Reading paths
 
-- **"I want a pet in my app"** — [guides/FIRST-PET.md](guides/FIRST-PET.md),
+- **"I want a companion in my app"** — [guides/FIRST-APP.md](guides/FIRST-APP.md),
   then [FORMATS.md](FORMATS.md) for your own sprite, then
   [INTEGRATIONS.md](INTEGRATIONS.md) to let agents drive it.
 - **"I want to draw a new sprite"** — [FORMATS.md](FORMATS.md). Test it with
   `MOTIVE_SPRITE=path/to/package swift run motive-demo`.
-- **"I want my agent to drive a running pet"** —
+- **"I want my agent to drive a running companion"** —
   [INTEGRATIONS.md](INTEGRATIONS.md) for the hookups,
   [API.md](API.md) for the wire details,
   [concepts/QUEUE.md](concepts/QUEUE.md) for why it behaves as it does.

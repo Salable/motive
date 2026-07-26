@@ -3,6 +3,9 @@
 **Status:** revision 2 — incorporates Neal's review of revision 1
 **Author:** Claude + Neal
 **Date:** 2026-07-26
+**Vocabulary:** written before "pet" was retired in favour of *companion* (the
+running entity) and *sprite* (the moving image). Left as written — this is a
+record of the reasoning at the time, not current naming.
 **Reference material:** TalkBox — a working macOS app that solves a similar
 problem *without* a framework. Benchmark, not codebase. It was vendored into
 this repository as `VOICEEXAMPLE/` while this proposal was being written, and

@@ -6,7 +6,7 @@ public enum ActivityActor: String, Codable, Sendable {
     case agent
     /// The person at the keyboard.
     case human
-    /// The pet itself: a timeout elapsing, a queue draining.
+    /// The companion itself: a timeout elapsing, a queue draining.
     case system
 }
 
@@ -26,7 +26,7 @@ public enum ActivityKind: String, Codable, Sendable {
     case queueResumed
 }
 
-/// One durable line in the pet's story.
+/// One durable line in the companion's story.
 ///
 /// Sequence-numbered because that is what makes polling a real alternative to
 /// holding an event stream open: an agent asks for everything after the last
@@ -66,7 +66,7 @@ public struct ActivityRecord: Codable, Equatable, Sendable, Identifiable {
     }
 }
 
-/// Durable record of what the pet and the human did.
+/// Durable record of what the companion and the human did.
 ///
 /// One store rather than one per feature: a question's answer and the skip that
 /// followed it belong on the same timeline, and two files with two retention

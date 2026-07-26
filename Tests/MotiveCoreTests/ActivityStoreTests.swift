@@ -260,7 +260,7 @@ final class SpokenAnswerTests: XCTestCase {
 extension ActivityStoreTests {
     /// Sequence numbers are the cursor. Handing one out twice makes a polling
     /// agent skip an entry, so they must only ever move forward — including
-    /// across a restore that races whatever the pet is already doing.
+    /// across a restore that races whatever the companion is already doing.
     func testRestoreNeverRewindsTheSequence() async throws {
         let store = makeStore()
         let definition = BehaviorDefinition(

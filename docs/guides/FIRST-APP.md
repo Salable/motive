@@ -1,10 +1,10 @@
-# Build Your First Pet
+# Build Your First Companion App
 
 > **Audience:** developers building their own desktop companion on Motive.
 > **Prerequisites:** macOS 13+, Swift 5.10+, and [QUICKSTART.md](QUICKSTART.md) so you know what you are aiming at.
 > **Source of truth:** `Sources/MotiveDemo/main.swift` is the finished version of everything below.
 
-We are going to build a pet from an empty directory: a sprite package, a window,
+We are going to build a companion from an empty directory: a sprite package, a window,
 a REST control plane, and a menu bar — about sixty lines of Swift by the end.
 Each step runs on its own, so you can stop wherever you have enough.
 
@@ -14,8 +14,8 @@ you can jump into out of order. This is the version you read front to back once.
 ## Step 1: the package
 
 ```sh
-mkdir MyPet && cd MyPet
-swift package init --type executable --name MyPet
+mkdir MyCompanion && cd MyCompanion
+swift package init --type executable --name MyCompanion
 ```
 
 Replace `Package.swift`:
@@ -25,14 +25,14 @@ Replace `Package.swift`:
 import PackageDescription
 
 let package = Package(
-    name: "MyPet",
+    name: "MyCompanion",
     platforms: [.macOS(.v13)],
     dependencies: [
         .package(url: "https://github.com/Salable/motive.git", from: "0.4.0"),
     ],
     targets: [
         .executableTarget(
-            name: "MyPet",
+            name: "MyCompanion",
             dependencies: [
                 .product(name: "MotiveCore",   package: "motive"),
                 .product(name: "MotiveSprite", package: "motive"),
@@ -58,7 +58,7 @@ safe to load a package you did not write.
 The fastest start is to copy the bundled one:
 
 ```sh
-cp -R /path/to/motive/Sprites/winston ./Sprites/mypet
+cp -R /path/to/motive/Sprites/winston ./Sprites/mysprite
 ```
 
 To author your own, you need a sprite sheet — a grid of equally sized cells,
@@ -67,7 +67,7 @@ one animation per row — and a `motive.json` beside it:
 ```jsonc
 {
   "format": "motive/1",
-  "metadata": { "id": "mypet", "name": "Pixel" },
+  "metadata": { "id": "mysprite", "name": "Pixel" },
   "atlases": {
     "sprite": { "path": "spritesheet.png", "cell": [192, 208], "grid": [25, 9] }
   },
@@ -91,12 +91,12 @@ verbatim in `/v1/schema`, and they are how an agent decides that "the build
 failed" means `failed` and not `waiting`.
 
 [../FORMATS.md](../FORMATS.md) has the full vocabulary: non-row frame layouts,
-multiple atlases, crossfades, per-frame timings, and the older `codex/1` format.
+multiple atlases, crossfades, and per-frame timings.
 
 Validate it before writing any Swift:
 
 ```sh
-MOTIVE_SPRITE=$(pwd)/Sprites/mypet swift run --package-path /path/to/motive motive-demo
+MOTIVE_SPRITE=$(pwd)/Sprites/mysprite swift run --package-path /path/to/motive motive-demo
 ```
 
 Loading is tolerant of keys it does not know and loud about values it does:
@@ -105,14 +105,14 @@ than half-loading and animating wrong.
 
 ## Step 3: on the desktop
 
-`Sources/MyPet/main.swift`:
+`Sources/MyCompanion/main.swift`:
 
 ```swift
 import AppKit
 import MotiveSprite
 import MotiveUI
 
-let packageURL = URL(fileURLWithPath: "Sprites/mypet")
+let packageURL = URL(fileURLWithPath: "Sprites/mysprite")
 let definition = try SpriteRunnerRegistry.standard.load(packageURL)
 
 let app = NSApplication.shared
@@ -145,7 +145,7 @@ MainActor.assumeIsolated {
 ```
 
 ```sh
-swift run MyPet
+swift run MyCompanion
 ```
 
 Three objects, three jobs. `SpriteRunnerRegistry` turned a directory into a
@@ -185,7 +185,7 @@ Task {
 are 1:1 adapters over it and add no semantics of their own — which is the reason
 to route your *own* UI through it too. A chat box or hotkey that calls
 `MotiveControl` behaves identically from your window, from `curl`, and from
-Claude, and `/v1/schema` keeps telling the truth about what your pet can do.
+Claude, and `/v1/schema` keeps telling the truth about what your companion can do.
 
 `MotiveServer(control:paths:preferredPort:bindHost:rateLimiter:)` defaults to
 loopback on 7877, falling back to an ephemeral port when that is taken.
@@ -245,7 +245,7 @@ demo's four live panes are built that way.
 Everything above runs fine under `swift run`. A `.app` is how you give it to
 someone else, and SwiftPM has no step that produces one — copy
 `scripts/build-demo-app.sh` from this repo rather than starting over. You need a
-bundle layout, an `Info.plist` (with `LSUIElement` true for a menu-bar-only pet),
+bundle layout, an `Info.plist` (with `LSUIElement` true for a menu-bar-only app),
 usage-description keys if you use speech input, and a signature.
 [../EMBEDDING.md](../EMBEDDING.md#ship-an-app-bundle) has the detail.
 

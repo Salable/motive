@@ -4,7 +4,7 @@ dist/
 .worktrees/
 .motive-home/
 # Any local runtime home: these hold a live bearer token and a record of
-# whatever the pet was asked. Broad on purpose — a one-off name like
+# whatever the companion was asked. Broad on purpose — a one-off name like
 # .motive-verify must not slip past this.
 .motive-*/
 *.xcodeproj

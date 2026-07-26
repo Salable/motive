@@ -297,7 +297,7 @@ public struct ControlSchema: Codable, Equatable, Sendable {
                 "id": "string (optional; one question, open or resolved)",
                 "wait": "milliseconds (optional, ≤30000; long-poll until it resolves)",
             ],
-            description: "List the questions the pet is waiting on. Pass `id` for one, `wait` to block until it is answered. Only the human can answer — there is no verb that submits an answer."
+            description: "List the questions the companion is waiting on. Pass `id` for one, `wait` to block until it is answered. Only the human can answer — there is no verb that submits an answer."
         ),
         VerbInfo(
             name: "cancel-question", method: "DELETE", path: "/v1/questions",

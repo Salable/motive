@@ -92,7 +92,7 @@ public struct SpriteMetadata: Equatable, Sendable {
     public let author: String?
     public let license: String?
     public let version: String?
-    /// How this pet should sound when a host installs spoken output. A
+    /// How this companion should sound when a host installs spoken output. A
     /// declaration, not a demand — the user's own setting overrides it.
     public let voice: VoicePreferences?
 

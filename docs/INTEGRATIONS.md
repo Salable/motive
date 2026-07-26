@@ -1,6 +1,6 @@
 # Agent Integrations
 
-> **Audience:** anyone connecting an AI agent to a running pet.
+> **Audience:** anyone connecting an AI agent to a running companion.
 > **Prerequisites:** a running Motive app; for MCP, a built `motive-mcp`.
 > **Source of truth:** `Sources/MotiveMCP/MCPServer.swift` (tools), `Sources/MotiveAgents/` (installers).
 
@@ -51,7 +51,7 @@ outstanding, where they are deferred behind it rather than cutting it short.
 
 ### Asking the human
 
-`motive_say` with a `respond` block asks a question and blocks the pet's queue
+`motive_say` with a `respond` block asks a question and blocks the companion's queue
 until a human resolves it. Poll `motive_questions` for the outcome: `awaiting`
 means keep polling, `accepted` carries the `answer`, and `declined` / `cancelled`
 / `expired` all mean move on. For a `confirm`, both buttons are `accepted` —

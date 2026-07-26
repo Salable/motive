@@ -1,6 +1,6 @@
 # The Queue
 
-> **Audience:** anyone whose pet did something they did not expect.
+> **Audience:** anyone whose companion did something they did not expect.
 > **Prerequisites:** none.
 > **Source of truth:** `Sources/MotiveCore/ActionQueue.swift`; behavior pinned by `Tests/MotiveCoreTests/ActionQueueTests.swift`.
 
@@ -9,7 +9,7 @@ a `curl` that sets a state, a menu click, a tour step, and an MCP tool call all
 become the same kind of object in the same single-file line. There is no bypass
 path, and adding one would be a design regression rather than an optimization.
 
-The reason is that a desktop pet has exactly one body. Two callers that both
+The reason is that a desktop companion has exactly one body. Two callers that both
 want her attention are not a concurrency problem to be solved with locks; they
 are a *scheduling* problem, and the honest answer to "why is she doing that" has
 to be a list you can look at. `QueueWindow` shows that list. So does
@@ -47,7 +47,7 @@ Each item carries a *completion* — the answer to "when is this item done".
 Default holds: `say` 4000 ms (matching the bubble), `setState` 0 (the state is
 set and the queue moves on immediately), `trigger` the gesture's own length,
 `pause` its `ms`. A hold is clamped to 30 seconds — the same ceiling as a state
-duration — because a queue item that pins the pet for longer is a bug wearing a
+duration — because a queue item that pins the companion for longer is a bug wearing a
 parameter's clothes.
 
 `setState` holding for zero is worth dwelling on. It means "become this and let
@@ -65,7 +65,7 @@ A question waits on a human. There is nothing to interrupt — no remaining hold
 no countdown — so a direct verb arriving while a question is outstanding cannot
 head-enqueue past it. It queues *behind* the question and plays the moment the
 question resolves. Nothing is dropped; the agent's message is simply late, which
-is the correct behavior when the pet is mid-conversation with a person.
+is the correct behavior when the companion is mid-conversation with a person.
 
 Spoken lines use the same primitive from the other direction: with speech output
 installed, a `say` completes when its audio finishes rather than after a guessed
@@ -102,7 +102,7 @@ up.
 
 | Limit | Value | Why |
 | --- | --- | --- |
-| `ActionQueue.maxDepth` | 64 | A queue longer than a minute of pet is a script, and scripts should be composed by the caller. |
+| `ActionQueue.maxDepth` | 64 | A queue longer than a minute of companion is a script, and scripts should be composed by the caller. |
 | `ActionQueue.maxOutstandingQuestions` | 8 | Questions stack; a human facing nine of them is facing a bug. |
 | `ActionQueue.maxHold` | 30 s | Matches `ActorStateMachine.maxDuration`. |
 
@@ -131,6 +131,6 @@ no clock: `tick(now:)`, `enqueue(_:at:now:)`, and `snapshot(now:)` all take the
 time explicitly. `MotiveEngine` owns one and is the only thing that mutates it.
 
 That shape is the reason the queue tests are exhaustive and instant — they drive
-a decade of pet-time by hand in milliseconds. If you extend the queue, keep it:
+a decade of companion-time by hand in milliseconds. If you extend the queue, keep it:
 no timers, no ambient `Date()`, no I/O. See
 [../components/CORE.md](../components/CORE.md).

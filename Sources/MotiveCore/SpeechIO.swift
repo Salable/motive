@@ -1,6 +1,6 @@
 import Foundation
 
-/// Voice settings a sprite package may declare, so a pet sounds like itself on
+/// Voice settings a sprite package may declare, so a companion sounds like itself on
 /// any host app. Plain data in Core — `MotiveSprite` decodes it, `MotiveVoice`
 /// consumes it, and a user's own setting overrides it.
 public struct VoicePreferences: Codable, Equatable, Sendable {

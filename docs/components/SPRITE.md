@@ -21,15 +21,15 @@ wrong. There is no half-loaded state.
 ## `SpriteRunnerRegistry`
 
 ```swift
-public static var standard: SpriteRunnerRegistry   // motive/1, then codex/1
+public static var standard: SpriteRunnerRegistry   // motive/1
 public mutating func register<R: SpriteRunner>(_ runner: R)
 public func runner(for url: URL) -> (any SpriteRunner)?
 public func load(_ url: URL) throws -> SpriteDefinition
 ```
 
 Detection is by manifest file, in registration order: `motive.json` → `motive/1`
-wins, otherwise `pet.json` → `codex/1`. A registered runner is consulted before
-the built-ins, so you can override a format as well as add one.
+is the only built-in. A registered runner is consulted before the built-ins, so
+you can override a format as well as add one.
 
 **Validation happens before the load returns, and findings at `error` severity
 fail it.** Not a separate step you might forget — a package that would animate
@@ -78,20 +78,20 @@ Atlas paths must be relative and stay inside the package.
 
 ## The built-in runners
 
-**`MotiveRunner`** — `formatID = "motive/1"`, manifest `motive.json`. Everything
-explicit: no default contract, no synthesized vocabulary. Supports frame layouts
-that are not rows (`cells`, `rects`), multiple atlases per state, duration
-shorthand, and a full metadata block. Prefer it for new sprites.
+**`MotiveRunner`** — `formatID = "motive/1"`, manifest `motive.json`. The only
+built-in runner. Everything explicit: no default contract, no synthesized
+vocabulary. Supports frame layouts that are not rows (`cells`, `rects`), multiple
+atlases per state, duration shorthand, and a full metadata block.
 
-**`CodexRunner`** — `formatID = "codex/1"`, manifest `pet.json`. Compatible with
-the Codex/Fido pet contract: fixed-grid sheets, one row per state. It
-*synthesizes* a good deal — a bare four-field manifest resolves to the classic
-8×9 @ 192×208 layout, and aliases (`working→running`, `done→review`,
-`error→failed`) and `wave`/`jump` triggers appear when the target states exist
-and none were declared. Convenient, and the reason `motive/1` exists: a format
-that guesses is a format you cannot fully author.
+A second built-in, `CodexRunner` (`codex/1`, `pet.json`), used to ship alongside
+it. It *synthesized* a good deal — a bare four-field manifest resolved to a
+classic 8×9 @ 192×208 layout, and aliases and `wave`/`jump` triggers appeared
+when the target states existed and none were declared. That convenience is
+exactly why it went: a format that guesses is a format you cannot fully author.
+See [../FORMATS.md](../FORMATS.md#migrating-from-codex1-petjson) to port a
+package, or to carry a runner of your own.
 
-Both accept the optional `voice` block —
+It accepts the optional `voice` block —
 [../FORMATS.md](../FORMATS.md#the-voice-block).
 
 ## Adding a format
@@ -125,9 +125,8 @@ MOTIVE_SPRITE=path/to/package swift run motive-demo
 ```
 
 The fastest loop there is: validation errors print to stderr and the app exits
-1 rather than starting to an empty desktop. Note the demo's *discovery* probe
-looks for `pet.json` specifically, so a package with only `motive.json` should be
-passed explicitly rather than relied on to be found.
+1 rather than starting to an empty desktop. The demo's *discovery* probe looks
+for `motive.json`, so any loadable package in the lookup chain is found.
 
 `Tests/MotiveSpriteTests/FixtureSmokeTests.swift` loads the shipped packages,
 which is worth copying: a test that loads your package catches a manifest typo at

@@ -11,7 +11,7 @@ public enum SkillGenerator {
     /// The body shared by every agent target. Generic across Motive apps:
     /// the agent discovers the running app and reads its actual vocabulary
     /// from /v1/schema.
-    public static func markdownBody(appHint: String = "a Motive-powered pet app") -> String {
+    public static func markdownBody(appHint: String = "a Motive-powered companion app") -> String {
         let verbTable = ControlSchema.standardVerbs.map { verb in
             let params = verb.params.isEmpty
                 ? "—"
@@ -24,8 +24,8 @@ public enum SkillGenerator {
         narrate your work, show speech bubbles, and play gestures. Everything goes \
         through a loopback REST API — no files are modified.
 
-        Use when the user asks the pet/sprite/companion to react, speak, or reflect \
-        progress ("make the pet jump", "have Winston say we're done", "show working").
+        Use when the user asks the sprite/companion/character to react, speak, or reflect \
+        progress ("make the sprite jump", "have Winston say we're done", "show working").
 
         ## Connect
 
@@ -55,7 +55,7 @@ public enum SkillGenerator {
         ## Asking the human something
 
         Sometimes you need an answer before you can carry on: a yes/no, a pick from a
-        short list, a bit of text. Ask through the pet rather than stopping and hoping
+        short list, a bit of text. Ask through the companion rather than stopping and hoping
         someone reads your transcript — the question lands in a speech bubble on their
         desktop, with buttons under it.
 
@@ -94,7 +94,7 @@ public enum SkillGenerator {
         | `cancelled` | dismissed, or you withdrew it | treat as no answer |
         | `expired` | your `timeout` elapsed | treat as no answer |
 
-        A poll that returns `unknown_question` means the pet restarted while your
+        A poll that returns `unknown_question` means the companion restarted while your
         question was still open — treat it as no answer, same as `cancelled`.
 
         For `confirm`, **both buttons are `accepted`** — read `answer.confirmed` for the
@@ -151,7 +151,7 @@ public enum SkillGenerator {
         """
         ---
         name: \(skillName)
-        description: Drive the Motive desktop sprite over its loopback REST API — set animation states, show speech bubbles, and play gestures to narrate the session. Use when the user asks their pet/sprite/companion to react, speak, or reflect progress.
+        description: Drive the Motive desktop sprite over its loopback REST API — set animation states, show speech bubbles, and play gestures to narrate the session. Use when the user asks their sprite/companion/character to react, speak, or reflect progress.
         ---
 
         \(markdownBody())

@@ -48,7 +48,7 @@ docs/
   guides/                learn by doing
     QUICKSTART.md          five minutes: run the demo, drive it from a terminal
     DEMO.md                the full motive-demo user guide
-    FIRST-PET.md           build your own pet from an empty package
+    FIRST-APP.md           build your own companion from an empty package
     TROUBLESHOOTING.md     symptom → cause → fix
 
   concepts/              the mental model
@@ -87,7 +87,7 @@ answers "what is this page for" before any heading:
 ```markdown
 # REST Control Plane
 
-> **Audience:** anyone driving a running pet from outside the app.
+> **Audience:** anyone driving a running companion from outside the app.
 > **Prerequisites:** a running Motive app.
 > **Source of truth:** `Sources/MotiveHTTP/`, `ControlSchema.standardVerbs`.
 
@@ -114,6 +114,13 @@ Beyond that:
   links. Rationale duplicated in four places is rationale that will disagree with
   itself in four places.
 - **Name defaults inline.** `ttl` (ms, default 8000) — not "an optional TTL".
+- **Use the vocabulary.** A **companion** is the running entity — it has a queue,
+  asks questions, survives restarts. A **sprite** is the moving image and the
+  package that defines it; sprites are data, never code. An **app** is the host
+  process holding a companion. Winston is a companion, rendered as a sprite,
+  hosted by `MotiveDemo`. The framework has no "pets": the word was retired
+  because it flattened all three layers into one. `proposals/` predates the
+  change and is left as written.
 
 ## Documenting a feature
 

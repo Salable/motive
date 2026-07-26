@@ -4,9 +4,9 @@
 > **Prerequisites:** [QUEUE.md](QUEUE.md) — a question is a queue item with external completion.
 > **Source of truth:** `Sources/MotiveCore/Questions.swift`, `MotiveEngine.ask`; pinned by `testNoVerbAnswersAQuestion`.
 
-A question turns a speech bubble into a block: the pet asks, the queue parks, and
+A question turns a speech bubble into a block: the companion asks, the queue parks, and
 nothing moves until a human at the keyboard resolves it. It is the one place
-where the pet stops being an output device and becomes a gate.
+where the companion stops being an output device and becomes a gate.
 
 ## The one rule
 
@@ -104,7 +104,7 @@ first. Up to eight may be outstanding
 A human may answer a *pending* question out of order. `QueueWindow` lists every
 outstanding one, and answering one there resolves it in place without disturbing
 the bubble currently on screen. This is why the queue window is not a debug tool
-— for a pet that asks more than one thing, it is where the conversation lives.
+— for a companion that asks more than one thing, it is where the conversation lives.
 
 Direct verbs issued while a question is outstanding are deferred behind it, not
 dropped, and play the moment it resolves. See [QUEUE.md](QUEUE.md#external-completion).

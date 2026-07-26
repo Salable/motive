@@ -51,7 +51,7 @@ regenerates it (via `scripts/make-icon.py`, needs Pillow) when it's missing.
 
 The README's Winston GIFs (`docs/images/`) are committed too, and are not part
 of any build: rerun `scripts/make-readme-art.py` (needs Pillow) manually
-whenever the Winston atlas or `pet.json` changes — it is deterministic, so an
+whenever the Winston atlas or `motive.json` changes — it is deterministic, so an
 unchanged sprite produces byte-identical files.
 
 Signing is ad-hoc by default — downloaders right-click → Open, or

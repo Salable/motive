@@ -251,7 +251,7 @@ struct SpriteBoxContent: View {
 
 /// How the human answers the question in the bubble.
 ///
-/// Only the head question gets controls — the pet has one attention surface,
+/// Only the head question gets controls — the companion has one attention surface,
 /// and stacking affordances would make the urgent one harder to find, not
 /// easier. Anything waiting behind it shows as a quiet count that opens the
 /// queue window, which is where questions live.

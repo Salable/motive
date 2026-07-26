@@ -2,9 +2,9 @@
 
 [![CI](https://github.com/Salable/motive/actions/workflows/ci.yml/badge.svg)](https://github.com/Salable/motive/actions/workflows/ci.yml)
 
-**Motive** is a composable Swift framework for building desktop "pet" apps on macOS — animated sprite companions that live on your desktop, react to what your tools are doing, and can be driven by AI agents over REST or MCP.
+**Motive** is a composable Swift framework for building desktop companion apps on macOS — animated sprites that live on your desktop, react to what your tools are doing, and can be driven by AI agents over REST or MCP.
 
-Your pet mirrors what your agent is up to — one REST or MCP call sets the state:
+Your companion mirrors what your agent is up to — one REST or MCP call sets the state:
 
 <p align="center">
   <img src="docs/images/state-working.gif" width="196" alt="Winston tearing through a stack of paperwork — the agent is working">
@@ -15,23 +15,23 @@ Your pet mirrors what your agent is up to — one REST or MCP call sets the stat
 
 …plus one-shot gestures (`wave`, `jump`, `dash-left`/`dash-right`) and speech bubbles to keep her feeling alive.
 
-Rather than shipping one bundled app, Motive is a component library: pick the pieces you need and compose your own pet.
+Rather than shipping one bundled app, Motive is a component library: pick the pieces you need and compose your own companion.
 
 ## Components
 
 | Product | What it gives you |
 | --- | --- |
 | `MotiveCore` | Pure, timer-free animation state machine, the `MotiveEngine` runtime, the `MotiveControl` command surface with a self-describing schema, and the capability registry. No UI dependencies. |
-| `MotiveSprite` | The sprite package model and pluggable format **runners**: `CodexRunner` (compatible with the Codex/Fido `pet.json` sprite-sheet contract) and `MotiveRunner` (the Motive-native `motive.json` format). |
+| `MotiveSprite` | The sprite package model and pluggable format **runners**: `MotiveRunner` reads the native `motive.json` format, and `SpriteRunnerRegistry` lets you register your own. |
 | `MotiveUI` | AppKit/SwiftUI surfaces: the sprite view, the sprite box window (speech bubbles, hover skip/clear queue controls, optional chat input and action buttons), the queue window (live view of what's playing and what's next), the menu-bar notification menu, and the capability-driven settings window. |
 | `MotiveHTTP` | A loopback REST control plane (token-authenticated, SSE events, self-describing schema) for driving the sprite from anything that can `curl`. |
 | `MotiveMCP` | An MCP server over the same command surface, plus the `motive-mcp` stdio shim for Claude Desktop / ChatGPT Desktop. |
 | `MotiveVoice` | Speech out (`AVSpeechSynthesizer`) and in (`SFSpeechRecognizer`), behind a preflight gate that refuses rather than letting macOS kill an under-entitled process. Speaking needs no permission; listening needs a bundle. |
-| `MotiveAgents` | Installers that teach agent CLIs (Claude Code, Codex, OpenCode) and Claude Desktop how to talk to your pet. |
+| `MotiveAgents` | Installers that teach agent CLIs (Claude Code, Codex, OpenCode) and Claude Desktop how to talk to your companion. |
 
 Two executables ship alongside them: `motive-demo` (the reference composition —
 Winston on your desktop) and `motive-mcp` (a stdio MCP shim that discovers a
-running pet and proxies to it).
+running companion and proxies to it).
 
 ## Try the demo
 
@@ -71,7 +71,7 @@ register the MCP shim (see [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md)).
 .product(name: "MotiveUI", package: "Motive"),
 ```
 
-Minimal pet:
+Minimal companion:
 
 ```swift
 let definition = try SpriteRunnerRegistry.standard.load(spriteFolderURL)
@@ -93,7 +93,7 @@ The [docs index](docs/README.md) is the map. The short version:
 
 | | |
 | --- | --- |
-| **Start** | [Quickstart](docs/guides/QUICKSTART.md) · [The demo app](docs/guides/DEMO.md) · [Build your first pet](docs/guides/FIRST-PET.md) · [Troubleshooting](docs/guides/TROUBLESHOOTING.md) |
+| **Start** | [Quickstart](docs/guides/QUICKSTART.md) · [The demo app](docs/guides/DEMO.md) · [Build your first companion](docs/guides/FIRST-APP.md) · [Troubleshooting](docs/guides/TROUBLESHOOTING.md) |
 | **Understand** | [Queue](docs/concepts/QUEUE.md) · [States](docs/concepts/STATES.md) · [Questions](docs/concepts/QUESTIONS.md) · [Voice](docs/concepts/VOICE.md) · [Runtime](docs/concepts/RUNTIME.md) · [Architecture](docs/ARCHITECTURE.md) |
 | **Look up** | [Components](docs/components/OVERVIEW.md) · [REST API](docs/API.md) · [Sprite formats](docs/FORMATS.md) · [Environment](docs/reference/ENVIRONMENT.md) · [CLI](docs/reference/CLI.md) |
 | **Do** | [Embedding recipes](docs/EMBEDDING.md) · [Agent integrations](docs/INTEGRATIONS.md) · [Releasing](docs/RELEASING.md) |

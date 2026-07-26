@@ -3,6 +3,8 @@
 **Companion to** [`VOICE-AND-CONVERSATION.md`](VOICE-AND-CONVERSATION.md), which is
 the decision record (*why*). This is the build order (*how*).
 **Date:** 2026-07-26 · **Milestones:** M9–M13 · **One release at the end.**
+**Vocabulary:** written before "pet" was retired in favour of *companion* and
+*sprite*. Left as written — design record, not current naming.
 
 ---
 
