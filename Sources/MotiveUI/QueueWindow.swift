@@ -241,7 +241,7 @@ struct QueueView: View {
                 // the pet is stuck on, and answering any of them — not just the
                 // one on screen — moves things along.
                 if !host.outstandingQuestions.isEmpty {
-                    sectionLabel("Waiting on you")
+                    SectionLabel(text: "Waiting on you")
                     ForEach(host.outstandingQuestions) { question in
                         QuestionRow(
                             question: question,
@@ -251,6 +251,7 @@ struct QueueView: View {
                             },
                             onDecline: { Task { await host.decline(question.id) } }
                         )
+                        .id(question.id)
                     }
                 }
                 if let current = snapshot.current, current.awaiting == nil {
@@ -263,7 +264,7 @@ struct QueueView: View {
                 }
                 let upNext = snapshot.pending.filter { $0.awaiting == nil }
                 if !upNext.isEmpty {
-                    sectionLabel("Up next")
+                    SectionLabel(text: "Up next")
                     ForEach(Array(upNext.enumerated()), id: \.element.id) { index, entry in
                         QueueRow(
                             presentation: QueueEntryPresentation(step: entry.step),
@@ -274,9 +275,10 @@ struct QueueView: View {
                     }
                 }
                 if !host.answeredQuestions.isEmpty {
-                    sectionLabel("Answered")
+                    SectionLabel(text: "Answered")
                     ForEach(host.answeredQuestions.prefix(20)) { record in
                         AnsweredQuestionRow(record: record)
+                            .id("answered-" + record.id)
                     }
                 }
             }
@@ -284,13 +286,7 @@ struct QueueView: View {
         }
     }
 
-    private func sectionLabel(_ text: String) -> some View {
-        Text(text)
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(.secondary)
-            .padding(.top, 4)
-            .padding(.leading, 2)
-    }
+
 
     private var emptyState: some View {
         VStack(spacing: 6) {
@@ -416,6 +412,25 @@ struct QueueRow: View {
 /// Every outstanding question gets controls, not just the one in the bubble:
 /// the whole point of this window is that a human can find and answer the
 /// question that arrived first after a second one took the bubble.
+/// A section heading.
+///
+/// A concrete `View` struct rather than a helper returning `some View`: several
+/// of these sit in the same lazy stack with identical structure, and SwiftUI
+/// will happily reuse one for another and leave the old string on screen. A
+/// struct carries the text as value identity, so a reused view still updates.
+struct SectionLabel: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .padding(.top, 4)
+            .padding(.leading, 2)
+            .id(text)
+    }
+}
+
 struct QuestionRow: View {
     let question: QuestionRecord
     /// True for the question currently owning the speech bubble.
