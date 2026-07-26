@@ -1,0 +1,117 @@
+name: Docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'Sources/**'
+      - 'Package.swift'
+      - 'scripts/sync-wiki.py'
+      - '.github/workflows/docs.yml'
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'scripts/sync-wiki.py'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Runs on PRs too: a broken cross-link should fail review, not main.
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Render the wiki tree
+        run: python3 scripts/sync-wiki.py --out build/wiki
+      - name: Check every relative link resolves
+        run: python3 scripts/check-doc-links.py
+
+  wiki:
+    needs: check
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Render the wiki tree
+        run: python3 scripts/sync-wiki.py --out build/wiki --repo "$GITHUB_REPOSITORY" --ref main
+
+      # The wiki is a separate git repo and must already exist — create one
+      # page by hand the first time, or the clone below 404s.
+      - name: Push to the wiki
+        env:
+          # GITHUB_TOKEN can push to wikis on most repos. Where it cannot,
+          # set a WIKI_TOKEN secret (a PAT with `repo` scope) instead.
+          TOKEN: ${{ secrets.WIKI_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git clone "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git" build/wiki-repo
+          rm -f build/wiki-repo/*.md
+          cp build/wiki/*.md build/wiki-repo/
+          cd build/wiki-repo
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "wiki already matches docs/"
+            exit 0
+          fi
+          git commit -m "Mirror docs/ from ${GITHUB_SHA::7}"
+          git push
+
+  api-reference:
+    needs: check
+    if: github.event_name != 'pull_request'
+    runs-on: macos-15
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+
+      # One archive per product. `--transform-for-static-hosting` is what makes
+      # the output work on Pages rather than only in Xcode.
+      - name: Build DocC archives
+        run: |
+          set -euo pipefail
+          mkdir -p build/pages
+          for target in MotiveCore MotiveSprite MotiveUI MotiveHTTP MotiveMCP MotiveAgents MotiveVoice; do
+            swift package --allow-writing-to-directory "build/pages" \
+              generate-documentation --target "$target" \
+              --disable-indexing \
+              --transform-for-static-hosting \
+              --hosting-base-path "${GITHUB_REPOSITORY#*/}" \
+              --output-path "build/pages/$target"
+          done
+
+      # Merge the per-target archives under one host path, and land visitors on
+      # MotiveCore rather than a directory listing.
+      - name: Assemble the site
+        run: |
+          set -euo pipefail
+          mkdir -p build/site
+          for target in MotiveCore MotiveSprite MotiveUI MotiveHTTP MotiveMCP MotiveAgents MotiveVoice; do
+            cp -R "build/pages/$target/." build/site/
+          done
+          cat > build/site/index.html <<'HTML'
+          <!doctype html><meta charset="utf-8">
+          <meta http-equiv="refresh" content="0; url=./documentation/motivecore">
+          <title>Motive API reference</title>
+          <a href="./documentation/motivecore">Motive API reference</a>
+          HTML
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/site
+      - id: deployment
+        uses: actions/deploy-pages@v4

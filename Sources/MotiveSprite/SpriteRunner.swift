@@ -73,10 +73,15 @@ public struct SpriteRunnerRegistry: Sendable {
 
     public init() {}
 
+    /// Add a format. Registration order is detection order, and registered
+    /// runners are consulted before the built-ins in `.standard`, so this
+    /// overrides a format as well as extends the set.
     public mutating func register<R: SpriteRunner>(_ runner: R) {
         runners.append((R.formatID, { R.claims($0) }, runner))
     }
 
+    /// The first runner claiming this package, or nil if no format recognizes
+    /// it. Does not load or validate.
     public func runner(for packageURL: URL) -> (any SpriteRunner)? {
         runners.first { $0.claims(packageURL) }?.runner
     }

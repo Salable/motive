@@ -1,5 +1,9 @@
 # Sprite Package Formats
 
+> **Audience:** sprite authors, and anyone adding a format runner.
+> **Prerequisites:** none. Test a package with `MOTIVE_SPRITE=path swift run motive-demo`.
+> **Source of truth:** `Sources/MotiveSprite/` — `CodexRunner.swift`, `MotiveRunner.swift`, `SpriteDefinition.swift`.
+
 A sprite package is a directory containing a manifest plus one or more atlas images.
 Format detection is by manifest file: `motive.json` → `motive/1` (MotiveRunner) wins,
 otherwise `pet.json` → `codex/1` (CodexRunner). Consumers can register additional
@@ -29,7 +33,8 @@ animation state occupies (part of) one row.
   },
   "aliases":     { "working": "running" },          // optional
   "triggers":    { "wave": { "state": "waving", "once": true } },  // optional
-  "transitions": [{ "from": "*", "to": "*", "ms": 180 }]           // optional
+  "transitions": [{ "from": "*", "to": "*", "ms": 180 }],          // optional
+  "voice":       { "voice": "Daniel", "rate": 1.0, "talkingState": "idle" }  // optional
 }
 ```
 
@@ -53,7 +58,8 @@ per state, duration shorthand, and a full metadata block.
   "format": "motive/1",                            // required, exactly "motive/1"
   "metadata": {                                    // all fields optional
     "id": "winston", "name": "Winston", "description": "…",
-    "author": "…", "license": "MIT", "version": "1.0.0"
+    "author": "…", "license": "MIT", "version": "1.0.0",
+    "voice": { "voice": "Daniel", "rate": 1.0, "talkingState": "idle" }
   },
   "atlases": {                                     // at least one required
     "sprite":  { "path": "spritesheet.png", "cell": [192, 208], "grid": [25, 9] },
@@ -93,3 +99,25 @@ Per state:
 Triggers are one-shot gestures: `once: true` (default) returns to the prior state after
 one loop. Transitions declare crossfade durations; specificity order is exact
 `from`/`to`, then `from:*`, then `*:to`, then `*:*`.
+
+## The voice block
+
+Both formats accept an optional `voice` block — top-level in `pet.json`, under
+`metadata` in `motive.json` — decoding to a `VoicePreferences`:
+
+| Field | Meaning |
+| --- | --- |
+| `voice` | Voice identifier or display name, as the host platform knows it (`"Daniel"`, `"Samantha"`). Omitted or unknown falls back to the system default. |
+| `rate` | Speed multiplier; `1.0` is normal. |
+| `talkingState` | The state to hold while an utterance plays, so the mouth moves for exactly the audio and not a guessed duration. |
+
+This is a *declaration, not a setting*. Loading a package with a voice block does
+not make the pet speak — nothing speaks until the host app installs a
+`SpeechOutput` (see [concepts/VOICE.md](concepts/VOICE.md)). What the block gives
+the host is a sensible starting point: the demo uses `metadata.voice.voiceID` as
+the default value of its `voice.output.voice` capability, so the sprite author's
+intent is what a user hears first, and a user's own choice wins from then on.
+
+Unknown voice names do not fail validation. A package authored on a machine with
+a voice you have not downloaded should still load and animate; the worst outcome
+is the system default reading the lines.

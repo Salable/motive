@@ -12,6 +12,10 @@ public final class MCPServer: @unchecked Sendable {
     private let transport: MotiveCommandTransport
     private let serverName: String
 
+    /// - Parameters:
+    ///   - transport: Where tool calls land — `LocalCommandTransport` in
+    ///     process, `RESTCommandTransport` to proxy a separately-running app.
+    ///   - serverName: Reported to the host during `initialize`.
     public init(transport: MotiveCommandTransport, serverName: String = "motive") {
         self.transport = transport
         self.serverName = serverName

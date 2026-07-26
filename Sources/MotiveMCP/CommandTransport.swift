@@ -4,6 +4,17 @@ import MotiveCore
 /// Where MCP tool calls land. Two implementations: in-process (the host app
 /// embeds the MCP server next to its engine) and REST proxy (the `motive-mcp`
 /// stdio shim drives a separately-running Motive app).
+///
+/// Every method mirrors the `MotiveControl` method of the same name, with the
+/// same parameters and the same meaning — deliberately, since MCP tools are
+/// 1:1 adapters over the one command surface and add no semantics of their
+/// own. Read `MotiveControl` for what each verb does; the only difference here
+/// is that a `ControlFailure` arrives as a thrown ``TransportError`` rather
+/// than a `Result`, because a tool call either produces a payload or an error.
+///
+/// Note the absence: nothing resolves a question as *answered*. Agents ask,
+/// read, and withdraw. See `MotiveEngine.answerQuestion`, which only
+/// `MotiveUI` can reach.
 public protocol MotiveCommandTransport: Sendable {
     func schema() async throws -> ControlSchema
     func status() async throws -> ControlStatus
@@ -25,6 +36,9 @@ public protocol MotiveCommandTransport: Sendable {
     func questionHistory(limit: Int?) async throws -> QuestionHistoryPage
 }
 
+/// A rejected command. Carries the valid vocabulary when the rejection was a
+/// bad name, so an agent can correct itself from the error alone rather than
+/// re-reading the schema.
 public struct TransportError: Error, CustomStringConvertible {
     public let message: String
     /// The valid vocabulary, when the failure was a bad name.
@@ -42,6 +56,9 @@ public struct TransportError: Error, CustomStringConvertible {
 }
 
 /// In-process transport over a `MotiveControl`.
+///
+/// Use when the app hosting the pet is also the MCP server: no REST hop, no
+/// token, no discovery. An app that ships only this never needs `MotiveHTTP`.
 public struct LocalCommandTransport: MotiveCommandTransport {
     private let control: MotiveControl
 
@@ -145,6 +162,18 @@ public struct RESTCommandTransport: MotiveCommandTransport {
     }
 
     /// Discover the running app through the runtime files.
+    ///
+    /// Reads `runtime/server.json` for the port and `runtime/token` for the
+    /// bearer token. Call this per request rather than once at startup: the
+    /// token rotates on every app start, so a cached transport stops working
+    /// the first time the pet restarts — which it does far more often than an
+    /// MCP host does.
+    ///
+    /// - Parameter paths: Runtime home; `.standard` honors `MOTIVE_HOME`, read
+    ///   from *this* process's environment (for the shim, that is the MCP
+    ///   host's environment).
+    /// - Throws: If either file is missing or unreadable — which is the normal
+    ///   signal that no Motive app is running.
     public static func discover(paths: RuntimePaths = .standard) throws -> RESTCommandTransport {
         guard let info = ServerInfo.load(from: paths.serverInfoURL) else {
             throw TransportError(message: "no running Motive app found (missing \(paths.serverInfoURL.path)); start one first")

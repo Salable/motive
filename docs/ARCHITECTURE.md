@@ -1,5 +1,9 @@
 # Motive Architecture
 
+> **Audience:** contributors, and embedders who want to know why the seams are where they are.
+> **Prerequisites:** none.
+> **Source of truth:** `Package.swift` for the layering; the invariant tests named below for the rules.
+
 Motive is layered so that all decision logic is pure, testable, and UI-free, with thin
 adapters at the edges.
 

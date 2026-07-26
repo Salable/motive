@@ -17,6 +17,10 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.70.0"),
+        // Build-tool plugin only — contributes nothing to any shipped binary.
+        // Renders the `///` comments as the symbol reference published
+        // alongside docs/ (see docs/DOCUMENTATION.md).
+        .package(url: "https://github.com/apple/swift-docc-plugin.git", from: "1.3.0"),
     ],
     targets: [
         // Foundation-only core: state machine, engine, control surface, capabilities.

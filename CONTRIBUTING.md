@@ -19,10 +19,17 @@ CI runs `swift build` + `swift test` on macOS for every PR and push to `main`.
 
 ## Ground rules
 
-- **Sprites are data, never code.** Sprite packages are declarative JSON + images; nothing in a package is executed.
-- **Every control-plane verb ships rendered.** Don't add API surface (REST route, MCP tool) that the renderer doesn't honor yet.
-- **Core stays UI-free.** `MotiveCore` and `MotiveSprite` must not import AppKit/SwiftUI; all decision logic lives there so it can be unit tested.
-- **Tolerant decode, loud validation.** Loaders accept unknown keys; the validator reports them. Every package load goes through the validator.
+Seven architecture invariants govern the codebase, several pinned by tests.
+They are stated once, with their rationale, in
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — read that before your first PR.
+The headlines:
+
+- **Sprites are data, never code**, decoded tolerantly and validated loudly.
+- **Core stays UI-free** — and audio-free, and timer-free.
+- **One command surface**: REST and MCP are 1:1 adapters over `MotiveControl`.
+- **Every verb ships rendered.**
+- **Queue-first**: no bypass paths around `ActionQueue`.
+- **Answers originate only from UI input.**
 
 ## Working on features in parallel
 
@@ -54,10 +61,13 @@ MOTIVE_HOME=$(pwd)/.motive-home swift run motive-demo
   of small commits with imperative subjects — see the git history for the
   house style.
 - Add or update tests for behavior changes. `swift test` must pass.
-- Update the docs that describe what you changed (`docs/API.md` for control-plane
-  changes, `docs/FORMATS.md` for manifest changes, and so on), and add a line
-  to the `[Unreleased]` section of [CHANGELOG.md](CHANGELOG.md) for anything
-  user-visible.
+- **Documentation ships with the feature.** A feature is not done when it is
+  tested; it is done when a stranger can find it.
+  [docs/DOCUMENTATION.md](docs/DOCUMENTATION.md) is the contract — it explains
+  the four kinds of page, which ones your change affects, and the metadata
+  header every page carries. Add a line to the `[Unreleased]` section of
+  [CHANGELOG.md](CHANGELOG.md) for anything user-visible, and run
+  `scripts/check-doc-links.py` before pushing.
 - Match the surrounding code style; no new dependencies without prior
   discussion in an issue.
 

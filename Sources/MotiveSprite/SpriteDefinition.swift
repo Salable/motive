@@ -145,6 +145,10 @@ public struct SpriteDefinition: Equatable, Sendable {
     }
 
     /// The behavior half handed to `ActorStateMachine`/`MotiveEngine`.
+    ///
+    /// The split is the layering: frame *geometry* stays here where a renderer
+    /// needs it, frame *timing and behavior* crosses into `MotiveCore` keyed by
+    /// the same state names. Core therefore never learns what an image is.
     public var behaviorDefinition: BehaviorDefinition {
         BehaviorDefinition(
             states: states.mapValues(\.behavior),
@@ -154,6 +158,9 @@ public struct SpriteDefinition: Equatable, Sendable {
         )
     }
 
+    /// Map a vocabulary word onto a state this sprite actually implements
+    /// (`working` → `running`). Unknown names pass through unchanged, so the
+    /// caller still gets a "no such state" rejection naming the valid list.
     public func resolveAlias(_ name: String) -> String {
         aliases[name] ?? name
     }
