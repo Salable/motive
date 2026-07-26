@@ -1,5 +1,9 @@
 # Agent Integrations
 
+> **Audience:** anyone connecting an AI agent to a running pet.
+> **Prerequisites:** a running Motive app; for MCP, a built `motive-mcp`.
+> **Source of truth:** `Sources/MotiveMCP/MCPServer.swift` (tools), `Sources/MotiveAgents/` (installers).
+
 The fastest first connection is the **connect prompt**: Settings → Control Plane
 Status → *Copy prompt* produces markdown you paste into any agent chat. It embeds the
 live port and bearer token, walks the agent through ping → schema → a visible
@@ -32,11 +36,14 @@ surface:
 | `motive_queue` | — | Inspect the queue: depth, current item + remaining hold, pending items. |
 | `motive_clear_queue` | — | Flush the queue and return to the default state. |
 | `motive_skip` | — | Skip the current queue item; pending preserved. |
+| `motive_pause` | — | Freeze playback: the current item stops counting down, a spoken line pauses at the next word, nothing new starts. |
+| `motive_resume` | — | Resume. A half-played item keeps the half it had left. |
 | `motive_play_script` | `steps` (same shape) | Replace the queue with this sequence. |
 | `motive_questions` | `id?` | Open questions, or one by id. Poll after a `motive_say` that carried `respond`. |
 | `motive_cancel_question` | `id?` | Withdraw a question (all open ones when `id` is omitted). |
-| `motive_question_history` | `limit?` | Past questions and answers, newest first. |
-| `motive_clear_question_history` | `keep?` | Cull stored history. |
+| `motive_question_history` | `limit?` (default 50, max 500) | Past questions and answers, newest first. |
+| `motive_activity` | `since?`, `limit?` (default 100, max 500) | Everything that happened, oldest first. Pass the `nextSeq` from your last call to get only what is new — how you catch up without holding a stream open. |
+| `motive_clear_activity` | `keep?` | Cull stored activity, retaining the newest `keep` entries. Omit `keep` to clear everything. Question history is the same store, so this culls both. |
 
 Direct tools (`motive_say`/`motive_set_state`/`motive_trigger`) play **next**, ahead
 of the queue; queued items continue afterwards — except while a question is

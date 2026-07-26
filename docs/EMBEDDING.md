@@ -1,5 +1,9 @@
 # Embedding Motive in Your App
 
+> **Audience:** developers building their own pet on the Motive packages.
+> **Prerequisites:** macOS 13+, Swift 5.10+. Read [guides/FIRST-PET.md](guides/FIRST-PET.md) first if you want the guided version.
+> **Source of truth:** `Sources/MotiveDemo/main.swift` — the reference composition of every recipe here.
+
 Motive is a component library, not a framework you inherit from: you compose the
 products you need. This guide covers adding the dependency, choosing products,
 and the common compositions. The [demo app](../Sources/MotiveDemo/main.swift) is
@@ -12,7 +16,7 @@ Requires macOS 13+ and Swift 5.10+.
 ```swift
 // Package.swift
 dependencies: [
-    .package(url: "https://github.com/Salable/motive.git", from: "0.3.0"),
+    .package(url: "https://github.com/Salable/motive.git", from: "0.4.0"),
 ],
 ```
 
@@ -233,8 +237,9 @@ version) and `token` (per-boot bearer token, mode 0600). Everything honors
 MOTIVE_HOME=$(pwd)/.motive-home swift run motive-demo
 ```
 
-Durable state is a sibling of `runtime/`, not inside it: `history/questions.jsonl`
-holds resolved questions and their answers, mode 0600. `MotiveServer.stop()`
+Durable state is a sibling of `runtime/`, not inside it: `history/activity.jsonl`
+holds the activity log — commands, questions, and their answers — mode 0600.
+`MotiveServer.stop()`
 deletes the two files it wrote under `runtime/`, so anything that must survive a
 restart lives outside that directory.
 
@@ -269,7 +274,7 @@ keys:
 
 ```swift
 if let output = MotiveVoice.makeSpeechOutput() {
-    await output.setSink(engine)
+    output.setSink(engine)
     await engine.setSpeechOutput(output)
 }
 ```
