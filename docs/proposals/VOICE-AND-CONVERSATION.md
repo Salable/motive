@@ -3,8 +3,10 @@
 **Status:** revision 2 — incorporates Neal's review of revision 1
 **Author:** Claude + Neal
 **Date:** 2026-07-26
-**Reference material:** `VOICEEXAMPLE/` (TalkBox) — a working macOS app that
-solves a similar problem *without* a framework. Benchmark, not codebase.
+**Reference material:** TalkBox — a working macOS app that solves a similar
+problem *without* a framework. Benchmark, not codebase. It was vendored into
+this repository as `VOICEEXAMPLE/` while this proposal was being written, and
+removed once the work shipped; see the git history if you need it.
 
 > **How to review:** decisions Neal has already settled are marked
 > **RESOLVED** with his reasoning preserved. New questions are in §10 with a
