@@ -71,7 +71,7 @@ public struct QuestionReceipt: Equatable, Sendable {
 /// next, cutting the current item's remaining hold, and everything already
 /// queued continues afterwards. Flows enqueue at the tail. Nothing is
 /// dropped except by an explicit `flushQueue`.
-public actor MotiveEngine {
+public actor MotiveEngine: SpeechOutputSink {
     public private(set) var machine: ActorStateMachine
     public private(set) var speech: SpeechBubble?
     /// The "standard" resting state (the resolved initial state): duration'd

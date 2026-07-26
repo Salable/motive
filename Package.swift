@@ -55,7 +55,7 @@ let package = Package(
         // Downloadable demo app bundling the Winston test sprite.
         .executableTarget(
             name: "MotiveDemo",
-            dependencies: ["MotiveCore", "MotiveSprite", "MotiveUI", "MotiveHTTP", "MotiveAgents"]
+            dependencies: ["MotiveCore", "MotiveSprite", "MotiveUI", "MotiveHTTP", "MotiveAgents", "MotiveVoice"]
         ),
 
         // Stdio MCP shim that proxies to a running Motive app's REST plane.

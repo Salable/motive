@@ -43,6 +43,24 @@ public struct MotiveRunner: SpriteRunner {
         let author: String?
         let license: String?
         let version: String?
+        /// Optional voice declaration — tolerant decode, like every other key.
+        let voice: VoiceDef?
+    }
+
+    struct VoiceDef: Decodable {
+        let voiceID: String?
+        let rate: Double?
+        let talkingState: String?
+
+        enum CodingKeys: String, CodingKey {
+            case voiceID = "voice"
+            case rate
+            case talkingState
+        }
+
+        var preferences: VoicePreferences {
+            VoicePreferences(voiceID: voiceID, rate: rate, talkingState: talkingState)
+        }
     }
 
     private struct AtlasDef: Decodable {
@@ -151,7 +169,8 @@ public struct MotiveRunner: SpriteRunner {
             description: manifest.metadata?.description,
             author: manifest.metadata?.author,
             license: manifest.metadata?.license,
-            version: manifest.metadata?.version
+            version: manifest.metadata?.version,
+            voice: manifest.metadata?.voice?.preferences
         )
 
         // Atlases (all declared; no default contract in motive/1).

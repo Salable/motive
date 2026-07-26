@@ -86,6 +86,8 @@ public struct CodexRunner: SpriteRunner {
         let displayName: String?
         let name: String?
         let description: String?
+        /// Optional voice declaration; absent in every pre-voice package.
+        let voice: MotiveRunner.VoiceDef?
         let spritesheetPath: String?
         let atlases: [String: AtlasDef]?
         let states: [String: StateDef]?
@@ -126,7 +128,8 @@ public struct CodexRunner: SpriteRunner {
         let metadata = SpriteMetadata(
             id: id,
             displayName: manifest.displayName ?? manifest.name ?? id,
-            description: manifest.description
+            description: manifest.description,
+            voice: manifest.voice?.preferences
         )
 
         // Atlases: declared, else the bare-manifest default contract.

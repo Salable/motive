@@ -3,6 +3,7 @@ import MotiveCore
 import MotiveHTTP
 import MotiveSprite
 import MotiveUI
+import MotiveVoice
 
 /// The Motive demo: loads the bundled Winston sprite and puts her on the
 /// desktop with the full component set — chrome-free sprite box, menu-bar
@@ -58,6 +59,7 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
     let skillsModel = AgentSkillsModel()
     let statusModel = ServerStatusModel()
     var questionsModel: QuestionHistoryModel?
+    var speechOutput: AVSpeechOutput?
     private var serverRestartTask: Task<Void, Never>?
 
     init(definition: SpriteDefinition) {
@@ -86,6 +88,30 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
             help: "Nearest-neighbor scaling for a crisp retro look.",
             kind: .toggle, defaultValue: .bool(false)
         ))
+        // Speaking aloud needs no permission, no bundle, and no plist keys —
+        // so it can simply be a setting.
+        let voices = VoiceCatalog.availableVoiceNames()
+        registry.register(CapabilityDescriptor(
+            id: "voice.output.enabled", component: "Voice", title: "Speak out loud",
+            help: "Read speech bubbles aloud. A spoken line holds the queue for exactly as long as the audio.",
+            kind: .toggle, defaultValue: .bool(false)
+        ))
+        if !voices.isEmpty {
+            registry.register(CapabilityDescriptor(
+                id: "voice.output.voice", component: "Voice", title: "Voice",
+                help: "System voices installed on this Mac.",
+                kind: .choice(voices),
+                // The sprite's declared preference becomes the default, so a
+                // user's own choice always wins without extra precedence code.
+                defaultValue: .string(definition.metadata.voice?.voiceID ?? voices[0])
+            ))
+        }
+        registry.register(CapabilityDescriptor(
+            id: "voice.output.rate", component: "Voice", title: "Speaking rate",
+            help: "1.0 is normal speed.",
+            kind: .number(min: 0.5, max: 2.0, step: 0.1),
+            defaultValue: .number(definition.metadata.voice?.rate ?? 1.0)
+        ))
         registry.register(CapabilityDescriptor(
             id: "http.enabled", component: "Control Plane", title: "REST API",
             help: "Local HTTP API for driving the sprite (curl, agents, the MCP shim).",
@@ -105,6 +131,10 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
         // Chrome-free on purpose: no action buttons, no chat input. Winston is
         // just sprite + speech bubbles; everything is driven through the
         // control plane (and the onboarding tour shows how).
+        // After registration: capability values are only readable once their
+        // descriptors exist.
+        applyVoiceSettings(to: host)
+
         let box = SpriteBoxWindow(host: host, options: currentBoxOptions())
         box.show()
         self.box = box
@@ -114,6 +144,8 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
                 guard let self else { return }
                 if descriptor.id.hasPrefix("http.") {
                     self.scheduleServerRestart()
+                } else if descriptor.id.hasPrefix("voice.") {
+                    self.applyVoiceSettings(to: host)
                 } else {
                     self.box?.update(options: self.currentBoxOptions())
                 }
@@ -287,5 +319,35 @@ MainActor.assumeIsolated {
     app.delegate = delegate
     withExtendedLifetime(delegate) {
         app.run()
+    }
+}
+
+extension DemoDelegate {
+    /// Install or remove spoken output, and push the current voice/rate.
+    ///
+    /// Installing changes queue semantics — a `say` then waits for its audio
+    /// rather than a fixed hold — so it is a real toggle, not a filter applied
+    /// on the way out.
+    func applyVoiceSettings(to host: SpriteHost) {
+        let enabled = registry.value(for: "voice.output.enabled")?.boolValue ?? false
+        let voiceID = registry.value(for: "voice.output.voice")?.stringValue
+        let rate = registry.value(for: "voice.output.rate")?.numberValue
+
+        guard enabled else {
+            speechOutput = nil
+            Task { await host.engine.setSpeechOutput(nil) }
+            return
+        }
+        let output = speechOutput ?? MotiveVoice.makeSpeechOutput()
+        guard let output else { return }
+        speechOutput = output
+        let engine = host.engine
+        Task {
+            await output.setSink(engine)
+            await engine.setSpeechOutput(output)
+            await engine.setVoicePreferences(
+                VoicePreferences(voiceID: voiceID, rate: rate)
+            )
+        }
     }
 }
