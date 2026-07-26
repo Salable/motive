@@ -107,6 +107,18 @@ Questions block at the head of the queue; a second question waits behind the
 first. A human may answer a *pending* question out of order, which resolves it
 in place without disturbing the one on screen.
 
+### History
+
+Resolved questions and their answers persist to
+`$MOTIVE_HOME/history/questions.jsonl` (default `~/.motive/history/`), owner-only,
+and survive restarts — deliberately a sibling of `runtime/`, whose contents are
+deleted on shutdown. Read it with `GET /v1/questions/history?limit=N`; cull it
+with `DELETE /v1/questions/history` (`{"keep": N}` to retain the newest N), or
+from Settings → Questions in a host app that exposes it.
+
+An agent that missed an SSE event, or that started after an answer landed, reads
+history rather than re-asking.
+
 `POST /v1/queue` items look like:
 
 ```json

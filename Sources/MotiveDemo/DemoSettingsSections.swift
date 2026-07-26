@@ -222,3 +222,70 @@ struct ServerStatusSection: View {
         }
     }
 }
+
+/// Question history: what the pet asked and what you answered, plus the way to
+/// forget it. Answers can be personal — this is the surface that makes the
+/// stored record visible and deletable rather than an invisible file.
+@MainActor
+final class QuestionHistoryModel: ObservableObject {
+    @Published private(set) var entries: [QuestionRecord] = []
+    @Published private(set) var outstanding = 0
+
+    private let engine: MotiveEngine
+
+    init(engine: MotiveEngine) {
+        self.engine = engine
+    }
+
+    func refresh() {
+        Task {
+            let history = await engine.questionHistory(limit: 200)
+            let open = await engine.outstandingQuestions()
+            entries = history
+            outstanding = open.count
+        }
+    }
+
+    func clearAll() {
+        Task {
+            _ = await engine.clearQuestionHistory()
+            refresh()
+        }
+    }
+
+    func keepRecent(_ count: Int) {
+        Task {
+            _ = await engine.clearQuestionHistory(keep: count)
+            refresh()
+        }
+    }
+}
+
+struct QuestionHistorySection: View {
+    @ObservedObject var model: QuestionHistoryModel
+
+    var body: some View {
+        LabeledContent("Stored answers") {
+            Text("\(model.entries.count)").monospacedDigit()
+        }
+        if model.outstanding > 0 {
+            LabeledContent("Waiting on you") {
+                Text("\(model.outstanding)").monospacedDigit()
+            }
+        }
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Kept in ~/.motive/history/questions.jsonl, owner-readable only.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Button("Refresh") { model.refresh() }
+                Button("Keep last 20") { model.keepRecent(20) }
+                    .disabled(model.entries.count <= 20)
+                Button("Clear", role: .destructive) { model.clearAll() }
+                    .disabled(model.entries.isEmpty)
+            }
+            Text("Agents can read this history to pick up an answer they missed. Clearing it does not cancel anything the pet is still waiting on.")
+                .font(.caption2).foregroundStyle(.tertiary)
+        }
+    }
+}

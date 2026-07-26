@@ -187,7 +187,7 @@ struct QueueView: View {
         VStack(spacing: 0) {
             header
             Divider()
-            if snapshot.depth == 0 {
+            if snapshot.depth == 0 && host.outstandingQuestions.isEmpty && host.answeredQuestions.isEmpty {
                 emptyState
             } else {
                 entries
@@ -218,6 +218,11 @@ struct QueueView: View {
     }
 
     private var summary: String {
+        // Waiting on a human reads differently from working through a queue,
+        // and it is the more urgent thing to say.
+        let waiting = host.outstandingQuestions.count
+        if waiting == 1 { return "Waiting for your answer" }
+        if waiting > 1 { return "Waiting on \(waiting) answers" }
         guard snapshot.depth > 0 else { return "Idle" }
         let pending = snapshot.pending.count
         switch (snapshot.current != nil, pending) {
@@ -232,7 +237,23 @@ struct QueueView: View {
     private var entries: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 6) {
-                if let current = snapshot.current {
+                // Questions come first and out of queue order: they are what
+                // the pet is stuck on, and answering any of them — not just the
+                // one on screen — moves things along.
+                if !host.outstandingQuestions.isEmpty {
+                    sectionLabel("Waiting on you")
+                    ForEach(host.outstandingQuestions) { question in
+                        QuestionRow(
+                            question: question,
+                            isPresented: question.id == host.headQuestion?.id,
+                            onAnswer: { content in
+                                Task { await host.answer(question.id, with: content) }
+                            },
+                            onDecline: { Task { await host.decline(question.id) } }
+                        )
+                    }
+                }
+                if let current = snapshot.current, current.awaiting == nil {
                     QueueRow(
                         presentation: QueueEntryPresentation(step: current.step),
                         position: nil,
@@ -240,13 +261,10 @@ struct QueueView: View {
                         isCurrent: true
                     )
                 }
-                if !snapshot.pending.isEmpty {
-                    Text("Up next")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .padding(.top, 4)
-                        .padding(.leading, 2)
-                    ForEach(Array(snapshot.pending.enumerated()), id: \.element.id) { index, entry in
+                let upNext = snapshot.pending.filter { $0.awaiting == nil }
+                if !upNext.isEmpty {
+                    sectionLabel("Up next")
+                    ForEach(Array(upNext.enumerated()), id: \.element.id) { index, entry in
                         QueueRow(
                             presentation: QueueEntryPresentation(step: entry.step),
                             position: index + 1,
@@ -255,9 +273,23 @@ struct QueueView: View {
                         )
                     }
                 }
+                if !host.answeredQuestions.isEmpty {
+                    sectionLabel("Answered")
+                    ForEach(host.answeredQuestions.prefix(20)) { record in
+                        AnsweredQuestionRow(record: record)
+                    }
+                }
             }
             .padding(12)
         }
+    }
+
+    private func sectionLabel(_ text: String) -> some View {
+        Text(text)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .padding(.top, 4)
+            .padding(.leading, 2)
     }
 
     private var emptyState: some View {
@@ -376,5 +408,137 @@ struct QueueRow: View {
                 .strokeBorder(Color.accentColor.opacity(isCurrent ? 0.35 : 0), lineWidth: 1)
         )
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// A question the pet is waiting on, answerable here.
+///
+/// Every outstanding question gets controls, not just the one in the bubble:
+/// the whole point of this window is that a human can find and answer the
+/// question that arrived first after a second one took the bubble.
+struct QuestionRow: View {
+    let question: QuestionRecord
+    /// True for the question currently owning the speech bubble.
+    let isPresented: Bool
+    let onAnswer: (AnswerContent) -> Void
+    let onDecline: () -> Void
+
+    @State private var reply = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .top, spacing: 10) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.accentColor.opacity(isPresented ? 0.22 : 0.12))
+                        .frame(width: 26, height: 26)
+                    Image(systemName: "questionmark.bubble.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Color.accentColor)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(question.text)
+                        .font(.callout)
+                        .lineLimit(3)
+                    if isPresented {
+                        Text("On screen now")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+
+            HStack(spacing: 6) {
+                switch question.respond.form {
+                case .confirm:
+                    Button(question.respond.yesLabel ?? "Yes") { onAnswer(.confirm(true)) }
+                    Button(question.respond.noLabel ?? "No") { onAnswer(.confirm(false)) }
+                case .choice:
+                    ForEach(Array((question.respond.choices ?? []).enumerated()), id: \.offset) { index, option in
+                        Button(option) { onAnswer(.choice(option, index: index)) }
+                    }
+                case .text:
+                    TextField(question.respond.placeholder ?? "Your answer…", text: $reply)
+                        .textFieldStyle(.roundedBorder)
+                        .onSubmit { submit() }
+                    Button("Send", action: submit)
+                        .disabled(reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+                Spacer(minLength: 0)
+                Button("Not now", action: onDecline)
+                    .buttonStyle(.link)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .padding(.leading, 36)
+        }
+        .padding(8)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.accentColor.opacity(0.06))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(Color.accentColor.opacity(isPresented ? 0.35 : 0.15))
+        )
+    }
+
+    private func submit() {
+        let trimmed = reply.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        onAnswer(.text(trimmed))
+    }
+}
+
+/// A resolved question, so "what did I already answer?" has an answer.
+struct AnsweredQuestionRow: View {
+    let record: QuestionRecord
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: symbolName)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 26, height: 20)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(record.text)
+                    .font(.caption)
+                    .lineLimit(2)
+                Text(outcome)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 2)
+    }
+
+    private var symbolName: String {
+        switch record.status {
+        case .accepted: return "checkmark.circle.fill"
+        case .declined: return "hand.raised.fill"
+        case .cancelled: return "xmark.circle"
+        case .expired: return "clock.badge.xmark"
+        case .awaiting: return "questionmark.circle"
+        }
+    }
+
+    /// Reads the answer back in the human's terms, not the wire's.
+    private var outcome: String {
+        switch record.status {
+        case .accepted:
+            switch record.answer {
+            case .confirm(let yes): return yes ? "You said yes" : "You said no"
+            case .choice(let value, _): return "You chose \(value)"
+            case .text(let value): return "You replied “\(value)”"
+            case nil: return "Answered"
+            }
+        case .declined: return "You passed on this one"
+        case .cancelled:
+            return record.cancelReason == .withdrawn ? "Withdrawn by the asker" : "Dismissed"
+        case .expired: return "Timed out"
+        case .awaiting: return "Waiting"
+        }
     }
 }

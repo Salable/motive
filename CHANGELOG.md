@@ -27,6 +27,18 @@ All notable changes to Motive are documented here. The format follows
   their REST routes and `motive_*` MCP tools, a `question` SSE event, and
   `SpriteHost.outstandingQuestions` / `headQuestion` driving the affordance.
   Winston demonstrates it from the menu bar ("Ask me something").
+- **Question history, persisted** — resolved questions and their answers are
+  appended to `$MOTIVE_HOME/history/questions.jsonl` (owner-only, a sibling of
+  `runtime/` so it survives shutdown) and restored on launch. Readable via
+  `GET /v1/questions/history` / `motive_question_history`, cullable via the
+  matching `DELETE` / `motive_clear_question_history` or Settings → Questions.
+  `RuntimePaths` grows `rootURL` and `historyURL`; the existing `runtimeURL`
+  initialiser still works and derives the root.
+- **The queue window is where questions live** — a "Waiting on you" section
+  lists every outstanding question with its own controls, so a human can answer
+  the one that arrived first after a second took the speech bubble; answering a
+  pending question resolves it in place without disturbing the one on screen.
+  An "Answered" section reads outcomes back in plain terms ("You chose staging").
 - **Queue items that complete on an external signal** (`QueueItem.Completion`).
   `.hold` remains the default and behaves exactly as before; `.external` parks
   until something outside the queue resolves it, which is what questions (and,

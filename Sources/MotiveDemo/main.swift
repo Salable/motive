@@ -57,6 +57,7 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
     var queueWindow: QueueWindow?
     let skillsModel = AgentSkillsModel()
     let statusModel = ServerStatusModel()
+    var questionsModel: QuestionHistoryModel?
     private var serverRestartTask: Task<Void, Never>?
 
     init(definition: SpriteDefinition) {
@@ -66,6 +67,8 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         let name = definition.metadata.displayName
         let host = SpriteHost(definition: definition)
+        let questions = QuestionHistoryModel(engine: host.engine)
+        questionsModel = questions
 
         // Components declare their configurable capabilities; the settings
         // window renders whatever is registered.
@@ -127,6 +130,9 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
                 SettingsSection(title: "Agent Skills") { [skillsModel] in
                     AgentSkillsSection(model: skillsModel)
                 },
+                SettingsSection(title: "Questions") {
+                    QuestionHistorySection(model: questions)
+                },
             ]
         )
         // The queue is where every agent command, script, and REST call lands;
@@ -159,6 +165,7 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
             NotificationMenu.Item(title: "Settings…", keyEquivalent: ",") { [weak self] in
                 self?.statusModel.refresh()
                 self?.skillsModel.refresh()
+                self?.questionsModel?.refresh()
                 self?.settings?.show()
             },
             .separator,
