@@ -11,6 +11,7 @@ let package = Package(
         .library(name: "MotiveHTTP", targets: ["MotiveHTTP"]),
         .library(name: "MotiveMCP", targets: ["MotiveMCP"]),
         .library(name: "MotiveAgents", targets: ["MotiveAgents"]),
+        .library(name: "MotiveVoice", targets: ["MotiveVoice"]),
         .executable(name: "motive-demo", targets: ["MotiveDemo"]),
         .executable(name: "motive-mcp", targets: ["motive-mcp"]),
     ],
@@ -46,6 +47,10 @@ let package = Package(
 
         // Skill / agent-config installers (Claude Code, Codex, OpenCode, desktop apps).
         .target(name: "MotiveAgents", dependencies: ["MotiveCore"]),
+        // Voice is a separate product on purpose: it spawns audio engines and,
+        // for input, needs entitlements. A headless or bubble-only pet must
+        // not be forced to take it.
+        .target(name: "MotiveVoice", dependencies: ["MotiveCore"]),
 
         // Downloadable demo app bundling the Winston test sprite.
         .executableTarget(
@@ -63,6 +68,7 @@ let package = Package(
         .testTarget(name: "MotiveHTTPTests", dependencies: ["MotiveHTTP"]),
         .testTarget(name: "MotiveMCPTests", dependencies: ["MotiveMCP", "MotiveHTTP"]),
         .testTarget(name: "MotiveAgentsTests", dependencies: ["MotiveAgents"]),
+        .testTarget(name: "MotiveVoiceTests", dependencies: ["MotiveVoice"]),
     ],
     swiftLanguageVersions: [.v5]
 )
