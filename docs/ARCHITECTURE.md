@@ -13,6 +13,7 @@ MotiveCore            StateMachine (pure, timer-free) · MotiveEngine (actor, ti
         │
 surfaces & adapters   MotiveUI (sprite box, bubbles, tray, settings, queue window)
                       MotiveHTTP (REST /v1) · MotiveMCP (MCP tools) · MotiveAgents (installers)
+                      MotiveVoice (AVSpeechSynthesizer; entitlement gate for input)
 ```
 
 ## Principles
@@ -23,8 +24,12 @@ surfaces & adapters   MotiveUI (sprite box, bubbles, tray, settings, queue windo
 - **One command surface.** REST routes and MCP tools are 1:1 adapters over `MotiveControl`;
   neither adds semantics of its own.
 - **Every verb ships rendered.** No API surface for behavior the renderer doesn't honor.
-- **Core is UI-free.** `MotiveCore`/`MotiveSprite` never import AppKit; the state machine is
-  timer-free and driven by explicit clocks so tests are deterministic.
+- **Core is UI-free.** `MotiveCore`/`MotiveSprite` never import AppKit — nor AVFoundation or
+  Speech; the state machine is timer-free and driven by explicit clocks so tests are
+  deterministic. Audio and transcription enter through protocols Core defines and
+  `MotiveVoice` implements, which is what keeps "no sleeps in a Core test" true.
+- **Answers originate only from UI input.** Nothing on the control surface can resolve a
+  question as answered, so a human-in-the-loop check cannot be self-served by an agent.
 
 ## Dependency direction
 
@@ -44,6 +49,7 @@ Each product is a target under `Sources/` with a matching test target under
 | `MotiveUI` | AppKit/SwiftUI surfaces. | `SpriteHost` (engine ↔ SwiftUI bridge, publishes `queueActive` + the live `queue` snapshot), `SpriteView` (atlas renderer), `SpriteBoxWindow` (bubbles, hover skip/clear queue controls, optional chat + action buttons), `QueueWindow` (live queue list + skip/clear, `QueueEntryPresentation`), `NotificationMenu`, `SettingsWindow` (capability-driven, `extraSections` for custom panes). |
 | `MotiveHTTP` | Loopback REST control plane (SwiftNIO). | `MotiveServer` — token auth, rate limit, SSE; see [API.md](API.md). |
 | `MotiveMCP` | MCP tool layer over the same surface. | `MCPServer` (newline-delimited JSON-RPC stdio), `MotiveCommandTransport` with `LocalCommandTransport` (in-process) and `RESTCommandTransport` (proxy); the `motive-mcp` executable is the discovery shim. |
+| `MotiveVoice` | Speech out (and, next, in) — in-process, no sidecars. | `AVSpeechOutput` (implements Core's `SpeechOutput`), `VoiceRequirements` + `VoicePreflight` (the build-capability gate), `VoiceCatalog`, `MotiveVoice` façade. |
 | `MotiveAgents` | Teaching agents about the pet. | `AgentInstaller` implementations (Claude Code, Codex, OpenCode, Claude Desktop config merge), `SkillGenerator`, `ConnectPrompt`. |
 | `MotiveDemo` | Reference composition of everything above; ships as the downloadable demo app with the Winston sprite. | — |
 

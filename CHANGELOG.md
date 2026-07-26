@@ -27,6 +27,25 @@ All notable changes to Motive are documented here. The format follows
   their REST routes and `motive_*` MCP tools, a `question` SSE event, and
   `SpriteHost.outstandingQuestions` / `headQuestion` driving the affordance.
   Winston demonstrates it from the menu bar ("Ask me something").
+- **`MotiveVoice` — the pet speaks (new product).** In-process
+  `AVSpeechSynthesizer`, no sidecar processes. Installing spoken output changes
+  queue semantics rather than filtering on the way out: a `say` becomes an
+  external item and holds the queue for exactly as long as its audio, so a
+  talking state runs for the utterance instead of a guessed hold. Voice and
+  rate are ordinary capabilities, so `SettingsWindow` renders them with no new
+  UI; sprites may declare their own `voice`/`rate` in either manifest format,
+  which becomes the capability default so a user's choice always wins.
+
+  **Speech input's requirements are structural, not documentary.** macOS kills
+  a process that requests microphone or speech-recognition access without the
+  right `Info.plist` keys — it does not return a catchable error — so there is
+  no public initializer for speech input: `MotiveVoice.inputAvailability()` and
+  a `Result`-returning factory refuse instead. `VoiceRequirements` is a single
+  manifest that the runtime gate evaluates, the docs quote, and an embedder can
+  assert on in their own CI (`audit(appBundleAt:)`), so the documented
+  requirement cannot drift from the enforced one. `docs/EMBEDDING.md` gains
+  "Ship an app bundle" and "Recipe: speech"; the demo's `Info.plist` gains both
+  usage descriptions now, a milestone before anything requests them.
 - **Question history, persisted** — resolved questions and their answers are
   appended to `$MOTIVE_HOME/history/questions.jsonl` (owner-only, a sibling of
   `runtime/` so it survives shutdown) and restored on launch. Readable via
