@@ -9,18 +9,16 @@ Symptom first, then the cause, then the fix.
 ## Starting up
 
 **`motive-demo: no sprite package found.`**
-Nothing in the lookup chain contained a `pet.json`. The demo checks
+Nothing in the lookup chain contained a `motive.json`. The demo checks
 `$MOTIVE_SPRITE`, then the first command-line argument, then `./Sprites/winston`,
 then `winston` in the app bundle's resources. Run from the repo root, pass a
-path, or set `MOTIVE_SPRITE`. Note that even a `motive/1` package must sit in a
-directory the demo can identify — the demo's probe looks for `pet.json`
-specifically, so a package with only `motive.json` needs to be passed explicitly
-rather than discovered.
+path, or set `MOTIVE_SPRITE`.
 
-**`sprite package not found at …` / `no sprite manifest found in …`**
-`SpriteLoadError`. The path is wrong, or the directory has neither `motive.json`
-nor `pet.json` at its top level. Point at the directory, not at the manifest file
-inside it.
+**`sprite package not found at …` / `no sprite manifest found in … — expected motive.json`**
+`SpriteLoadError`. The path is wrong, or the directory has no `motive.json` at
+its top level. Point at the directory, not at the manifest file inside it. If the
+package is an old `codex/1` (`pet.json`) one, see
+[../FORMATS.md](../FORMATS.md#migrating-from-codex1-petjson).
 
 **`invalid sprite manifest: …`**
 The manifest parsed but failed validation — a state naming a missing `then`

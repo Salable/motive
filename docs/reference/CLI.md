@@ -14,7 +14,7 @@ motive-demo [sprite-package-path]
 ```
 
 No flags. One optional positional argument. Sprite package lookup order, first
-directory containing a `pet.json` wins:
+directory containing a `motive.json` wins:
 
 1. `$MOTIVE_SPRITE`
 2. the positional argument
@@ -105,9 +105,9 @@ it only when the atlas changes.
 
 ### `scripts/make-readme-art.py`
 
-Deterministic. Reads rows, timings, and aliases from `pet.json` and emits the
+Deterministic. Reads rows, timings, and aliases from `motive.json` and emits the
 looping GIFs in `docs/images/` — the hero and the four state cards. Run manually
-(`python3 scripts/make-readme-art.py`) when the Winston atlas or `pet.json`
+(`python3 scripts/make-readme-art.py`) when the Winston atlas or `motive.json`
 changes; nothing runs it automatically, so nothing will tell you it has gone
 stale.
 

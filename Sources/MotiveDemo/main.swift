@@ -22,7 +22,7 @@ func locateSpritePackage() -> URL? {
     if let bundled = Bundle.main.resourceURL?.appendingPathComponent("winston") {
         candidates.append(bundled)
     }
-    return candidates.first { FileManager.default.fileExists(atPath: $0.appendingPathComponent("pet.json").path) }
+    return candidates.first { FileManager.default.fileExists(atPath: $0.appendingPathComponent("motive.json").path) }
 }
 
 guard let packageURL = locateSpritePackage() else {

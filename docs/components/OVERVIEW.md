@@ -41,7 +41,7 @@ necessity.
 
 ```
                     contracts (data)
-                sprite packages: pet.json · motive.json
+                sprite packages: motive.json
                             │
                      MotiveSprite
                             │

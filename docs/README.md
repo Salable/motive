@@ -65,7 +65,7 @@ DocC and published to
 - [INTEGRATIONS.md](INTEGRATIONS.md) — Claude Code, Codex, OpenCode, Claude
   Desktop, ChatGPT Desktop
 - [API.md](API.md) — the REST control plane, endpoint by endpoint
-- [FORMATS.md](FORMATS.md) — `pet.json` (`codex/1`) and `motive.json` (`motive/1`)
+- [FORMATS.md](FORMATS.md) — `motive.json` (`motive/1`)
 
 ## Reference
 

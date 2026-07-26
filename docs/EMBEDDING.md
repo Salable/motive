@@ -69,7 +69,7 @@ import MotiveSprite
 import MotiveUI
 import MotiveHTTP
 
-// Parse + validate the package (pet.json or motive.json — see FORMATS.md).
+// Parse + validate the package (motive.json — see FORMATS.md).
 let definition = try SpriteRunnerRegistry.standard.load(spriteFolderURL)
 
 // Engine + SwiftUI bridge, and a desktop window with chat input,
@@ -283,8 +283,8 @@ Installing output changes queue semantics rather than filtering on the way out:
 a `say` then holds the queue for exactly as long as its audio, so a talking
 state runs for the utterance instead of a guessed hold. Voice and rate are
 ordinary capabilities (`.choice` and `.number`), so `SettingsWindow` renders
-them with no new UI. A sprite may declare its own `voice`/`rate` in `pet.json`
-or `motive.json`; use it as the capability's `defaultValue` and a user's choice
+them with no new UI. A sprite may declare its own `voice`/`rate` in
+`motive.json`; use it as the capability's `defaultValue` and a user's choice
 wins automatically.
 
 Listening is different, and the difference is not cosmetic: **macOS kills a

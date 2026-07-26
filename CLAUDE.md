@@ -135,4 +135,4 @@ Enforced in review; several are pinned by tests. Full rationale in
   then the suite fails to link, or crashes with SIGBUS/SIGSEGV part-way through.
   `swift package clean` fixes it; don't go hunting for a memory bug first.
 - README GIFs are generated (`scripts/make-readme-art.py`, deterministic);
-  rerun manually only when the Winston atlas or `pet.json` changes.
+  rerun manually only when the Winston atlas or `motive.json` changes.

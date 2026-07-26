@@ -34,12 +34,24 @@ All notable changes to Motive are documented here. The format follows
 - The README component table omitted `MotiveVoice` and both executables.
 - The SwiftPM version pin in `README.md` and `docs/EMBEDDING.md` still said
   `0.3.0`.
-- `docs/FORMATS.md` did not document the `voice` block, which both runners have
+- `docs/FORMATS.md` did not document the `voice` block, which the runner has
   decoded since 0.4.0.
+- The demo's sprite-package discovery probe tested for `pet.json`, so a package
+  shipping only a `motive.json` was invisible to it and had to be passed
+  explicitly. It now probes for `motive.json`.
 - `docs/EMBEDDING.md` named the durable history file `history/questions.jsonl`;
   it is `history/activity.jsonl`.
 
 ### Removed
+- **BREAKING: the `codex/1` sprite format (`pet.json`) and `CodexRunner`.**
+  `motive/1` has been the native format since 0.4.0 and does everything
+  `codex/1` did; shipping both meant two vocabularies for one idea, and the
+  older one guessed — a bare manifest resolved to an assumed grid, and aliases
+  and triggers appeared that nobody wrote. `SpriteRunnerRegistry.standard` now
+  registers `MotiveRunner` alone, and `Sprites/winston` ships only `motive.json`.
+  `docs/FORMATS.md` has a field-by-field migration table. `SpriteRunner` and
+  `SpriteRunnerRegistry.register` remain public, so an app that must keep
+  loading `pet.json` packages can carry a runner of its own.
 - `VOICEEXAMPLE/` — 62 files of an unrelated Zig project, checked in as
   reference material while the voice work was in flight. It contradicted
   Motive's own docs at every turn and misled anything reading the repository.

@@ -20,7 +20,7 @@ MOTIVE_HOME=$(pwd)/.motive-home swift run motive-demo    # isolated runtime
 
 There are no flags — one optional positional argument, the sprite package path.
 The demo looks for a package in this order and takes the first directory
-containing a `pet.json`: `$MOTIVE_SPRITE`, the argument, `./Sprites/winston`
+containing a `motive.json`: `$MOTIVE_SPRITE`, the argument, `./Sprites/winston`
 (so a checkout just works), then `winston` inside the app bundle's resources (so
 the shipped `.app` just works). Finding none, it exits 1 and names all three
 routes rather than starting to an empty desktop.

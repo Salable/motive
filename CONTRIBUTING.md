@@ -73,4 +73,4 @@ MOTIVE_HOME=$(pwd)/.motive-home swift run motive-demo
 
 ## Reporting issues
 
-Include your macOS version, Swift version, and — for sprite-loading issues — the sprite's manifest (`pet.json` / `motive.json`).
+Include your macOS version, Swift version, and — for sprite-loading issues — the sprite's manifest (`motive.json`).

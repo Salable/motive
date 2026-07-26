@@ -22,7 +22,7 @@ Rather than shipping one bundled app, Motive is a component library: pick the pi
 | Product | What it gives you |
 | --- | --- |
 | `MotiveCore` | Pure, timer-free animation state machine, the `MotiveEngine` runtime, the `MotiveControl` command surface with a self-describing schema, and the capability registry. No UI dependencies. |
-| `MotiveSprite` | The sprite package model and pluggable format **runners**: `CodexRunner` (compatible with the Codex/Fido `pet.json` sprite-sheet contract) and `MotiveRunner` (the Motive-native `motive.json` format). |
+| `MotiveSprite` | The sprite package model and pluggable format **runners**: `MotiveRunner` reads the native `motive.json` format, and `SpriteRunnerRegistry` lets you register your own. |
 | `MotiveUI` | AppKit/SwiftUI surfaces: the sprite view, the sprite box window (speech bubbles, hover skip/clear queue controls, optional chat input and action buttons), the queue window (live view of what's playing and what's next), the menu-bar notification menu, and the capability-driven settings window. |
 | `MotiveHTTP` | A loopback REST control plane (token-authenticated, SSE events, self-describing schema) for driving the sprite from anything that can `curl`. |
 | `MotiveMCP` | An MCP server over the same command surface, plus the `motive-mcp` stdio shim for Claude Desktop / ChatGPT Desktop. |

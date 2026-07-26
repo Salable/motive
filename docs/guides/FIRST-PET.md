@@ -91,7 +91,7 @@ verbatim in `/v1/schema`, and they are how an agent decides that "the build
 failed" means `failed` and not `waiting`.
 
 [../FORMATS.md](../FORMATS.md) has the full vocabulary: non-row frame layouts,
-multiple atlases, crossfades, per-frame timings, and the older `codex/1` format.
+multiple atlases, crossfades, and per-frame timings.
 
 Validate it before writing any Swift:
 

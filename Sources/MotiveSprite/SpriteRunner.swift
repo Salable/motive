@@ -8,7 +8,7 @@ public enum SpriteLoadError: Error, Equatable, CustomStringConvertible {
     public var description: String {
         switch self {
         case .packageNotFound(let path): return "sprite package not found at \(path)"
-        case .manifestNotFound(let path): return "no sprite manifest found in \(path)"
+        case .manifestNotFound(let path): return "no sprite manifest found in \(path) — expected motive.json"
         case .invalidManifest(let message): return "invalid sprite manifest: \(message)"
         }
     }
@@ -42,7 +42,7 @@ public struct ValidationFinding: Equatable, Sendable, CustomStringConvertible {
 /// into the normalized `SpriteDefinition`. Runners are data loaders only —
 /// sprites are data, never code.
 public protocol SpriteRunner: Sendable {
-    /// Stable format identifier, e.g. "codex/1" or "motive/1".
+    /// Stable format identifier, e.g. "motive/1".
     static var formatID: String { get }
 
     /// Whether this runner recognizes the package (cheap manifest sniff).
@@ -63,11 +63,12 @@ public protocol SpriteRunner: Sendable {
 public struct SpriteRunnerRegistry: Sendable {
     private var runners: [(id: String, claims: @Sendable (URL) -> Bool, runner: any SpriteRunner)] = []
 
-    /// The default registry: motive/1 first, then codex/1.
+    /// The default registry: motive/1, the only built-in format. Consumers
+    /// needing another layout `register` their own runner — including the
+    /// retired codex/1 (`pet.json`), which any app can carry itself.
     public static var standard: SpriteRunnerRegistry {
         var registry = SpriteRunnerRegistry()
         registry.register(MotiveRunner())
-        registry.register(CodexRunner())
         return registry
     }
 
