@@ -344,4 +344,205 @@ final class MotiveEngineTests: XCTestCase {
         }
         XCTAssertEqual(id, bubble.id)
     }
+
+    // MARK: questions
+
+    private let confirm = ResponseSpec(form: .confirm)
+
+    private func ask(_ engine: MotiveEngine, _ text: String, _ spec: ResponseSpec? = nil, at now: Date) async throws -> String {
+        try await engine.ask(text, respond: spec ?? ResponseSpec(form: .confirm), now: now).get().id
+    }
+
+    func testAskParksTheQueueAndPostsANonExpiringBubble() async throws {
+        let engine = makeEngine()
+        let id = try await ask(engine, "Deploy?", at: t0)
+
+        let bubble = await engine.speech
+        XCTAssertEqual(bubble?.id, id, "the bubble and the queue item are the same thing")
+        XCTAssertNil(bubble?.ttl, "a question's bubble never expires on its own")
+
+        // Long past any hold: still up, still waiting.
+        await engine.tick(now: t0.addingTimeInterval(3600))
+        let stillThere = await engine.speech
+        XCTAssertEqual(stillThere?.id, id)
+        let outstanding = await engine.outstandingQuestions()
+        XCTAssertEqual(outstanding.map(\.id), [id])
+    }
+
+    func testDirectSayWhileParkedIsDeferredNotDropped() async throws {
+        let engine = makeEngine()
+        let questionID = try await ask(engine, "Deploy?", at: t0)
+
+        let bubble = await engine.say("meanwhile", ttl: 1, now: t0.addingTimeInterval(1))
+        let visible = await engine.speech
+        XCTAssertEqual(visible?.id, questionID, "the question keeps the bubble")
+        XCTAssertNotEqual(bubble.id, questionID)
+
+        // Answer, and the deferred say posts under the id the caller was given.
+        _ = await engine.answerQuestion(id: questionID, content: .confirm(true), now: t0.addingTimeInterval(2))
+        let after = await engine.speech
+        XCTAssertEqual(after?.id, bubble.id, "the receipt's id is the one the bubble carries")
+        XCTAssertEqual(after?.text, "meanwhile")
+    }
+
+    func testAnswerRecordsOutcomeAndReleasesTheQueue() async throws {
+        let engine = makeEngine()
+        let id = try await ask(engine, "Deploy?", at: t0)
+
+        let record = try await engine.answerQuestion(
+            id: id, content: .confirm(true), via: .voice, now: t0.addingTimeInterval(5)
+        ).get()
+        XCTAssertEqual(record.status, .accepted)
+        XCTAssertEqual(record.answer, .confirm(true))
+        XCTAssertEqual(record.via, .voice)
+        XCTAssertEqual(record.resolvedAt, t0.addingTimeInterval(5))
+
+        let outstanding = await engine.outstandingQuestions()
+        XCTAssertTrue(outstanding.isEmpty)
+        let depth = await engine.queueDepth
+        XCTAssertEqual(depth, 0, "answering releases the queue")
+    }
+
+    func testDeclineIsDistinctFromAnsweringNo() async throws {
+        let engine = makeEngine()
+        let noID = try await ask(engine, "Deploy?", at: t0)
+        let no = try await engine.answerQuestion(id: noID, content: .confirm(false), now: t0).get()
+        XCTAssertEqual(no.status, .accepted, "\"no\" is an answer, not a refusal")
+        XCTAssertEqual(no.answer, .confirm(false))
+
+        let declineID = try await ask(engine, "Deploy?", at: t0)
+        let declined = try await engine.declineQuestion(id: declineID, now: t0).get()
+        XCTAssertEqual(declined.status, .declined)
+        XCTAssertNil(declined.answer)
+    }
+
+    func testAnswerValidationRejectsMismatchedAndUnknownContent() async throws {
+        let engine = makeEngine()
+        let spec = ResponseSpec(form: .choice, choices: ["staging", "prod"])
+        let id = try await ask(engine, "Where?", spec, at: t0)
+
+        guard case .failure(let mismatch) = await engine.answerQuestion(id: id, content: .confirm(true), now: t0) else {
+            return XCTFail("expected a form mismatch")
+        }
+        XCTAssertEqual(mismatch.error, "answer_form_mismatch")
+        XCTAssertEqual(mismatch.valid, ["choice"])
+
+        guard case .failure(let bad) = await engine.answerQuestion(id: id, content: .choice("moon", index: 9), now: t0) else {
+            return XCTFail("expected an invalid choice")
+        }
+        XCTAssertEqual(bad.error, "invalid_choice")
+        XCTAssertEqual(bad.valid, ["staging", "prod"])
+
+        // Still outstanding: a rejected answer must not resolve anything.
+        let outstanding = await engine.outstandingQuestions()
+        XCTAssertEqual(outstanding.map(\.id), [id])
+    }
+
+    func testDoubleAnswerIsRejected() async throws {
+        let engine = makeEngine()
+        let id = try await ask(engine, "Deploy?", at: t0)
+        _ = try await engine.answerQuestion(id: id, content: .confirm(true), now: t0).get()
+
+        guard case .failure(let failure) = await engine.answerQuestion(id: id, content: .confirm(false), now: t0) else {
+            return XCTFail("expected rejection")
+        }
+        XCTAssertEqual(failure.error, "already_resolved", "two clicks must not become two answers")
+    }
+
+    func testOutOfOrderAnswerLeavesTheHeadWaiting() async throws {
+        let engine = makeEngine()
+        let first = try await ask(engine, "First?", at: t0)
+        let second = try await ask(engine, "Second?", at: t0)
+
+        _ = try await engine.answerQuestion(id: second, content: .confirm(true), now: t0.addingTimeInterval(1)).get()
+        let outstanding = await engine.outstandingQuestions()
+        XCTAssertEqual(outstanding.map(\.id), [first], "the head keeps waiting")
+        let bubble = await engine.speech
+        XCTAssertEqual(bubble?.id, first)
+    }
+
+    func testDismissingAQuestionBubbleCancelsIt() async throws {
+        let engine = makeEngine()
+        let id = try await ask(engine, "Deploy?", at: t0)
+        await engine.dismissSpeech(now: t0.addingTimeInterval(1))
+
+        let record = await engine.question(id: id)
+        XCTAssertEqual(record?.status, .cancelled)
+        XCTAssertEqual(record?.cancelReason, .dismissed)
+        let depth = await engine.queueDepth
+        XCTAssertEqual(depth, 0, "the queue must not stay parked on an invisible affordance")
+    }
+
+    func testSkipCancelsTheQuestionAndFlushCancelsAll() async throws {
+        let engine = makeEngine()
+        let skipped = try await ask(engine, "First?", at: t0)
+        _ = await engine.skipCurrent(now: t0.addingTimeInterval(1))
+        let skippedRecord = await engine.question(id: skipped)
+        XCTAssertEqual(skippedRecord?.cancelReason, .skipped)
+
+        let a = try await ask(engine, "A?", at: t0)
+        let b = try await ask(engine, "B?", at: t0)
+        _ = await engine.flushQueue(now: t0.addingTimeInterval(2))
+        for id in [a, b] {
+            let record = await engine.question(id: id)
+            XCTAssertEqual(record?.cancelReason, .flushed, "a flush must not orphan questions")
+        }
+        let outstanding = await engine.outstandingQuestions()
+        XCTAssertTrue(outstanding.isEmpty)
+    }
+
+    func testQuestionExpiresOnTheEngineTick() async throws {
+        let engine = makeEngine()
+        let spec = ResponseSpec(form: .confirm, timeoutMS: 5000)
+        let id = try await ask(engine, "Deploy?", spec, at: t0)
+
+        await engine.tick(now: t0.addingTimeInterval(4.9))
+        let stillWaiting = await engine.outstandingQuestions()
+        XCTAssertEqual(stillWaiting.count, 1)
+
+        await engine.tick(now: t0.addingTimeInterval(5))
+        let record = await engine.question(id: id)
+        XCTAssertEqual(record?.status, .expired)
+    }
+
+    func testCancelAllWithdrawsEveryOutstandingQuestion() async throws {
+        let engine = makeEngine()
+        let a = try await ask(engine, "A?", at: t0)
+        let b = try await ask(engine, "B?", at: t0)
+        let cancelled = await engine.cancelAllQuestions(now: t0.addingTimeInterval(1))
+        XCTAssertEqual(Set(cancelled), Set([a, b]))
+        let recordA = await engine.question(id: a)
+        XCTAssertEqual(recordA?.cancelReason, .withdrawn)
+    }
+
+    func testLateJoinerSeesOutstandingQuestions() async throws {
+        let engine = makeEngine()
+        let id = try await ask(engine, "Deploy?", at: t0)
+
+        var iterator = await engine.events().makeAsyncIterator()
+        var sawAsked = false
+        var sawPresented = false
+        for _ in 0..<6 {
+            switch await iterator.next() {
+            case .questionAsked(let record) where record.id == id: sawAsked = true
+            case .questionPresented(let presented) where presented == id: sawPresented = true
+            default: continue
+            }
+            if sawAsked && sawPresented { break }
+        }
+        XCTAssertTrue(sawAsked, "a surface opening mid-question must learn it exists")
+        XCTAssertTrue(sawPresented)
+    }
+
+    func testHistoryKeepsResolvedQuestionsNewestFirst() async throws {
+        let engine = makeEngine()
+        let a = try await ask(engine, "A?", at: t0)
+        _ = try await engine.answerQuestion(id: a, content: .confirm(true), now: t0).get()
+        let b = try await ask(engine, "B?", at: t0.addingTimeInterval(1))
+        _ = try await engine.answerQuestion(id: b, content: .confirm(false), now: t0.addingTimeInterval(2)).get()
+
+        let history = await engine.questionHistory()
+        XCTAssertEqual(history.map(\.id), [b, a])
+        XCTAssertEqual(history.first?.answer, .confirm(false))
+    }
 }

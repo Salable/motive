@@ -32,16 +32,34 @@ public enum MotiveEvent: Equatable, Sendable {
     case speechDismissed(id: String)
     case queueItemStarted(id: String, remaining: Int)
     case queueItemFinished(id: String)
+    /// The current item is parked, waiting on something outside the queue.
+    /// `timeoutAt: nil` means indefinitely.
+    case queueItemAwaiting(id: String, timeoutAt: Date?)
     /// The last queued item finished naturally.
     case queueDrained
     /// An explicit flush dropped pending items.
     case queueFlushed(dropped: Int)
+    /// A question was admitted. Fires when it is *asked*, not when it reaches
+    /// the head — a surface showing "2 more waiting" needs to know immediately.
+    case questionAsked(QuestionRecord)
+    /// A question reached the head and now owns the attention surface.
+    case questionPresented(id: String)
+    /// Terminal, for every path: answered, declined, cancelled, or expired.
+    case questionResolved(QuestionRecord)
 }
 
 /// What a successful enqueue admitted.
 public struct EnqueueReceipt: Equatable, Sendable {
     public let itemIDs: [String]
     public let queueDepth: Int
+}
+
+/// What asking admitted. `id` is the handle an asker polls.
+public struct QuestionReceipt: Equatable, Sendable {
+    public let id: String
+    public let queueDepth: Int
+    /// Questions ahead of this one. 0 means it is parked at the head now.
+    public let outstandingAhead: Int
 }
 
 /// The runtime hub for one actor: owns the state machine, the action queue,
@@ -65,6 +83,18 @@ public actor MotiveEngine {
     private var tickTask: Task<Void, Never>?
     private let tickInterval: TimeInterval
 
+    /// Outstanding questions by id. A record leaves here the moment it
+    /// resolves, so "is anything waiting on the human" is one lookup.
+    private var questions: [String: QuestionRecord] = [:]
+    /// Recently resolved, newest last. Durable history arrives separately;
+    /// this is the in-process read path so polling never touches disk.
+    private var recentQuestions: [QuestionRecord] = []
+    /// How a resolution the engine initiated should be recorded. The queue
+    /// only knows "signalled"; whether that was an answer or a decline is ours.
+    private var pendingResolutions: [String: QuestionResolution] = [:]
+
+    public static let maxRecentQuestions = 500
+
     public init(definition: BehaviorDefinition, initialState: String = "idle", tickInterval: TimeInterval = 0.1) {
         let machine = ActorStateMachine(definition: definition, initialState: initialState)
         self.machine = machine
@@ -85,10 +115,20 @@ public actor MotiveEngine {
         let id = UUID()
         let current = machine.directive()
         let currentSpeech = speech
+        // Outstanding questions replay too: a surface that opens mid-question
+        // must render the affordance, not discover it only once it resolves.
+        let outstanding = outstandingQuestions()
+        let head = outstanding.first { $0.presentedAt != nil }?.id
         return AsyncStream { continuation in
             continuation.yield(.stateChanged(current))
             if let currentSpeech {
                 continuation.yield(.speechPosted(currentSpeech))
+            }
+            for record in outstanding {
+                continuation.yield(.questionAsked(record))
+            }
+            if let head {
+                continuation.yield(.questionPresented(id: head))
             }
             self.observers[id] = continuation
             continuation.onTermination = { _ in
@@ -151,9 +191,13 @@ public actor MotiveEngine {
     @discardableResult
     public func skipCurrent(now: Date = Date()) -> String? {
         guard let current = queue.snapshot(now: now).current else { return nil }
-        if case .say = current.step {
-            // Before applying effects: the next item may post a fresh bubble.
-            dismissSpeech(now: now)
+        // Before applying effects: the next item may post a fresh bubble.
+        // Matching on the id covers `say` and `ask` alike, and only takes down
+        // a bubble this item actually owns. A question's bubble is dismissed by
+        // its own resolution, so skip it here and let `skip` cancel it.
+        if let bubble = speech, bubble.id == current.id, questions[current.id] == nil {
+            speech = nil
+            broadcast(.speechDismissed(id: bubble.id))
         }
         applyQueueEffects(queue.skip(now: now), now: now)
         return current.id
@@ -213,18 +257,185 @@ public actor MotiveEngine {
         let holdMS = (ttl ?? 8) * 1_000
         let item = QueueItem(action: .say(text: text), holdMS: Int(holdMS))
         lastPostedBubble = nil
+        // The id is known before the item runs, so the receipt is truthful even
+        // when a parked question defers this bubble: the caller gets the id the
+        // bubble *will* carry, not a throwaway.
         if case .failure = enqueue([item], at: .head, now: now) {
-            return SpeechBubble(text: text, ttl: ttl, postedAt: now)
+            return SpeechBubble(id: item.id, text: text, ttl: ttl, postedAt: now)
         }
-        return lastPostedBubble ?? SpeechBubble(text: text, ttl: ttl, postedAt: now)
+        return lastPostedBubble ?? SpeechBubble(id: item.id, text: text, ttl: ttl, postedAt: now)
     }
 
-    /// Dismiss the current bubble. Immediate — bubble control, not content;
-    /// does not touch the queue.
+    /// Dismiss the current bubble. Immediate — bubble control, not content.
+    ///
+    /// When the bubble *is* a question, dismissing it resolves the question as
+    /// cancelled and lets the queue move on. Anything else would leave the
+    /// queue parked on an affordance nobody can see.
     public func dismissSpeech(now: Date = Date()) {
         guard let bubble = speech else { return }
+        if questions[bubble.id] != nil {
+            _ = resolveQuestion(id: bubble.id, resolution: .cancelled(.dismissed), now: now)
+            return
+        }
         speech = nil
         broadcast(.speechDismissed(id: bubble.id))
+    }
+
+    // MARK: questions
+
+    /// Ask the human something. Tail-enqueued by default, unlike the direct
+    /// verbs: head-inserting a second question ahead of the first would
+    /// reorder a conversation the human is already partway through.
+    @discardableResult
+    public func ask(
+        _ text: String,
+        respond: ResponseSpec,
+        at position: ActionQueue.Position = .tail,
+        now: Date = Date()
+    ) -> Result<QuestionReceipt, ControlFailure> {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return .failure(ControlFailure(error: "missing_text"))
+        }
+        if let failure = respond.validate() {
+            return .failure(failure)
+        }
+        let ahead = queue.outstandingQuestionIDs.count
+        let item = QueueItem(
+            action: .ask(text: trimmed, respond: respond),
+            completion: .external(timeoutMS: respond.timeoutMS)
+        )
+        let record = QuestionRecord(
+            id: item.id,
+            text: String(trimmed.prefix(SpeechBubble.maxLength)),
+            respond: respond,
+            askedAt: now,
+            expiresAt: nil
+        )
+        questions[item.id] = record
+        switch queue.enqueue([item], at: position, now: now) {
+        case .failure(let failure):
+            questions.removeValue(forKey: item.id)
+            return .failure(failure)
+        case .success(let effects):
+            // Announce before applying effects so an observer sees "asked"
+            // before "presented" even when it parks in this same call.
+            broadcast(.questionAsked(record))
+            applyQueueEffects(effects, now: now)
+            return .success(
+                QuestionReceipt(id: item.id, queueDepth: queue.depth, outstandingAhead: ahead)
+            )
+        }
+    }
+
+    /// Record the human's answer.
+    ///
+    /// This is the **only** way a question becomes `accepted`, and it is
+    /// deliberately reachable from the UI alone — no REST route or MCP tool
+    /// calls it. An agent that could answer its own question would turn a
+    /// human-in-the-loop check into a rubber stamp.
+    @discardableResult
+    public func answerQuestion(
+        id: String,
+        content: AnswerContent,
+        via: AnswerChannel = .typed,
+        now: Date = Date()
+    ) -> Result<QuestionRecord, ControlFailure> {
+        guard let record = questions[id] else {
+            return .failure(alreadyResolvedOrUnknown(id))
+        }
+        if let failure = record.validate(content) {
+            return .failure(failure)
+        }
+        let normalized: AnswerContent
+        if case .text(let raw) = content {
+            normalized = .text(raw.trimmingCharacters(in: .whitespacesAndNewlines))
+        } else {
+            normalized = content
+        }
+        return resolveQuestion(id: id, resolution: .accepted(normalized, via: via), now: now)
+    }
+
+    /// The human explicitly refused to answer — distinct from dismissing it,
+    /// and distinct from answering "no" (which is an answer).
+    @discardableResult
+    public func declineQuestion(
+        id: String,
+        via: AnswerChannel = .typed,
+        now: Date = Date()
+    ) -> Result<QuestionRecord, ControlFailure> {
+        guard questions[id] != nil else {
+            return .failure(alreadyResolvedOrUnknown(id))
+        }
+        return resolveQuestion(id: id, resolution: .declined(via: via), now: now)
+    }
+
+    /// Withdraw a question. Callable by the asker — cancelling is not
+    /// answering, so this crosses no boundary.
+    @discardableResult
+    public func cancelQuestion(
+        id: String,
+        reason: QuestionCancelReason = .withdrawn,
+        now: Date = Date()
+    ) -> Result<QuestionRecord, ControlFailure> {
+        guard questions[id] != nil else {
+            return .failure(alreadyResolvedOrUnknown(id))
+        }
+        return resolveQuestion(id: id, resolution: .cancelled(reason), now: now)
+    }
+
+    /// Withdraw every outstanding question. Returns the ids affected.
+    @discardableResult
+    public func cancelAllQuestions(
+        reason: QuestionCancelReason = .withdrawn,
+        now: Date = Date()
+    ) -> [String] {
+        let ids = outstandingQuestions().map(\.id)
+        for id in ids {
+            _ = resolveQuestion(id: id, resolution: .cancelled(reason), now: now)
+        }
+        return ids
+    }
+
+    /// Outstanding questions, head first — `first` owns the speech bubble.
+    public func outstandingQuestions() -> [QuestionRecord] {
+        queue.outstandingQuestionIDs.compactMap { questions[$0] }
+    }
+
+    /// One question by id, outstanding or recently resolved.
+    public func question(id: String) -> QuestionRecord? {
+        questions[id] ?? recentQuestions.last { $0.id == id }
+    }
+
+    /// Resolved questions, newest first.
+    public func questionHistory(limit: Int = 50) -> [QuestionRecord] {
+        Array(recentQuestions.reversed().prefix(max(0, limit)))
+    }
+
+    private func resolveQuestion(
+        id: String,
+        resolution: QuestionResolution,
+        now: Date
+    ) -> Result<QuestionRecord, ControlFailure> {
+        pendingResolutions[id] = resolution
+        switch queue.resolveExternal(id: id, reason: .signalled, now: now) {
+        case .failure(let failure):
+            pendingResolutions.removeValue(forKey: id)
+            return .failure(failure)
+        case .success(let effects):
+            applyQueueEffects(effects, now: now)
+            // finalizeQuestion moved it into history during effect application.
+            guard let resolved = recentQuestions.last(where: { $0.id == id }) else {
+                return .failure(ControlFailure(error: "unknown_question"))
+            }
+            return .success(resolved)
+        }
+    }
+
+    private func alreadyResolvedOrUnknown(_ id: String) -> ControlFailure {
+        recentQuestions.contains { $0.id == id }
+            ? ControlFailure(error: "already_resolved")
+            : ControlFailure(error: "unknown_question")
     }
 
     // MARK: effect execution
@@ -237,8 +448,8 @@ public actor MotiveEngine {
     private func applyQueueEffects(_ effects: [ActionQueue.Effect], now: Date) {
         for effect in effects {
             switch effect {
-            case .perform(.say(let text, let ttl)):
-                lastPostedBubble = applySay(text, ttl: ttl > 0 ? ttl : nil, now: now)
+            case .perform(.say(let id, let text, let ttl, _)):
+                lastPostedBubble = applySay(id: id, text, ttl: ttl > 0 ? ttl : nil, now: now)
             case .perform(.setState(let name, let duration)):
                 lastMachineOutcome = applyState(name, duration: duration, now: now)
             case .perform(.trigger(let name)):
@@ -247,6 +458,16 @@ public actor MotiveEngine {
                 broadcast(.queueItemStarted(id: id, remaining: remaining))
             case .emit(.itemFinished(let id)):
                 broadcast(.queueItemFinished(id: id))
+            case .emit(.itemAwaiting(let id, let timeoutAt)):
+                if var record = questions[id] {
+                    record.presentedAt = now
+                    record.expiresAt = timeoutAt
+                    questions[id] = record
+                    broadcast(.questionPresented(id: id))
+                }
+                broadcast(.queueItemAwaiting(id: id, timeoutAt: timeoutAt))
+            case .emit(.itemResolved(let id, let reason)):
+                finalizeQuestion(id: id, reason: reason, now: now)
             case .emit(.drained):
                 broadcast(.queueDrained)
             case .emit(.flushed(let dropped)):
@@ -274,11 +495,57 @@ public actor MotiveEngine {
     }
 
     @discardableResult
-    private func applySay(_ text: String, ttl: TimeInterval?, now: Date) -> SpeechBubble {
-        let bubble = SpeechBubble(text: text, ttl: ttl, postedAt: now)
+    private func applySay(id: String, _ text: String, ttl: TimeInterval?, now: Date) -> SpeechBubble {
+        // The bubble id *is* the queue item id, so a question's affordance and
+        // its queue entry are the same thing to every observer.
+        let bubble = SpeechBubble(id: id, text: text, ttl: ttl, postedAt: now)
         speech = bubble
         broadcast(.speechPosted(bubble))
         return bubble
+    }
+
+    /// Move a question out of `questions`, stamp its outcome, and announce it.
+    /// Every terminal path funnels through here — answered, declined,
+    /// withdrawn, skipped, flushed, expired — so a record can never be left
+    /// half-resolved.
+    private func finalizeQuestion(id: String, reason: ActionQueue.ResolutionReason, now: Date) {
+        guard let record = questions.removeValue(forKey: id) else {
+            // A non-question external item (spoken output) — nothing to record.
+            pendingResolutions.removeValue(forKey: id)
+            return
+        }
+        let resolution: QuestionResolution
+        if let stashed = pendingResolutions.removeValue(forKey: id) {
+            resolution = stashed
+        } else {
+            switch reason {
+            case .timedOut:
+                resolution = .expired
+            case .cancelled(let why):
+                resolution = .cancelled(why)
+            case .signalled:
+                // Signalled with nothing stashed means the queue completed it
+                // without the engine deciding how — treat as a withdrawal
+                // rather than inventing an answer.
+                resolution = .cancelled(.withdrawn)
+            }
+        }
+        let resolved = record.resolved(resolution, at: now)
+        recordResolved(resolved)
+        // Take the bubble down with the question: leaving an unanswerable
+        // affordance on screen is worse than an empty stage.
+        if let bubble = speech, bubble.id == id {
+            speech = nil
+            broadcast(.speechDismissed(id: bubble.id))
+        }
+        broadcast(.questionResolved(resolved))
+    }
+
+    private func recordResolved(_ record: QuestionRecord) {
+        recentQuestions.append(record)
+        if recentQuestions.count > Self.maxRecentQuestions {
+            recentQuestions.removeFirst(recentQuestions.count - Self.maxRecentQuestions)
+        }
     }
 
     // MARK: clock

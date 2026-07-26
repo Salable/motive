@@ -35,7 +35,7 @@ final class ActionQueueTests: XCTestCase {
         let effects = try queue.enqueue([item], now: t0).get()
         XCTAssertEqual(effects, [
             .emit(.itemStarted(id: item.id, remaining: 0)),
-            .perform(.say(text: "hi", ttl: 2)),
+            .perform(.say(id: item.id, text: "hi", ttl: 2, respond: nil)),
         ])
         XCTAssertTrue(queue.isActive)
         XCTAssertEqual(queue.depth, 1)
@@ -54,7 +54,7 @@ final class ActionQueueTests: XCTestCase {
         XCTAssertEqual(advance, [
             .emit(.itemFinished(id: first.id)),
             .emit(.itemStarted(id: second.id, remaining: 0)),
-            .perform(.say(text: "two", ttl: 1)),
+            .perform(.say(id: second.id, text: "two", ttl: 1, respond: nil)),
         ])
     }
 
@@ -70,7 +70,7 @@ final class ActionQueueTests: XCTestCase {
         XCTAssertEqual(effects, [
             .emit(.itemFinished(id: tour1.id)),
             .emit(.itemStarted(id: interjection.id, remaining: 1)),
-            .perform(.say(text: "hello!", ttl: 1)),
+            .perform(.say(id: interjection.id, text: "hello!", ttl: 1, respond: nil)),
         ])
 
         // Tour resumes after the interjection's hold.
@@ -117,7 +117,7 @@ final class ActionQueueTests: XCTestCase {
             .perform(.setState(name: "running", duration: nil)),
             .emit(.itemFinished(id: state.id)),
             .emit(.itemStarted(id: say.id, remaining: 0)),
-            .perform(.say(text: "working", ttl: 1)),
+            .perform(.say(id: say.id, text: "working", ttl: 1, respond: nil)),
         ])
     }
 
@@ -225,7 +225,7 @@ final class ActionQueueTests: XCTestCase {
         XCTAssertEqual(effects, [
             .emit(.itemFinished(id: a.id)),
             .emit(.itemStarted(id: b.id, remaining: 0)),
-            .perform(.say(text: "b", ttl: 1)),
+            .perform(.say(id: b.id, text: "b", ttl: 1, respond: nil)),
         ])
         XCTAssertEqual(queue.depth, 1, "pending survives a skip")
     }
@@ -272,5 +272,168 @@ final class ActionQueueTests: XCTestCase {
         let items = steps.map(QueueItem.init(step:))
         XCTAssertEqual(items.map(\.step), steps)
         XCTAssertEqual(items[2].holdMS, nil, "bridged triggers keep the default gesture hold")
+    }
+
+    func testAskStepBridgeRoundTripsAndBecomesExternal() {
+        let spec = ResponseSpec(form: .choice, choices: ["staging", "prod"])
+        let step = ScriptStep.ask(text: "Where to?", respond: spec)
+        let item = QueueItem(step: step)
+        XCTAssertEqual(item.step, step)
+        XCTAssertTrue(item.isQuestion)
+        XCTAssertTrue(item.isExternal)
+        XCTAssertNil(item.holdMS, "a question has no hold — its duration is the human's")
+    }
+
+    // MARK: external completion
+
+    private func question(_ text: String, timeoutMS: Int? = nil) -> QueueItem {
+        let spec = ResponseSpec(form: .confirm, timeoutMS: timeoutMS)
+        return QueueItem(
+            action: .ask(text: text, respond: spec),
+            completion: .external(timeoutMS: timeoutMS)
+        )
+    }
+
+    func testExternalItemParksIndefinitely() throws {
+        var queue = makeQueue()
+        let q = question("Deploy?")
+        let effects = try queue.enqueue([q], now: t0).get()
+        XCTAssertEqual(effects, [
+            .emit(.itemStarted(id: q.id, remaining: 0)),
+            .perform(.say(id: q.id, text: "Deploy?", ttl: 0, respond: q.respond)),
+            .emit(.itemAwaiting(id: q.id, timeoutAt: nil)),
+        ])
+        // An hour later it is still waiting: no clock resolves a question.
+        XCTAssertEqual(queue.tick(now: t0.addingTimeInterval(3600)), [])
+        let snapshot = queue.snapshot(now: t0.addingTimeInterval(3600))
+        XCTAssertEqual(snapshot.current?.id, q.id)
+        XCTAssertNil(snapshot.currentRemaining, "a parked item has no countdown")
+        XCTAssertEqual(snapshot.current?.awaiting, .question(q.respond!))
+    }
+
+    func testExternalItemWithCeilingTimesOut() throws {
+        var queue = makeQueue()
+        let q = question("Deploy?", timeoutMS: 5000)
+        _ = try queue.enqueue([q], now: t0).get()
+        XCTAssertEqual(queue.tick(now: t0.addingTimeInterval(4.9)), [])
+        XCTAssertEqual(queue.tick(now: t0.addingTimeInterval(5)), [
+            .emit(.itemResolved(id: q.id, reason: .timedOut)),
+            .emit(.itemFinished(id: q.id)),
+            .emit(.drained),
+        ])
+    }
+
+    /// The regression test for the whole feature: before this guard, any
+    /// ordinary `say` silently voided a question the human was looking at.
+    func testHeadEnqueueDoesNotCutAParkedItem() throws {
+        var queue = makeQueue()
+        let q = question("Deploy?")
+        _ = try queue.enqueue([q], now: t0).get()
+
+        let interjection = QueueItem(action: .say(text: "meanwhile"), holdMS: 1000)
+        let effects = try queue.enqueue([interjection], at: .head, now: t0.addingTimeInterval(1)).get()
+        XCTAssertEqual(effects, [], "the question keeps the stage; the say waits behind it")
+        XCTAssertEqual(queue.snapshot(now: t0.addingTimeInterval(1)).current?.id, q.id)
+
+        // Answering releases it, and the deferred say plays then — deferred,
+        // never dropped.
+        let resolved = try queue.resolveExternal(id: q.id, reason: .signalled, now: t0.addingTimeInterval(2)).get()
+        XCTAssertEqual(resolved, [
+            .emit(.itemResolved(id: q.id, reason: .signalled)),
+            .emit(.itemFinished(id: q.id)),
+            .emit(.itemStarted(id: interjection.id, remaining: 0)),
+            .perform(.say(id: interjection.id, text: "meanwhile", ttl: 1, respond: nil)),
+        ])
+    }
+
+    func testZeroHoldChainingStopsAtAnExternalItem() throws {
+        var queue = makeQueue()
+        let state = QueueItem(action: .setState(name: "running", durationMS: nil))
+        let q = question("Deploy?")
+        let after = QueueItem(action: .say(text: "after"), holdMS: 1000)
+        let effects = try queue.enqueue([state, q, after], now: t0).get()
+        // The zero-hold state chains into the question and stops there — it
+        // must not be consumed by the same call that started it.
+        XCTAssertEqual(ids(effects), [state.id, q.id])
+        XCTAssertEqual(queue.snapshot(now: t0).current?.id, q.id)
+        XCTAssertEqual(queue.snapshot(now: t0).pending.map(\.id), [after.id])
+    }
+
+    func testResolvingAPendingQuestionLeavesTheHeadParked() throws {
+        var queue = makeQueue()
+        let q1 = question("First?")
+        let q2 = question("Second?")
+        _ = try queue.enqueue([q1, q2], now: t0).get()
+
+        let effects = try queue.resolveExternal(id: q2.id, reason: .signalled, now: t0.addingTimeInterval(1)).get()
+        XCTAssertEqual(effects, [
+            .emit(.itemResolved(id: q2.id, reason: .signalled)),
+            .emit(.itemFinished(id: q2.id)),
+        ], "answering out of order resolves in place and does not disturb the head")
+        XCTAssertEqual(queue.snapshot(now: t0).current?.id, q1.id)
+        XCTAssertEqual(queue.depth, 1)
+        // q2 never started and never will.
+        XCTAssertEqual(queue.tick(now: t0.addingTimeInterval(3600)), [])
+    }
+
+    func testResolveRejectsUnknownAndNonExternalItems() throws {
+        var queue = makeQueue()
+        let say = QueueItem(action: .say(text: "hi"), holdMS: 1000)
+        _ = try queue.enqueue([say], now: t0).get()
+
+        guard case .failure(let unknown) = queue.resolveExternal(id: "nope", reason: .signalled, now: t0) else {
+            return XCTFail("expected rejection")
+        }
+        XCTAssertEqual(unknown.error, "unknown_item")
+
+        guard case .failure(let notAwaiting) = queue.resolveExternal(id: say.id, reason: .signalled, now: t0) else {
+            return XCTFail("expected rejection")
+        }
+        XCTAssertEqual(notAwaiting.error, "not_awaiting")
+    }
+
+    func testSkipCancelsParkedQuestionAndStartsNext() throws {
+        var queue = makeQueue()
+        let q = question("Deploy?")
+        let after = QueueItem(action: .say(text: "moving on"), holdMS: 1000)
+        _ = try queue.enqueue([q, after], now: t0).get()
+
+        let effects = queue.skip(now: t0.addingTimeInterval(1))
+        XCTAssertEqual(effects, [
+            .emit(.itemResolved(id: q.id, reason: .cancelled(.skipped))),
+            .emit(.itemFinished(id: q.id)),
+            .emit(.itemStarted(id: after.id, remaining: 0)),
+            .perform(.say(id: after.id, text: "moving on", ttl: 1, respond: nil)),
+        ], "a skipped question is cancelled, not timed out")
+    }
+
+    func testFlushResolvesHeadAndEveryPendingQuestion() throws {
+        var queue = makeQueue()
+        let q1 = question("First?")
+        let filler = QueueItem(action: .say(text: "filler"), holdMS: 1000)
+        let q2 = question("Second?")
+        _ = try queue.enqueue([q1, filler, q2], now: t0).get()
+
+        let effects = queue.flush(now: t0.addingTimeInterval(1))
+        XCTAssertEqual(effects, [
+            .emit(.itemResolved(id: q2.id, reason: .cancelled(.flushed))),
+            .emit(.itemResolved(id: q1.id, reason: .cancelled(.flushed))),
+            .emit(.itemFinished(id: q1.id)),
+            .emit(.flushed(dropped: 2)),
+        ], "every question resolves before the flush is announced")
+    }
+
+    func testOutstandingQuestionCapIsAllOrNothing() throws {
+        var queue = makeQueue()
+        let batch = (0..<ActionQueue.maxOutstandingQuestions).map { question("q\($0)") }
+        _ = try queue.enqueue(batch, now: t0).get()
+        XCTAssertEqual(queue.outstandingQuestionIDs.count, ActionQueue.maxOutstandingQuestions)
+
+        let extra = question("one too many")
+        guard case .failure(let failure) = queue.enqueue([extra], now: t0) else {
+            return XCTFail("expected rejection")
+        }
+        XCTAssertEqual(failure.error, "too_many_questions")
+        XCTAssertEqual(queue.depth, ActionQueue.maxOutstandingQuestions, "queue untouched")
     }
 }

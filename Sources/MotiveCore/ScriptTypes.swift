@@ -12,11 +12,16 @@ public enum ScriptStep: Codable, Equatable, Sendable {
     /// handles the gesture's own return).
     case trigger(name: String)
     case pause(ms: Int)
+    /// A `say` that expects an answer. Travels as `type: "say"` plus a
+    /// `respond` object, so the step vocabulary stays four types on the wire
+    /// and every existing script encodes byte-identically. Carries no hold: a
+    /// question's duration is the human's, not ours.
+    case ask(text: String, respond: ResponseSpec)
 
     public static let defaultSayHoldMS = 4000
 
     enum CodingKeys: String, CodingKey {
-        case type, text, name, ms, hold
+        case type, text, name, ms, hold, respond
     }
 
     public init(from decoder: Decoder) throws {
@@ -25,6 +30,10 @@ public enum ScriptStep: Codable, Equatable, Sendable {
         switch type {
         case "say":
             let text = try container.decode(String.self, forKey: .text)
+            if let respond = try container.decodeIfPresent(ResponseSpec.self, forKey: .respond) {
+                self = .ask(text: text, respond: respond)
+                return
+            }
             let hold = try container.decodeIfPresent(Int.self, forKey: .hold) ?? Self.defaultSayHoldMS
             self = .say(text: text, holdMS: hold)
         case "setState", "set-state", "state":
@@ -51,6 +60,10 @@ public enum ScriptStep: Codable, Equatable, Sendable {
             try container.encode("say", forKey: .type)
             try container.encode(text, forKey: .text)
             try container.encode(holdMS, forKey: .hold)
+        case .ask(let text, let respond):
+            try container.encode("say", forKey: .type)
+            try container.encode(text, forKey: .text)
+            try container.encode(respond, forKey: .respond)
         case .setState(let name, let holdMS):
             try container.encode("setState", forKey: .type)
             try container.encode(name, forKey: .name)
@@ -103,6 +116,13 @@ public struct ScriptRun: Codable, Equatable, Sendable {
             case .trigger(let name):
                 if definition.triggers[name] == nil {
                     return ControlFailure(error: "unknown_trigger", valid: definition.triggers.keys.sorted())
+                }
+            case .ask(let text, let respond):
+                if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    return ControlFailure(error: "missing_text")
+                }
+                if let failure = respond.validate() {
+                    return failure
                 }
             case .say, .pause:
                 continue

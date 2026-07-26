@@ -7,7 +7,7 @@ import MotiveCore
 /// it stays testable.
 public struct QueueEntryPresentation: Equatable, Sendable {
     public enum Kind: String, Sendable, CaseIterable {
-        case say, state, trigger, pause
+        case say, state, trigger, pause, ask
     }
 
     public let kind: Kind
@@ -44,6 +44,17 @@ public struct QueueEntryPresentation: Equatable, Sendable {
             title = "Pause"
             detail = Self.duration(ms: ms)
             symbolName = "pause.fill"
+        case .ask(let text, let respond):
+            kind = .ask
+            title = text
+            // No duration: a question runs until the human resolves it, so a
+            // countdown would be a lie.
+            switch respond.form {
+            case .confirm: detail = "Waiting for yes or no"
+            case .choice: detail = "Waiting for a choice"
+            case .text: detail = "Waiting for a reply"
+            }
+            symbolName = "questionmark.bubble.fill"
         }
     }
 

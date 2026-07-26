@@ -18,6 +18,14 @@ public final class SpriteHost: ObservableObject {
     /// Live view of the queue: the running item, its remaining hold, and the
     /// pending work behind it. Refreshed on every queue event.
     @Published public private(set) var queue = QueueSnapshot(current: nil, currentRemaining: nil, pending: [])
+    /// Every question the pet is waiting on, head first. `first` owns the
+    /// speech bubble; the rest are the "N more waiting" count.
+    @Published public private(set) var outstandingQuestions: [QuestionRecord] = []
+    /// The question currently presented — the one the bubble is showing.
+    @Published public private(set) var headQuestion: QuestionRecord?
+    /// Resolved questions, newest first. Presentational: the durable record
+    /// lives in the engine.
+    @Published public private(set) var answeredQuestions: [QuestionRecord] = []
 
     private var subscription: Task<Void, Never>?
 
@@ -45,6 +53,21 @@ public final class SpriteHost: ObservableObject {
                 case .queueDrained, .queueFlushed:
                     self.queueActive = false
                     await self.refreshQueue()
+                case .queueItemAwaiting:
+                    // A parked item is still active work — the skip and clear
+                    // controls must stay reachable precisely now.
+                    self.queueActive = true
+                    await self.refreshQueue()
+                case .questionAsked(let record):
+                    if !self.outstandingQuestions.contains(where: { $0.id == record.id }) {
+                        self.outstandingQuestions.append(record)
+                    }
+                case .questionPresented(let id):
+                    self.headQuestion = self.outstandingQuestions.first { $0.id == id }
+                case .questionResolved(let record):
+                    self.outstandingQuestions.removeAll { $0.id == record.id }
+                    if self.headQuestion?.id == record.id { self.headQuestion = nil }
+                    self.answeredQuestions.insert(record, at: 0)
                 }
             }
         }
@@ -55,6 +78,37 @@ public final class SpriteHost: ObservableObject {
     /// it on their own display clock, between events.
     public func refreshQueue() async {
         queue = await engine.queueSnapshot()
+    }
+
+    // MARK: answering
+    //
+    // Answers reach the engine from here and nowhere else. There is no REST
+    // route or MCP tool that resolves a question as answered — that absence is
+    // what makes a human-in-the-loop check mean anything.
+
+    @discardableResult
+    public func answer(
+        _ id: String,
+        with content: AnswerContent,
+        via: AnswerChannel = .typed
+    ) async -> Bool {
+        if case .success = await engine.answerQuestion(id: id, content: content, via: via) {
+            return true
+        }
+        return false
+    }
+
+    @discardableResult
+    public func decline(_ id: String, via: AnswerChannel = .typed) async -> Bool {
+        if case .success = await engine.declineQuestion(id: id, via: via) { return true }
+        return false
+    }
+
+    /// Dismiss without choosing — the third of MCP's three actions.
+    @discardableResult
+    public func dismissQuestion(_ id: String) async -> Bool {
+        if case .success = await engine.cancelQuestion(id: id, reason: .dismissed) { return true }
+        return false
     }
 
     /// Convenience: build the engine from the definition and start its clock.

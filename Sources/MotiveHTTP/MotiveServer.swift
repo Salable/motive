@@ -119,6 +119,14 @@ public final class MotiveServer: @unchecked Sendable {
                     sseHub.broadcast(event: "queue", json: Self.encode(QueueEventDTO(phase: "drained", id: nil, remaining: nil, dropped: nil)))
                 case .queueFlushed(let dropped):
                     sseHub.broadcast(event: "queue", json: Self.encode(QueueEventDTO(phase: "flushed", id: nil, remaining: nil, dropped: dropped)))
+                case .queueItemAwaiting(let id, _):
+                    sseHub.broadcast(event: "queue", json: Self.encode(QueueEventDTO(phase: "awaiting", id: id, remaining: nil, dropped: nil)))
+                case .questionAsked(let record):
+                    sseHub.broadcast(event: "question", json: Self.encode(QuestionEventDTO(record: record, phase: "asked")))
+                case .questionPresented(let id):
+                    sseHub.broadcast(event: "question", json: Self.encode(QuestionEventDTO(phase: "presented", id: id)))
+                case .questionResolved(let record):
+                    sseHub.broadcast(event: "question", json: Self.encode(QuestionEventDTO(record: record, phase: "resolved")))
                 }
             }
         }
@@ -162,6 +170,41 @@ struct QueueEventDTO: Codable {
 struct SpeechEventDTO: Codable {
     let id: String
     let text: String?
+}
+
+/// One `question` event carries the whole lifecycle, distinguished by `phase`
+/// — the same discipline the `queue` event uses, rather than five event names.
+struct QuestionEventDTO: Codable {
+    let phase: String
+    let id: String
+    let status: String?
+    let form: String?
+    let text: String?
+    let choices: [String]?
+    let answer: AnswerContent?
+    let expiresAt: Date?
+
+    init(phase: String, id: String) {
+        self.phase = phase
+        self.id = id
+        status = nil
+        form = nil
+        text = nil
+        choices = nil
+        answer = nil
+        expiresAt = nil
+    }
+
+    init(record: QuestionRecord, phase: String) {
+        self.phase = phase
+        id = record.id
+        status = record.status.rawValue
+        form = record.respond.form.rawValue
+        text = record.text
+        choices = record.respond.choices
+        answer = record.answer
+        expiresAt = record.expiresAt
+    }
 }
 
 // MARK: - SSE hub
