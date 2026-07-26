@@ -206,6 +206,18 @@ struct SpriteBoxContent: View {
                     question: question,
                     pendingCount: max(0, host.outstandingQuestions.count - 1),
                     text: $chatText,
+                    canListen: host.isSpeechInputAvailable,
+                    isListening: host.isListening,
+                    misheard: host.lastSpeechMisheard,
+                    onListen: {
+                        Task {
+                            if host.isListening {
+                                await host.stopListening()
+                            } else {
+                                await host.listenForAnswer()
+                            }
+                        }
+                    },
                     onAnswer: { content in
                         let id = question.id
                         chatText = ""
@@ -247,6 +259,12 @@ struct QuestionAffordanceView: View {
     let question: QuestionRecord
     let pendingCount: Int
     @Binding var text: String
+    /// Only shown when a host installed speech input *and* the build supports
+    /// it — an always-present mic that cannot work is worse than none.
+    let canListen: Bool
+    let isListening: Bool
+    let misheard: String?
+    let onListen: () -> Void
     let onAnswer: (AnswerContent) -> Void
     let onDecline: () -> Void
 
@@ -277,6 +295,13 @@ struct QuestionAffordanceView: View {
             }
 
             HStack(spacing: 8) {
+                if canListen {
+                    Button(action: onListen) {
+                        Image(systemName: isListening ? "mic.fill" : "mic")
+                    }
+                    .help(isListening ? "Listening — click to stop" : "Answer out loud")
+                    .foregroundStyle(isListening ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
+                }
                 // Declining is a real answer to record, distinct from dismissing
                 // the bubble and from answering "no".
                 Button("Not now", action: onDecline)
@@ -287,6 +312,12 @@ struct QuestionAffordanceView: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
+            }
+            if let misheard {
+                Text("Didn't catch “\(misheard)” — try again or use the buttons.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
             }
         }
         .buttonStyle(.bordered)

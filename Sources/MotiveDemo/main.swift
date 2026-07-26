@@ -60,6 +60,8 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
     let statusModel = ServerStatusModel()
     var questionsModel: QuestionHistoryModel?
     var speechOutput: AVSpeechOutput?
+    var speechInput: SFSpeechInput?
+    var voiceDiagnosticsModel: VoiceDiagnosticsModel?
     private var serverRestartTask: Task<Void, Never>?
 
     init(definition: SpriteDefinition) {
@@ -71,6 +73,9 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
         let host = SpriteHost(definition: definition)
         let questions = QuestionHistoryModel(engine: host.engine)
         questionsModel = questions
+        let voiceDiagnostics = VoiceDiagnosticsModel()
+        voiceDiagnostics.refresh()
+        voiceDiagnosticsModel = voiceDiagnostics
 
         // Components declare their configurable capabilities; the settings
         // window renders whatever is registered.
@@ -106,6 +111,13 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
                 defaultValue: .string(definition.metadata.voice?.voiceID ?? voices[0])
             ))
         }
+        // Off by default and deliberately: the permission prompt should only
+        // ever be reachable by someone who asked for it.
+        registry.register(CapabilityDescriptor(
+            id: "voice.input.enabled", component: "Voice", title: "Answer questions out loud",
+            help: "Transcribed on this Mac. No audio is ever recorded or sent anywhere. Needs a packaged app — see Settings for why if it is unavailable.",
+            kind: .toggle, defaultValue: .bool(false)
+        ))
         registry.register(CapabilityDescriptor(
             id: "voice.output.rate", component: "Voice", title: "Speaking rate",
             help: "1.0 is normal speed.",
@@ -165,6 +177,9 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
                 SettingsSection(title: "Questions") {
                     QuestionHistorySection(model: questions)
                 },
+                SettingsSection(title: "Voice") {
+                    VoiceDiagnosticsSection(model: voiceDiagnostics)
+                },
             ]
         )
         // The queue is where every agent command, script, and REST call lands;
@@ -198,6 +213,7 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
                 self?.statusModel.refresh()
                 self?.skillsModel.refresh()
                 self?.questionsModel?.refresh()
+                self?.voiceDiagnosticsModel?.refresh()
                 self?.settings?.show()
             },
             .separator,
@@ -333,6 +349,8 @@ extension DemoDelegate {
         let voiceID = registry.value(for: "voice.output.voice")?.stringValue
         let rate = registry.value(for: "voice.output.rate")?.numberValue
 
+        applySpeechInput(to: host)
+
         guard enabled else {
             speechOutput = nil
             Task { await host.engine.setSpeechOutput(nil) }
@@ -348,6 +366,36 @@ extension DemoDelegate {
             await engine.setVoicePreferences(
                 VoicePreferences(voiceID: voiceID, rate: rate)
             )
+        }
+    }
+
+    /// Install speech input only when the user asked for it *and* this build
+    /// can actually support it. The factory refuses rather than letting the OS
+    /// kill us, so an unbundled `swift run` simply leaves the mic hidden.
+    func applySpeechInput(to host: SpriteHost) {
+        let wanted = registry.value(for: "voice.input.enabled")?.boolValue ?? false
+        guard wanted else {
+            speechInput = nil
+            host.setSpeechInput(nil)
+            return
+        }
+        if let existing = speechInput {
+            host.setSpeechInput(existing)
+            return
+        }
+        switch MotiveVoice.makeSpeechInput() {
+        case .success(let input):
+            input.setSink(host)
+            speechInput = input
+            host.setSpeechInput(input)
+        case .failure(let unavailable):
+            // Leave the mic hidden and let Settings explain; never crash, never
+            // a button that silently does nothing.
+            FileHandle.standardError.write(
+                Data("motive-demo: speech input unavailable — \(unavailable)\n".utf8)
+            )
+            speechInput = nil
+            host.setSpeechInput(nil)
         }
     }
 }

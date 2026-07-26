@@ -1,5 +1,7 @@
 import Foundation
+import AVFoundation
 import MotiveCore
+import Speech
 
 /// The entry point for voice.
 ///
@@ -39,8 +41,61 @@ public enum MotiveVoice {
         guard issues.isEmpty else {
             return .unavailable(reason: issues.map(\.description).joined(separator: "; "))
         }
+        guard let recognizer = SFSpeechRecognizer(locale: Locale.current) else {
+            return .unavailable(reason: "no speech recognizer for \(Locale.current.identifier)")
+        }
+        guard recognizer.supportsOnDeviceRecognition else {
+            return .unavailable(
+                reason: "\(Locale.current.identifier) has no on-device speech model — refusing rather than sending audio off this Mac"
+            )
+        }
+        switch SFSpeechRecognizer.authorizationStatus() {
+        case .denied, .restricted:
+            return .denied(reason: "speech recognition is turned off for this app in System Settings")
+        default:
+            break
+        }
+        if AVCaptureDevice.authorizationStatus(for: .audio) == .denied {
+            return .denied(reason: "microphone access is turned off for this app in System Settings")
+        }
         return .available
     }
+
+    /// Build speech input, or explain why this build cannot.
+    ///
+    /// The only way to obtain one. There is no `force:` override: the predicate
+    /// is the operating system's own precondition, and skipping it does not get
+    /// you a degraded feature, it gets your app killed.
+    public static func makeSpeechInput(
+        locale: Locale = Locale.current
+    ) -> Result<SFSpeechInput, VoiceUnavailable> {
+        if isDisabledByEnvironment() {
+            return .failure(VoiceUnavailable(
+                issues: [],
+                denial: "speech is disabled by \(VoicePreflight.disableEnvironmentKey)"
+            ))
+        }
+        let issues = VoicePreflight.audit(.speechInput)
+        guard issues.isEmpty else {
+            return .failure(VoiceUnavailable(issues: issues, denial: nil))
+        }
+        // Constructing a recognizer and reading its capabilities is TCC-free,
+        // so this can be checked before anything prompts the user.
+        guard let recognizer = SFSpeechRecognizer(locale: locale) else {
+            return .failure(VoiceUnavailable(
+                issues: [], denial: "no speech recognizer for \(locale.identifier)"
+            ))
+        }
+        guard recognizer.supportsOnDeviceRecognition else {
+            return .failure(VoiceUnavailable(
+                issues: [],
+                denial: "\(locale.identifier) has no on-device speech model — refusing rather than sending audio off this Mac"
+            ))
+        }
+        return .success(SFSpeechInput(recognizer: recognizer))
+    }
+
+    static func isDisabledByEnvironment() -> Bool { VoicePreflight.isDisabledByEnvironment }
 
     /// Diagnostics for a settings pane: what is wrong with this build, and the
     /// exact snippet that fixes it.

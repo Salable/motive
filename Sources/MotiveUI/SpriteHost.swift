@@ -6,7 +6,7 @@ import MotiveSprite
 /// Main-actor bridge between a `MotiveEngine` and SwiftUI: republishes the
 /// engine's event stream as observable state the views render from.
 @MainActor
-public final class SpriteHost: ObservableObject {
+public final class SpriteHost: ObservableObject, SpeechInputSink {
     public let definition: SpriteDefinition
     public let engine: MotiveEngine
 
@@ -26,6 +26,14 @@ public final class SpriteHost: ObservableObject {
     /// Resolved questions, newest first. Presentational: the durable record
     /// lives in the engine.
     @Published public private(set) var answeredQuestions: [QuestionRecord] = []
+    /// True while the microphone is open for an answer. Drives the mic button's
+    /// active state; there is no other indication that we are listening.
+    @Published public private(set) var isListening = false
+    /// Set when a spoken answer could not be matched to the question, so the
+    /// human is told rather than left wondering why nothing happened.
+    @Published public private(set) var lastSpeechMisheard: String?
+
+    private var speechInput: (any SpeechInput)?
 
     private var subscription: Task<Void, Never>?
 
@@ -111,6 +119,43 @@ public final class SpriteHost: ObservableObject {
     public func decline(_ id: String, via: AnswerChannel = .typed) async -> Bool {
         if case .success = await engine.declineQuestion(id: id, via: via) { return true }
         return false
+    }
+
+    // MARK: spoken answers
+
+    /// Install speech input. Nil (the default) leaves the mic button hidden.
+    public func setSpeechInput(_ input: (any SpeechInput)?) {
+        speechInput = input
+    }
+
+    public var isSpeechInputAvailable: Bool { speechInput != nil }
+
+    /// Listen for an answer to the question currently on screen.
+    public func listenForAnswer() async {
+        guard let speechInput, let question = headQuestion else { return }
+        lastSpeechMisheard = nil
+        isListening = true
+        await speechInput.startListening(answering: question.id)
+    }
+
+    public func stopListening() async {
+        await speechInput?.stopListening()
+        isListening = false
+    }
+
+    /// A spoken answer arrives here and goes through exactly the same path as a
+    /// typed one — transcription is an input method, not a separate feature.
+    public func transcriptDidFinalize(_ text: String, answering questionID: String?, at: Date) async {
+        isListening = false
+        guard let questionID,
+              let question = outstandingQuestions.first(where: { $0.id == questionID })
+        else { return }
+        guard let content = question.interpret(spoken: text) else {
+            // Better to say "I didn't catch that" than to guess and act on it.
+            lastSpeechMisheard = text
+            return
+        }
+        await answer(questionID, with: content, via: .voice)
     }
 
     /// Dismiss without choosing — the third of MCP's three actions.

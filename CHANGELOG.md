@@ -46,6 +46,21 @@ All notable changes to Motive are documented here. The format follows
   requirement cannot drift from the enforced one. `docs/EMBEDDING.md` gains
   "Ship an app bundle" and "Recipe: speech"; the demo's `Info.plist` gains both
   usage descriptions now, a milestone before anything requests them.
+- **Answer out loud (`speech.input`).** On-device transcription via
+  `SFSpeechRecognizer`, off by default, with a mic button beside the question's
+  buttons. A spoken answer goes through exactly the same path as a typed one and
+  is recorded with `via: "voice"` — transcription is an input method, not a
+  separate feature. `QuestionRecord.interpret(spoken:)` maps speech to the
+  question's own vocabulary (button labels first, then ordinary words; an exact
+  choice beats a prefix) and returns nil rather than guessing, so an ambiguous
+  answer says "didn't catch that" instead of acting.
+
+  Three promises enforced structurally rather than by comment: recognition is
+  always on-device (`requiresOnDeviceRecognition`, and there is no fallback path
+  to take — a locale without a model is refused), no audio file is ever created
+  (only a buffer request exists), and the recognizer is torn down after every
+  attempt. Settings → Voice explains why listening is unavailable in a given
+  build and offers the exact snippet that fixes it.
 - **Question history, persisted** — resolved questions and their answers are
   appended to `$MOTIVE_HOME/history/questions.jsonl` (owner-only, a sibling of
   `runtime/` so it survives shutdown) and restored on launch. Readable via

@@ -3,6 +3,7 @@ import SwiftUI
 import MotiveAgents
 import MotiveCore
 import MotiveUI
+import MotiveVoice
 
 // MARK: - Agent skills
 
@@ -286,6 +287,57 @@ struct QuestionHistorySection: View {
             }
             Text("Agents can read this history to pick up an answer they missed. Clearing it does not cancel anything the pet is still waiting on.")
                 .font(.caption2).foregroundStyle(.tertiary)
+        }
+    }
+}
+
+/// Why speech input is or isn't available in *this* build, with the fix.
+///
+/// This is the layer that closes the loop for a developer who never read the
+/// docs: the reason their mic button is missing, and the exact snippet that
+/// makes it appear, on screen in their own app.
+@MainActor
+final class VoiceDiagnosticsModel: ObservableObject {
+    @Published private(set) var availability: SpeechInputAvailability = .available
+    @Published private(set) var diagnostics: [VoicePreflight.Diagnostic] = []
+    @Published private(set) var copiedAt: Date?
+
+    func refresh() {
+        availability = MotiveVoice.inputAvailability()
+        diagnostics = MotiveVoice.inputDiagnostics()
+    }
+
+    func copyFix() {
+        let text = diagnostics.map(\.fix).joined(separator: "\n")
+        guard !text.isEmpty else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        copiedAt = Date()
+    }
+}
+
+struct VoiceDiagnosticsSection: View {
+    @ObservedObject var model: VoiceDiagnosticsModel
+
+    var body: some View {
+        LabeledContent("Answering out loud") {
+            Text(model.availability.isAvailable ? "available" : "unavailable")
+        }
+        if let reason = model.availability.reason {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(reason)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Text("Speaking aloud needs none of this — only listening does.")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                    Spacer()
+                    Button("Re-check") { model.refresh() }
+                    Button(model.copiedAt == nil ? "Copy fix" : "Copied ✓") { model.copyFix() }
+                        .disabled(model.diagnostics.isEmpty)
+                }
+            }
         }
     }
 }

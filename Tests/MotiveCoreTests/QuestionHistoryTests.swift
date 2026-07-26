@@ -187,3 +187,56 @@ final class QuestionHistoryTests: XCTestCase {
         XCTAssertEqual(history.first?.answer, .confirm(true))
     }
 }
+
+final class SpokenAnswerTests: XCTestCase {
+    private func question(_ spec: ResponseSpec) -> QuestionRecord {
+        QuestionRecord(id: "q", text: "?", respond: spec, askedAt: Date())
+    }
+
+    func testConfirmMatchesTheLabelsOnScreen() {
+        let record = question(ResponseSpec(form: .confirm, yesLabel: "Ship it", noLabel: "Hold off"))
+        XCTAssertEqual(record.interpret(spoken: "ship it"), .confirm(true))
+        XCTAssertEqual(record.interpret(spoken: "Hold off please"), .confirm(false))
+    }
+
+    func testConfirmFallsBackToOrdinaryWords() {
+        let record = question(ResponseSpec(form: .confirm))
+        for yes in ["yes", "Yeah", "sure", "go ahead"] {
+            XCTAssertEqual(record.interpret(spoken: yes), .confirm(true), yes)
+        }
+        for no in ["no", "nope", "don't", "cancel"] {
+            XCTAssertEqual(record.interpret(spoken: no), .confirm(false), no)
+        }
+    }
+
+    /// Better to hear nothing than to hear the wrong thing and act on it.
+    func testAmbiguousSpeechIsNotAnAnswer() {
+        let record = question(ResponseSpec(form: .confirm))
+        XCTAssertNil(record.interpret(spoken: "hmm, maybe later"))
+        XCTAssertNil(record.interpret(spoken: ""))
+    }
+
+    func testChoicePrefersAnExactMatchOverAPrefix() {
+        let record = question(ResponseSpec(form: .choice, choices: ["prod", "production"]))
+        XCTAssertEqual(record.interpret(spoken: "prod"), .choice("prod", index: 0))
+        XCTAssertEqual(record.interpret(spoken: "production"), .choice("production", index: 1))
+    }
+
+    func testChoiceRefusesWhenSeveralOptionsMatch() {
+        let record = question(ResponseSpec(form: .choice, choices: ["staging", "prod"]))
+        XCTAssertNil(record.interpret(spoken: "staging or prod, either"))
+        XCTAssertEqual(record.interpret(spoken: "let's do staging"), .choice("staging", index: 0))
+    }
+
+    func testTextTakesWhateverWasSaid() {
+        let record = question(ResponseSpec(form: .text))
+        XCTAssertEqual(record.interpret(spoken: "  ship the hotfix  "), .text("ship the hotfix"))
+    }
+
+    /// A spoken answer must survive the same validation a typed one does.
+    func testInterpretedAnswersValidate() {
+        let record = question(ResponseSpec(form: .choice, choices: ["staging", "prod"]))
+        let answer = try? XCTUnwrap(record.interpret(spoken: "prod"))
+        XCTAssertNil(record.validate(answer!))
+    }
+}

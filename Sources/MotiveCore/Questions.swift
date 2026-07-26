@@ -280,6 +280,44 @@ public struct QuestionRecord: Codable, Equatable, Sendable, Identifiable {
         return copy
     }
 
+    /// Turn something the human said out loud into an answer to *this*
+    /// question, or nil when it doesn't match.
+    ///
+    /// Lives here rather than in the UI so it is testable and so typed and
+    /// spoken answers cannot drift apart: both end up as the same
+    /// `AnswerContent`, differing only in the channel that produced them.
+    public func interpret(spoken text: String) -> AnswerContent? {
+        let said = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !said.isEmpty else { return nil }
+
+        switch respond.form {
+        case .text:
+            return .text(text.trimmingCharacters(in: .whitespacesAndNewlines))
+
+        case .confirm:
+            // Match the labels the human is actually looking at first — if a
+            // button says "Ship it", saying "ship it" should press it.
+            if let yes = respond.yesLabel?.lowercased(), said.contains(yes) { return .confirm(true) }
+            if let no = respond.noLabel?.lowercased(), said.contains(no) { return .confirm(false) }
+            let affirmatives = ["yes", "yeah", "yep", "sure", "ok", "okay", "go ahead", "do it"]
+            let negatives = ["no", "nope", "don't", "do not", "stop", "cancel", "hold off"]
+            if negatives.contains(where: { said.contains($0) }) { return .confirm(false) }
+            if affirmatives.contains(where: { said.contains($0) }) { return .confirm(true) }
+            return nil
+
+        case .choice:
+            let options = respond.choices ?? []
+            // Exact match wins over containment, so "prod" doesn't match
+            // "production" when both are offered.
+            if let index = options.firstIndex(where: { $0.lowercased() == said }) {
+                return .choice(options[index], index: index)
+            }
+            let matches = options.enumerated().filter { said.contains($0.element.lowercased()) }
+            guard matches.count == 1, let match = matches.first else { return nil }
+            return .choice(match.element, index: match.offset)
+        }
+    }
+
     /// Validate an answer against what this question actually asked for.
     /// Returns nil when the content is acceptable.
     public func validate(_ content: AnswerContent) -> ControlFailure? {
