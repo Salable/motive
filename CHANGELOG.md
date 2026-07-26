@@ -6,6 +6,8 @@ All notable changes to Motive are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-26
+
 ### Added
 - **Questions — the pet can ask you something and wait.** `POST /v1/say` takes
   an optional `respond` block (`confirm` yes/no, `choice` of 2–6 options, or
