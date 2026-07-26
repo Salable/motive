@@ -92,15 +92,37 @@ public actor MotiveEngine {
     /// How a resolution the engine initiated should be recorded. The queue
     /// only knows "signalled"; whether that was an answer or a decline is ours.
     private var pendingResolutions: [String: QuestionResolution] = [:]
+    /// Durable history. Nil by default so no existing test touches disk and a
+    /// headless embedder opts in rather than out.
+    private let history: QuestionHistoryStore?
+    /// Serial chain of pending history appends — see `enqueueHistoryWrite`.
+    private var historyWrite: Task<Void, Never>?
 
     public static let maxRecentQuestions = 500
 
-    public init(definition: BehaviorDefinition, initialState: String = "idle", tickInterval: TimeInterval = 0.1) {
+    public init(
+        definition: BehaviorDefinition,
+        initialState: String = "idle",
+        tickInterval: TimeInterval = 0.1,
+        history: QuestionHistoryStore? = nil
+    ) {
         let machine = ActorStateMachine(definition: definition, initialState: initialState)
         self.machine = machine
         self.defaultState = machine.defaultStateName
         self.queue = ActionQueue(definition: definition)
         self.tickInterval = tickInterval
+        self.history = history
+    }
+
+    /// Read durable history back into the in-memory window. Call once next to
+    /// `start()`; without it a restarted pet answers history reads from an
+    /// empty ring even though the file is intact.
+    public func restoreHistory() async {
+        guard let history else { return }
+        await drainHistoryWrites()
+        let stored = await history.recent(limit: Self.maxRecentQuestions)
+        // `recent` is newest-first; the ring is oldest-first.
+        recentQuestions = stored.reversed()
     }
 
     deinit {
@@ -415,14 +437,23 @@ public actor MotiveEngine {
     /// Drop stored history. `keep: nil` clears everything. Returns how many
     /// records were removed.
     @discardableResult
-    public func clearQuestionHistory(keep: Int? = nil) -> Int {
+    public func clearQuestionHistory(keep: Int? = nil) async -> Int {
         let before = recentQuestions.count
         if let keep, keep > 0 {
             recentQuestions = Array(recentQuestions.suffix(keep))
         } else {
             recentQuestions.removeAll()
         }
-        return before - recentQuestions.count
+        var removedFromDisk = 0
+        if let history {
+            await drainHistoryWrites()
+            if let keep, keep > 0 {
+                removedFromDisk = await history.cull(keepingNewest: keep)
+            } else {
+                removedFromDisk = await history.clear()
+            }
+        }
+        return max(before - recentQuestions.count, removedFromDisk)
     }
 
     private func resolveQuestion(
@@ -559,6 +590,28 @@ public actor MotiveEngine {
         if recentQuestions.count > Self.maxRecentQuestions {
             recentQuestions.removeFirst(recentQuestions.count - Self.maxRecentQuestions)
         }
+        enqueueHistoryWrite(record)
+    }
+
+    /// Observers must not wait on disk, but writes still have to *land* in
+    /// order relative to each other and to a later cull — a detached task per
+    /// append would let a clear overtake an in-flight write and resurrect the
+    /// record it was meant to delete. Chaining keeps the engine unblocked and
+    /// the file ordered.
+    private func enqueueHistoryWrite(_ record: QuestionRecord) {
+        guard let history else { return }
+        let previous = historyWrite
+        historyWrite = Task {
+            await previous?.value
+            await history.append(record)
+        }
+    }
+
+    /// Wait for queued history writes to land. Cull, restore, and shutdown all
+    /// need this; ordinary reads do not, because the in-memory ring is
+    /// authoritative for them.
+    public func drainHistoryWrites() async {
+        await historyWrite?.value
     }
 
     // MARK: clock

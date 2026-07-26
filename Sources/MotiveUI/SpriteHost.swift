@@ -112,10 +112,21 @@ public final class SpriteHost: ObservableObject {
     }
 
     /// Convenience: build the engine from the definition and start its clock.
-    public convenience init(definition: SpriteDefinition) {
-        let engine = MotiveEngine(definition: definition.behaviorDefinition)
+    /// `history` defaults to the standard runtime home, so a pet that asks
+    /// questions remembers the answers across restarts without the host
+    /// wiring anything. Pass nil for an ephemeral pet.
+    public convenience init(
+        definition: SpriteDefinition,
+        history: QuestionHistoryStore? = FileQuestionHistoryStore(
+            url: RuntimePaths.standard.questionHistoryURL
+        )
+    ) {
+        let engine = MotiveEngine(definition: definition.behaviorDefinition, history: history)
         self.init(definition: definition, engine: engine)
-        Task { await engine.start() }
+        Task {
+            await engine.restoreHistory()
+            await engine.start()
+        }
     }
 
     deinit {
