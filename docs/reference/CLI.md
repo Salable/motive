@@ -26,14 +26,14 @@ and a ready-to-paste `curl` on start.
 
 ```sh
 swift run motive-demo
-swift run motive-demo ~/sprites/mypet
-MOTIVE_SPRITE=~/sprites/mypet swift run motive-demo
+swift run motive-demo ~/sprites/mysprite
+MOTIVE_SPRITE=~/sprites/mysprite swift run motive-demo
 MOTIVE_HOME=$(pwd)/.motive-home swift run motive-demo
 ```
 
 ## `motive-mcp`
 
-A standalone stdio MCP server. It holds no state and owns no pet: on every call
+A standalone stdio MCP server. It holds no state and owns no companion: on every call
 it rediscovers the running app through `$MOTIVE_HOME/runtime/` and proxies to its
 REST plane. Rediscovering per call rather than at startup is what lets it survive
 the app restarting underneath it — including the token rotation that comes with
@@ -62,7 +62,7 @@ inside `MotiveDemo.app/Contents/MacOS/`. See
 Drives a running demo through every REST verb — ping, schema, status, say, state
 with auto-revert, trigger — and finishes by printing the SSE command for
 `/v1/events`. Reads `${MOTIVE_HOME:-$HOME/.motive}/runtime/`, and tells you to
-start a pet if it finds nothing. The fastest way to confirm the control plane
+start a companion if it finds nothing. The fastest way to confirm the control plane
 works.
 
 ### `scripts/build-demo-app.sh`

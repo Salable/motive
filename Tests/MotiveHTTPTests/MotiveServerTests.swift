@@ -21,7 +21,7 @@ final class MotiveServerTests: XCTestCase {
             aliases: ["working": "running"],
             triggers: ["jump": TriggerSpec(state: "jumping")]
         ))
-        let control = MotiveControl(engine: engine, displayName: "TestPet")
+        let control = MotiveControl(engine: engine, displayName: "TestCompanion")
         server = MotiveServer(
             control: control,
             paths: RuntimePaths(runtimeURL: runtimeDir),

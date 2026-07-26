@@ -12,7 +12,7 @@ Requires macOS 13+ and Swift 5.10+ (Xcode 15.3+).
 ```sh
 swift build
 swift test
-swift run motive-demo    # run the demo pet from the checkout
+swift run motive-demo    # run the demo companion from the checkout
 ```
 
 CI runs `swift build` + `swift test` on macOS for every PR and push to `main`.

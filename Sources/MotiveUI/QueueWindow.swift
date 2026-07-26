@@ -81,7 +81,7 @@ public struct QueueEntryPresentation: Equatable, Sendable {
 /// right now (with its countdown) and everything lined up behind it, live.
 ///
 /// The queue is the sprite's whole story — agent commands, scripts, and REST
-/// calls all land in it — so this is the surface for seeing *why* the pet is
+/// calls all land in it — so this is the surface for seeing *why* the companion is
 /// doing what it's doing, and for skipping or clearing work without the
 /// hover controls on the sprite box.
 @MainActor
@@ -238,7 +238,7 @@ struct QueueView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 6) {
                 // Questions come first and out of queue order: they are what
-                // the pet is stuck on, and answering any of them — not just the
+                // the companion is stuck on, and answering any of them — not just the
                 // one on screen — moves things along.
                 if !host.outstandingQuestions.isEmpty {
                     SectionLabel(text: "Waiting on you")
@@ -407,7 +407,7 @@ struct QueueRow: View {
     }
 }
 
-/// A question the pet is waiting on, answerable here.
+/// A question the companion is waiting on, answerable here.
 ///
 /// Every outstanding question gets controls, not just the one in the bubble:
 /// the whole point of this window is that a human can find and answer the

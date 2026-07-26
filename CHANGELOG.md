@@ -9,7 +9,7 @@ All notable changes to Motive are documented here. The format follows
 ### Added
 - **A documentation architecture, and docs to fill it.** `docs/` is now
   organised by what the reader is doing rather than by what the code is called:
-  `guides/` to learn (quickstart, the demo app, build your first pet,
+  `guides/` to learn (quickstart, the demo app, build your first app,
   troubleshooting), `concepts/` for the mental model (queue, states, questions,
   voice, runtime), `components/` for per-product reference with parameters and
   integration patterns, and `reference/` for environment variables, files,
@@ -26,6 +26,22 @@ All notable changes to Motive are documented here. The format follows
   stays the source of truth; wiki edits are overwritten.
 - `scripts/check-doc-links.py` fails CI on a relative link or heading anchor
   that points at nothing.
+
+### Changed
+- **"Pet" is retired from Motive's vocabulary.** The word flattened three
+  distinct things into one, and it competed with the demo character — Winston
+  actually is a pet. The framework now says **companion** for the running entity
+  (it has a queue, asks questions, survives restarts), **sprite** for the moving
+  image and the package defining it, and **app** for the host process. No public
+  API changed: no type, property, product, or JSON key ever contained "pet". What
+  moved is prose, doc comments, user-visible strings, and the generated agent
+  skill, whose trigger vocabulary is now `sprite/companion/character`. The rule
+  is recorded in `CLAUDE.md` and `docs/DOCUMENTATION.md` so it does not drift
+  back. `docs/proposals/` is left as written — it is a design record, and
+  rewriting it would falsify what was thought at the time.
+- `docs/guides/FIRST-PET.md` is now `docs/guides/FIRST-APP.md` ("Build Your First
+  Companion App"), and its sample package is `MyCompanion`. The wiki page moves
+  from `Guides-First-Pet` to `Guides-First-App`.
 
 ### Fixed
 - `docs/INTEGRATIONS.md` listed an MCP tool that does not exist

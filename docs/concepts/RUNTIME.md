@@ -1,6 +1,6 @@
 # The Runtime Home
 
-> **Audience:** anyone connecting to a pet from outside it, and anyone running more than one.
+> **Audience:** anyone connecting to a companion from outside it, and anyone running more than one.
 > **Prerequisites:** none.
 > **Source of truth:** `Sources/MotiveCore/RuntimeDiscovery.swift`.
 
@@ -21,7 +21,7 @@ be somewhere to *look*, and that place is the runtime home.
 
 Discovery is deliberately boring: read `server.json` for the port, read `token`
 for the credential, make an HTTP request. No broadcast, no registry, no daemon.
-Anything that can read a file and make a request can drive a pet — `curl`, a
+Anything that can read a file and make a request can drive a companion — `curl`, a
 shell script, an agent skill, the `motive-mcp` shim.
 
 ```sh
@@ -50,7 +50,7 @@ Auth is a bearer token over loopback, sent as `Authorization: Bearer <token>` or
 unauthenticated, so a client can check liveness before it has a credential.
 
 The honest limit of this model: **the token authenticates the machine, not the
-caller.** Any local process that can read your home directory can drive your pet.
+caller.** Any local process that can read your home directory can drive your companion.
 That is acceptable for a desktop companion, and it is exactly why nothing on the
 control plane can [answer a question](QUESTIONS.md#the-one-rule).
 
@@ -72,7 +72,7 @@ Clients should tolerate one rather than trusting it blindly.
 The server can bind `0.0.0.0` instead of `127.0.0.1`, and `server.json` records
 which. Token auth is unchanged and still required for every request.
 
-This is for driving a pet from another machine — a build server pointing at the
+This is for driving a companion from another machine — a build server pointing at the
 laptop on your desk. macOS will likely ask to allow incoming connections. The
 connect prompt notices the public bind and tells the agent that you will supply
 the machine's address, since `server.json` cannot know what other hosts call
@@ -87,8 +87,8 @@ Everything honors it: the app, the `motive-mcp` shim, the generated agent skills
 MOTIVE_HOME=$(pwd)/.motive-home swift run motive-demo
 ```
 
-This is the supported way to run pets side by side — one per worktree while
-developing, or a stable pet plus a scratch one. Port collisions resolve
+This is the supported way to run companions side by side — one per worktree while
+developing, or a stable companion plus a scratch one. Port collisions resolve
 themselves; it is the *files* that need separating.
 
 It is also how tests stay out of your real `~/.motive`, and why

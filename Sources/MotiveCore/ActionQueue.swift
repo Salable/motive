@@ -187,7 +187,7 @@ public struct ActionQueue: Sendable {
     /// or a human deciding both outrun a state duration by design.
     public static let maxExternalTimeout: TimeInterval = 3_600
     /// Outstanding questions cap independently of depth — 64 unanswerable
-    /// parks would wedge the pet with no way back short of a flush.
+    /// parks would wedge the companion with no way back short of a flush.
     public static let maxOutstandingQuestions = 8
 
     public enum Position: Sendable {
@@ -294,7 +294,7 @@ public struct ActionQueue: Sendable {
             //
             // Only a *hold* can be cut short. An external item completes when
             // its signal arrives, so an interjection queues behind it rather
-            // than voiding a commitment the pet already made — otherwise an
+            // than voiding a commitment the companion already made — otherwise an
             // ordinary `say` would silently cancel a question the human is
             // looking at.
             if var running = current, case .hold = running.item.completion {

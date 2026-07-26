@@ -77,7 +77,7 @@ one loop. Transitions declare crossfade durations; specificity order is exact
 | `talkingState` | The state to hold while an utterance plays, so the mouth moves for exactly the audio and not a guessed duration. |
 
 This is a *declaration, not a setting*. Loading a package with a voice block does
-not make the pet speak — nothing speaks until the host app installs a
+not make the companion speak — nothing speaks until the host app installs a
 `SpeechOutput` (see [concepts/VOICE.md](concepts/VOICE.md)). What the block gives
 the host is a sensible starting point: the demo uses `metadata.voice.voiceID` as
 the default value of its `voice.output.voice` capability, so the sprite author's

@@ -45,7 +45,7 @@ sink so the engine knows when the line is actually over.
 out.** With no output, a `say` holds the queue for a guessed duration — 4000 ms
 by default. With output installed, the same `say` becomes an item with `external`
 completion and holds for exactly as long as its audio. Long lines take longer.
-The pet stops talking over herself. This is the same primitive a question uses;
+The companion stops talking over herself. This is the same primitive a question uses;
 see [QUEUE.md](QUEUE.md#external-completion).
 
 It follows that pausing mid-sentence pauses at the next word boundary rather than
@@ -138,5 +138,5 @@ Transcription is on-device. No audio is recorded, and none leaves the machine.
 
 The demo registers *Answer questions out loud* as a capability defaulting to
 `false`. The macOS permission prompt should only ever be reachable by someone who
-went looking for it — a pet that asks for your microphone on first launch is a
-pet you delete.
+went looking for it — a companion that asks for your microphone on first launch is a
+companion you delete.

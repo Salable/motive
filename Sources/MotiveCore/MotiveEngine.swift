@@ -103,7 +103,7 @@ public actor MotiveEngine: SpeechOutputSink {
     private var nextSequence: UInt64 = 1
 
     /// Where spoken output goes, when a host installs one. Nil means
-    /// bubble-only, which is every pre-voice pet and every headless one.
+    /// bubble-only, which is every pre-voice companion and every headless one.
     private var speechOutput: SpeechOutput?
     /// Utterances we have asked for and not yet heard back about, and whether
     /// each was ever observed to start.
@@ -131,7 +131,7 @@ public actor MotiveEngine: SpeechOutputSink {
     }
 
     /// Read durable history back into the in-memory window. Call once next to
-    /// `start()`; without it a restarted pet answers history reads from an
+    /// `start()`; without it a restarted companion answers history reads from an
     /// empty ring even though the file is intact.
     public func restoreHistory() async {
         guard let activity else { return }
@@ -142,7 +142,7 @@ public actor MotiveEngine: SpeechOutputSink {
         // Continue the numbering: an agent holding a cursor from a previous run
         // must not have it invalidated by a restart.
         //
-        // Never *lower* it. Restoring races whatever the pet is already doing
+        // Never *lower* it. Restoring races whatever the companion is already doing
         // — an onboarding line can be recorded before this returns — and
         // rewinding would hand out a sequence number twice, which silently
         // breaks every cursor that skips the duplicate.
@@ -304,7 +304,7 @@ public actor MotiveEngine: SpeechOutputSink {
     public var isQueuePaused: Bool { queue.isPaused }
 
     /// Milliseconds of quiet between queue items. A pacing setting, not a verb:
-    /// it is how the pet feels, not something an agent should retune per call.
+    /// it is how the companion feels, not something an agent should retune per call.
     public var gapMS: Int {
         get { queue.gapMS }
         set { queue.gapMS = max(0, newValue) }
@@ -558,7 +558,7 @@ public actor MotiveEngine: SpeechOutputSink {
 
     public func speechDidFinish(id: String, outcome: SpeechOutcome, at date: Date) {
         guard let observedStart = speaking.removeValue(forKey: id) else { return }
-        // Reading a question aloud finishing means exactly that: the pet has
+        // Reading a question aloud finishing means exactly that: the companion has
         // finished saying it. The question is still waiting on a human, and
         // completing its queue item here would cancel it the instant it was
         // spoken — the two features would silently destroy each other.
@@ -567,7 +567,7 @@ public actor MotiveEngine: SpeechOutputSink {
         // a broken route, not a spoken line. Reporting it as success would let
         // a silent queue masquerade as a spoken one.
         // Whatever happened, the queue must move on — a wedged synthesizer
-        // must not park the pet forever. The distinction between a spoken line
+        // must not park the companion forever. The distinction between a spoken line
         // and a silently-dropped one is surfaced by MotiveVoice's diagnostics,
         // which is where a user can act on it.
         let reason: ActionQueue.ResolutionReason

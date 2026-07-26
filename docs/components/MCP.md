@@ -16,13 +16,13 @@ await mcp.runStdio()
 
 ## The transport seam
 
-`MCPServer` does not know where the pet is. It talks to a
+`MCPServer` does not know where the companion is. It talks to a
 `MotiveCommandTransport`, and there are two implementations:
 
 | Transport | Use when |
 | --- | --- |
 | `LocalCommandTransport(control:)` | Your app *is* the MCP server. In-process, no REST hop, no token. |
-| `RESTCommandTransport(baseURL:token:session:)` | The pet is another process. This is what the `motive-mcp` shim uses. |
+| `RESTCommandTransport(baseURL:token:session:)` | The companion is another process. This is what the `motive-mcp` shim uses. |
 
 ```swift
 // Discover a running app through ~/.motive/runtime/ (honors MOTIVE_HOME).
@@ -60,7 +60,7 @@ Protocol version `2024-11-05`. Methods: `initialize`, `ping`, `tools/list`,
 Arguments and effects: [../INTEGRATIONS.md](../INTEGRATIONS.md#mcp-tools).
 
 **Tool descriptions are generated from the live schema.** They name the loaded
-sprite's actual states and triggers, so an agent connected to your pet is told
+sprite's actual states and triggers, so an agent connected to your companion is told
 about *your* vocabulary rather than Winston's. Nothing is hand-written per
 sprite.
 
@@ -76,11 +76,11 @@ No tool answers a question. See
 ## The `motive-mcp` shim
 
 A standalone stdio executable for desktop hosts. It holds no state and owns no
-pet: on **every call** it rediscovers the running app through
+companion: on **every call** it rediscovers the running app through
 `$MOTIVE_HOME/runtime/` and proxies to its REST plane.
 
 Per-call rediscovery rather than at startup is the whole design. MCP hosts start
-their servers once and keep them for a session; a pet restarts far more often
+their servers once and keep them for a session; a companion restarts far more often
 than Claude Desktop does, and every restart rotates the token. A shim that cached
 its connection would work until the first restart and then fail silently for the
 rest of the day.

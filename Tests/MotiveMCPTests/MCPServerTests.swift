@@ -12,7 +12,7 @@ final class MCPServerTests: XCTestCase {
             aliases: ["working": "idle"],
             triggers: ["jump": TriggerSpec(state: "jumping")]
         ))
-        let control = MotiveControl(engine: engine, displayName: "TestPet")
+        let control = MotiveControl(engine: engine, displayName: "TestCompanion")
         let server = MCPServer(transport: LocalCommandTransport(control: control))
         return (server, engine)
     }

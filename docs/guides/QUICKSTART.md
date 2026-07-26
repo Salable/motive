@@ -1,6 +1,6 @@
 # Quickstart
 
-> **Audience:** first-time users. You want a pet on your desktop and a command that moves her.
+> **Audience:** first-time users. You want a companion on your desktop and a command that moves her.
 > **Prerequisites:** macOS 13+. From a checkout, Swift 5.10+ (Xcode 15.3+).
 > **Source of truth:** `Sources/MotiveDemo/main.swift`, `scripts/demo-curl.sh`.
 
@@ -95,7 +95,7 @@ watch than type.
 ## What just happened
 
 Every one of those calls became an item on a queue, and the queue is the honest
-account of why the pet is doing what she is doing. Direct verbs like the ones
+account of why the companion is doing what she is doing. Direct verbs like the ones
 above play *next* — they cut the current scene's remaining hold but do not
 discard what was lined up behind it. Open the queue window from the paw menu and
 run them again to watch it happen. [concepts/QUEUE.md](../concepts/QUEUE.md) is
@@ -108,6 +108,6 @@ the full model.
 - **Let an agent drive** — [../INTEGRATIONS.md](../INTEGRATIONS.md). Fastest
   path: Settings → Control Plane Status → *Copy prompt*, paste into any agent
   chat.
-- **Build your own pet** — [FIRST-PET.md](FIRST-PET.md).
+- **Build your own companion** — [FIRST-APP.md](FIRST-APP.md).
 - **The full wire protocol** — [../API.md](../API.md).
 - **Something went wrong** — [TROUBLESHOOTING.md](TROUBLESHOOTING.md).

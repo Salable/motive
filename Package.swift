@@ -52,7 +52,7 @@ let package = Package(
         // Skill / agent-config installers (Claude Code, Codex, OpenCode, desktop apps).
         .target(name: "MotiveAgents", dependencies: ["MotiveCore"]),
         // Voice is a separate product on purpose: it spawns audio engines and,
-        // for input, needs entitlements. A headless or bubble-only pet must
+        // for input, needs entitlements. A headless or bubble-only app must
         // not be forced to take it.
         .target(name: "MotiveVoice", dependencies: ["MotiveCore"]),
 

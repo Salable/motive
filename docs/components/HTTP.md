@@ -16,7 +16,7 @@ let info = try await server.start()
 print("http://\(info.host):\(info.port)")
 ```
 
-Two lines to give a pet an API. The routes add no semantics of their own — they
+Two lines to give a companion an API. The routes add no semantics of their own — they
 are 1:1 adapters over `MotiveControl`, which is why `/v1/schema` can describe
 them truthfully without a hand-maintained spec.
 
@@ -34,7 +34,7 @@ public init(
 
 | Parameter | Default | Notes |
 | --- | --- | --- |
-| `control` | — | The command surface. One per pet. |
+| `control` | — | The command surface. One per companion. |
 | `paths` | `.standard` | Honors `MOTIVE_HOME`. Where `server.json` and `token` land. |
 | `preferredPort` | 7877 | *Preferred.* A collision falls back to an ephemeral port and `server.json` records the truth. |
 | `bindHost` | `127.0.0.1` | `0.0.0.0` to accept connections from your network; token auth is unchanged. |
@@ -103,7 +103,7 @@ There is deliberately no route that answers a question.
 | Unauthenticated | `GET /v1/ping` only, so a client can check liveness before it has a credential. |
 
 The honest limit: the token authenticates the *machine*, not the caller. Any
-local process that can read your home directory can drive your pet. That is
+local process that can read your home directory can drive your companion. That is
 acceptable for a desktop companion — and it is precisely why nothing here can
 answer a question on a human's behalf.
 

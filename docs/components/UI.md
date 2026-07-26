@@ -1,6 +1,6 @@
 # MotiveUI
 
-> **Audience:** anyone putting a pet on screen.
+> **Audience:** anyone putting a companion on screen.
 > **Prerequisites:** [CORE.md](CORE.md), [../concepts/QUEUE.md](../concepts/QUEUE.md).
 > **Source of truth:** `Sources/MotiveUI/`.
 
@@ -32,7 +32,7 @@ public convenience init(
 public init(definition: SpriteDefinition, engine: MotiveEngine)
 ```
 
-The convenience init defaults activity to the standard runtime home, so a pet
+The convenience init defaults activity to the standard runtime home, so a companion
 remembers what happened across restarts with no wiring. Pass `nil` for an
 ephemeral one.
 
@@ -57,7 +57,7 @@ which is where you build a `MotiveControl`.
 
 ## `SpriteBoxWindow`
 
-The floating pet panel: borderless, draggable, with speech bubbles, question
+The floating companion panel: borderless, draggable, with speech bubbles, question
 affordances, hover queue controls, and optionally a chat field and action
 buttons.
 
@@ -98,7 +98,7 @@ let queue = QueueWindow(host: host, options: QueueWindow.Options(
 queue.show()   // also close(), toggle()
 ```
 
-This is not a debug panel. For a pet that asks more than one thing it is where
+This is not a debug panel. For a companion that asks more than one thing it is where
 the conversation lives — every outstanding question is listed and answerable out
 of order, which is the only way to resolve a question that is not the one
 currently on screen.
@@ -155,7 +155,7 @@ menu.remove()             // drop the status item
 **Keep a strong reference.** A released `NotificationMenu` takes its status item
 with it, and the symptom is a menu bar icon that silently never appears.
 
-For a menu-bar-only pet, set `.accessory` activation policy in code and
+For a menu-bar-only app, set `.accessory` activation policy in code and
 `LSUIElement` in the bundle plist.
 
 ## `SpriteView`

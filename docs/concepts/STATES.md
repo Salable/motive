@@ -1,10 +1,10 @@
 # States, Triggers, and Transitions
 
-> **Audience:** sprite authors and anyone driving a pet's appearance.
+> **Audience:** sprite authors and anyone driving a companion's appearance.
 > **Prerequisites:** none.
 > **Source of truth:** `Sources/MotiveCore/StateMachine.swift`; pinned by `Tests/MotiveCoreTests/StateMachineTests.swift`.
 
-A pet's appearance is a state machine, and the machine is deliberately small: a
+A companion's appearance is a state machine, and the machine is deliberately small: a
 current state, an optional pending one, an optional revert deadline, and a
 crossfade. Everything else — which pixel to draw — is derived.
 
@@ -71,7 +71,7 @@ plays its state once and then returns to whatever was playing before, which the
 machine remembers for exactly that purpose.
 
 Triggers are the right shape for punctuation — an acknowledgement, a celebration,
-a nudge — because they say something without committing the pet to a mood. An
+a nudge — because they say something without committing the companion to a mood. An
 agent that wants to be noticed without claiming to be working fires a trigger.
 
 Firing an unknown trigger returns `.rejected` with the valid trigger names, the
@@ -94,7 +94,7 @@ since the state was entered.
 
 `reducedMotion: true` returns frame 0 always, which is the honest implementation
 of the system accessibility setting for a thing whose entire job is to move: a
-still pet rather than a slow one.
+still companion rather than a slow one.
 
 Non-looping states hold their last frame rather than snapping back, and enter
 `then` if they declare one.

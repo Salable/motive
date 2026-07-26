@@ -18,7 +18,7 @@ public final class SpriteHost: ObservableObject, SpeechInputSink {
     /// Live view of the queue: the running item, its remaining hold, and the
     /// pending work behind it. Refreshed on every queue event.
     @Published public private(set) var queue = QueueSnapshot(current: nil, currentRemaining: nil, pending: [])
-    /// Every question the pet is waiting on, head first. `first` owns the
+    /// Every question the companion is waiting on, head first. `first` owns the
     /// speech bubble; the rest are the "N more waiting" count.
     @Published public private(set) var outstandingQuestions: [QuestionRecord] = []
     /// The question currently presented — the one the bubble is showing.
@@ -84,7 +84,7 @@ public final class SpriteHost: ObservableObject, SpeechInputSink {
     /// Seed the presented history from the engine's durable record.
     ///
     /// `answeredQuestions` otherwise only accumulates from live events, so a
-    /// restarted pet would show an empty "Answered" list while the file on disk
+    /// restarted companion would show an empty "Answered" list while the file on disk
     /// was intact — the one place the persistence would be invisible.
     public func loadAnsweredQuestions(limit: Int = 50) async {
         answeredQuestions = await engine.questionHistory(limit: limit)
@@ -166,9 +166,9 @@ public final class SpriteHost: ObservableObject, SpeechInputSink {
     }
 
     /// Convenience: build the engine from the definition and start its clock.
-    /// `activity` defaults to the standard runtime home, so a pet remembers
+    /// `activity` defaults to the standard runtime home, so a companion remembers
     /// what happened across restarts without the host wiring anything. Pass nil
-    /// for an ephemeral pet.
+    /// for an ephemeral companion.
     public convenience init(
         definition: SpriteDefinition,
         activity: ActivityStore? = FileActivityStore(

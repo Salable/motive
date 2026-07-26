@@ -1,6 +1,6 @@
 # REST Control Plane
 
-> **Audience:** anyone driving a running pet from outside the app — scripts, CLI agents, other machines.
+> **Audience:** anyone driving a running companion from outside the app — scripts, CLI agents, other machines.
 > **Prerequisites:** a running Motive app ([guides/QUICKSTART.md](guides/QUICKSTART.md)).
 > **Source of truth:** `Sources/MotiveHTTP/MotiveServer.swift`, `ControlSchema.standardVerbs` in `Sources/MotiveCore/MotiveControl.swift`.
 
@@ -19,7 +19,7 @@ honored by the renderer; nothing here is aspirational.
   or `X-Motive-Token`. Only `GET /v1/ping` is unauthenticated.
 - Hardening: constant-time token compare, request rate limiting, 64 KB body
   cap. The server may also be bound to `0.0.0.0` (token auth unchanged) for
-  driving a pet from another machine.
+  driving a companion from another machine.
 
 ```sh
 PORT=$(python3 -c "import json;print(json.load(open('$HOME/.motive/runtime/server.json'))['port'])")
@@ -81,7 +81,7 @@ deferred behind it, not dropped, and plays as soon as the question resolves.
 ## Questions
 
 `POST /v1/say` takes an optional `respond` object that turns the bubble into a
-question the pet blocks on:
+question the companion blocks on:
 
 ```json
 {"text": "Deploy to production?",
@@ -127,7 +127,7 @@ in place without disturbing the one on screen.
 
 ### Activity
 
-`GET /v1/activity` is the durable record of what the pet and the human did:
+`GET /v1/activity` is the durable record of what the companion and the human did:
 commands accepted, questions asked, and how each was resolved. It records
 *decisions*, not frames — an agent asking for a state, not the dozen transitions
 and auto-reverts that follow.
@@ -162,7 +162,7 @@ An agent that missed an SSE event, or that started after an answer landed, reads
 history rather than re-asking.
 
 **Outstanding questions do not survive a restart** — only resolved ones are
-recorded. A question the pet was still waiting on when it quit is simply gone,
+recorded. A question the companion was still waiting on when it quit is simply gone,
 and polling its id returns `unknown_question`. This is deliberate: the asking
 agent's session is over too, and resurrecting a stale question nobody is waiting
 on would be worse than losing it. Treat `unknown_question` on a poll the same as

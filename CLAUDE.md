@@ -1,7 +1,7 @@
 # Motive
 
 Composable Swift package (SwiftPM, macOS 13+, Swift 5.10+) for building desktop
-"pet" apps — animated sprite companions driven by AI agents over REST or MCP.
+companion apps — animated sprites driven by AI agents over REST or MCP.
 Not one app: seven library products consumers mix and match, plus two
 executables. `motive-demo` (Winston the labradoodle) is the reference
 composition of all of them; `motive-mcp` is the stdio MCP shim.
@@ -21,7 +21,7 @@ scripts/sync-wiki.py --out build/wiki   # preview the wiki mirror locally
 swift package generate-documentation --target MotiveCore   # DocC archive
 ```
 
-Drive a running pet (port and token live under `~/.motive/runtime/`, or
+Drive a running companion (port and token live under `~/.motive/runtime/`, or
 `$MOTIVE_HOME/runtime/`):
 
 ```sh
@@ -41,7 +41,7 @@ at the top — go there to verify a claim rather than trusting the prose.
 | --- | --- |
 | "What does Motive offer?" | `docs/components/OVERVIEW.md`; layering in `docs/ARCHITECTURE.md` |
 | "How do I run the demo?" / "What does this menu item do?" | `docs/guides/QUICKSTART.md`, `docs/guides/DEMO.md` |
-| "Help me build my own pet." | `docs/guides/FIRST-PET.md` (tutorial) or `docs/EMBEDDING.md` (recipes). `Sources/MotiveDemo/main.swift` is the everything-at-once reference. |
+| "Help me build my own companion." | `docs/guides/FIRST-APP.md` (tutorial) or `docs/EMBEDDING.md` (recipes). `Sources/MotiveDemo/main.swift` is the everything-at-once reference. |
 | "What are the parameters of X?" | `docs/components/<PRODUCT>.md`, then the `///` comments |
 | "Why does it behave like that?" | `docs/concepts/` — QUEUE, STATES, QUESTIONS, VOICE, RUNTIME |
 | "Author a sprite?" | `docs/FORMATS.md`. Test with `MOTIVE_SPRITE=path swift run motive-demo`. |
@@ -105,6 +105,21 @@ Enforced in review; several are pinned by tests. Full rationale in
   validation (bad values fail naming the valid vocabulary).
 - **Timer-free logic:** engine and state machine take explicit `now:` clocks.
   Tests drive time by hand — never sleep to make a Core test pass.
+
+## Vocabulary
+
+Three words, three layers. Use them precisely in code, comments, docs, and
+anything an agent reads — the framework has no "pets".
+
+| Term | Means |
+| --- | --- |
+| **companion** | The running entity: has a queue, asks questions, survives restarts. "The companion is waiting on an answer." |
+| **sprite** | The moving image and the package defining it — data, never code. "Drawn from row 3 of the atlas." |
+| **app** | The host process holding a companion. `MotiveDemo` is the reference app. |
+
+Winston is a companion, rendered as a sprite, hosted by `MotiveDemo`. He is a
+labradoodle and may be described as one — that is his character, not a layer.
+`docs/proposals/` predates this and is left as written.
 
 ## Conventions
 

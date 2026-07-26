@@ -14,7 +14,7 @@ there is no umbrella module and no framework to inherit from.
 | `MotiveUI` | Core, Sprite | AppKit/SwiftUI surfaces: the sprite box, queue window, settings window, menu bar. | [UI.md](UI.md) |
 | `MotiveHTTP` | Core, SwiftNIO | The loopback REST control plane with SSE. | [HTTP.md](HTTP.md) |
 | `MotiveMCP` | Core | An MCP server over the same surface, in-process or over REST. | [MCP.md](MCP.md) |
-| `MotiveAgents` | Core | Installers that teach agent CLIs and Claude Desktop about your pet. | [AGENTS.md](AGENTS.md) |
+| `MotiveAgents` | Core | Installers that teach agent CLIs and Claude Desktop about your companion. | [AGENTS.md](AGENTS.md) |
 | `MotiveVoice` | Core | Speech out and in, behind a preflight gate. | [VOICE.md](VOICE.md) |
 
 Executables: `motive-demo` (the reference composition) and `motive-mcp` (the
@@ -24,13 +24,13 @@ stdio MCP shim). See [../reference/CLI.md](../reference/CLI.md).
 
 | You are building… | Depend on |
 | --- | --- |
-| a desktop pet with a visible sprite | `MotiveCore` + `MotiveSprite` + `MotiveUI` |
+| a desktop companion with a visible sprite | `MotiveCore` + `MotiveSprite` + `MotiveUI` |
 | …that agents can drive over REST | add `MotiveHTTP` |
 | …that MCP hosts can drive | add `MotiveMCP`, or just ship the `motive-mcp` shim |
 | …with one-click agent setup in your UI | add `MotiveAgents` |
 | …that talks | add `MotiveVoice` |
 | a headless tool that animates decision state | `MotiveCore` (+ `MotiveSprite` to load packages) |
-| a client for someone else's pet | none — use the [REST API](../API.md) |
+| a client for someone else's companion | none — use the [REST API](../API.md) |
 
 Every non-core target `@_exported import MotiveCore`, and `MotiveUI` also
 re-exports `MotiveSprite`, so importing one library gives you the core

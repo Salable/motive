@@ -1,6 +1,6 @@
 # Troubleshooting
 
-> **Audience:** anyone with a pet that will not start, will not connect, or will not talk.
+> **Audience:** anyone with a companion that will not start, will not connect, or will not talk.
 > **Prerequisites:** none.
 > **Source of truth:** the error types named in each entry.
 
@@ -87,7 +87,7 @@ count: Winston accepts `working` for `running`.
 
 ## Agents
 
-**Claude Desktop does not see the pet.**
+**Claude Desktop does not see the companion.**
 The shim is a separate binary from the app. Build it (`swift build -c release`),
 point `claude_desktop_config.json` at `.build/release/motive-mcp` by absolute
 path, and restart Claude Desktop. The shim rediscovers the running app on every
@@ -155,7 +155,7 @@ before adding the dependency back.
 
 ## Still stuck
 
-`GET /v1/activity` is the durable record of everything the pet and the human did
+`GET /v1/activity` is the durable record of everything the companion and the human did
 — commands accepted, questions asked, how each resolved — with monotonic
 sequence numbers that survive restarts. It is the right first stop for "what
 actually happened", and better than SSE for it, because SSE has no replay.

@@ -109,7 +109,7 @@ registered, grouped by component. The nine below are all declared in
 
 Turning on *Speak out loud* changes queue timing rather than filtering audio on
 the way out: a spoken line then holds the queue for exactly as long as its audio,
-instead of a guessed hold. Long lines take longer, and the pet stops looking like
+instead of a guessed hold. Long lines take longer, and the companion stops looking like
 she is talking over herself.
 
 *Answer questions out loud* is off by default and deliberately so — the macOS
@@ -135,7 +135,7 @@ latest-wins, so typing a port number does not thrash.
 *Public* is the one setting worth thinking about. Token auth is unchanged and
 still required for every request, but the port becomes reachable from your
 network and macOS will likely ask to allow incoming connections. Turn it on for
-driving a pet from another machine on a network you trust; leave it off
+driving a companion from another machine on a network you trust; leave it off
 otherwise.
 
 ### The four live panes

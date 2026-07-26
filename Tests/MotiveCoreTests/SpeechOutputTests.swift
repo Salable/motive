@@ -158,7 +158,7 @@ final class SpeechOutputTests: XCTestCase {
 }
 
 extension SpeechOutputTests {
-    /// Regression: with audio installed the pet reads a question aloud, and the
+    /// Regression: with audio installed the companion reads a question aloud, and the
     /// utterance's completion must not resolve the question. Before this, every
     /// question self-cancelled the moment it finished being spoken.
     func testSpeakingAQuestionAloudDoesNotAnswerOrCancelIt() async throws {
@@ -170,7 +170,7 @@ extension SpeechOutputTests {
             "Ready to deploy?", respond: ResponseSpec(form: .confirm), now: t0
         ).get().id
         await engine.drainSpeechRequests()
-        XCTAssertEqual(output.spoken.map(\.text), ["Ready to deploy?"], "the pet reads it aloud")
+        XCTAssertEqual(output.spoken.map(\.text), ["Ready to deploy?"], "the companion reads it aloud")
 
         await engine.speechDidStart(id: id, at: t0)
         await engine.speechDidFinish(id: id, outcome: .finished, at: t0.addingTimeInterval(3))

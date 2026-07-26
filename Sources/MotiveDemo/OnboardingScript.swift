@@ -37,7 +37,7 @@ func onboardingScript(name: String) -> ScriptRun {
     steps += [
         say("I'm the demo app for Motive — an open-source Swift framework for building desktop sprites like me."),
         say("The idea: a little companion on your desktop that reacts to what your tools and AI agents are doing."),
-        say("Motive isn't one app — it's composable parts. Pick the pieces you want and build your own pet."),
+        say("Motive isn't one app — it's composable parts. Pick the pieces you want and build your own companion."),
     ]
 
     // Components
