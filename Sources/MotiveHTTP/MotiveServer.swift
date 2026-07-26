@@ -18,9 +18,15 @@ import NIOPosix
 /// server cannot be restarted — build a fresh instance to rebind (settings
 /// flows do exactly this).
 public final class MotiveServer: @unchecked Sendable {
+    /// Preferred, not guaranteed: a collision falls back to an ephemeral port
+    /// and `server.json` records the one actually bound.
     public static let defaultPort = 7877
 
+    /// Where `runtime/server.json` and `runtime/token` are written. Honors
+    /// `MOTIVE_HOME` when `.standard`.
     public let paths: RuntimePaths
+    /// The interface bound: `127.0.0.1` by default, `0.0.0.0` when the host
+    /// app opts into network access. Token auth is identical either way.
     public let bindHost: String
     private let control: MotiveControl
     private let preferredPort: Int
@@ -32,6 +38,16 @@ public final class MotiveServer: @unchecked Sendable {
     private var currentToken: String?
     private var eventPump: Task<Void, Never>?
 
+    /// - Parameters:
+    ///   - control: The single command surface. Routes are 1:1 adapters over
+    ///     it and add no semantics of their own.
+    ///   - paths: Runtime home for the discovery file and token. Point at a
+    ///     scratch directory in tests so nothing touches the real `~/.motive`.
+    ///   - preferredPort: Tried first; an ephemeral port is used if taken.
+    ///     Pass `0` to always take an ephemeral one.
+    ///   - bindHost: `127.0.0.1` (default) or `0.0.0.0` for network access.
+    ///   - rateLimiter: Shared across all clients, not per-client. Defaults to
+    ///     30 requests/second with a burst of 60.
     public init(
         control: MotiveControl,
         paths: RuntimePaths = .standard,
@@ -47,6 +63,13 @@ public final class MotiveServer: @unchecked Sendable {
         self.group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
     }
 
+    /// Create `runtime/`, rotate the bearer token, bind, and publish
+    /// `server.json`.
+    ///
+    /// - Returns: The `ServerInfo` written to disk, carrying the port actually
+    ///   bound — which is not necessarily `preferredPort`.
+    /// - Throws: ``MotiveServerError/noLocalPort`` if no port could be bound,
+    ///   or a file error if the runtime home is not writable.
     @discardableResult
     public func start() async throws -> ServerInfo {
         try paths.prepare()
@@ -136,6 +159,12 @@ public final class MotiveServer: @unchecked Sendable {
         return info
     }
 
+    /// Close the listener, drop SSE clients, and delete the two files written
+    /// under `runtime/` — a `server.json` pointing at a dead port is worse
+    /// than none.
+    ///
+    /// Terminal: the event-loop group is shut down, so a stopped server cannot
+    /// rebind. Changing port or host means a fresh instance.
     public func stop() async {
         eventPump?.cancel()
         eventPump = nil
@@ -160,6 +189,8 @@ public final class MotiveServer: @unchecked Sendable {
 }
 
 public enum MotiveServerError: Error {
+    /// Bound successfully but the channel reported no local address, so there
+    /// is no port to publish and no way for a client to find us.
     case noLocalPort
 }
 

@@ -6,6 +6,45 @@ All notable changes to Motive are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **A documentation architecture, and docs to fill it.** `docs/` is now
+  organised by what the reader is doing rather than by what the code is called:
+  `guides/` to learn (quickstart, the demo app, build your first pet,
+  troubleshooting), `concepts/` for the mental model (queue, states, questions,
+  voice, runtime), `components/` for per-product reference with parameters and
+  integration patterns, and `reference/` for environment variables, files,
+  limits, and the CLI. Every page opens with its audience, prerequisites, and —
+  for anyone verifying a claim — the source it can be checked against.
+  `docs/DOCUMENTATION.md` states the contract, including what a new feature has
+  to document.
+- **A generated API reference.** DocC renders the `///` comments for all seven
+  library products and publishes to GitHub Pages, so symbol-level documentation
+  cannot drift from the code it describes.
+- **The docs are mirrored to the GitHub wiki** on every merge to `main`
+  (`scripts/sync-wiki.py`, `.github/workflows/docs.yml`). Directory paths become
+  wiki page names and relative links are rewritten to match. The repository
+  stays the source of truth; wiki edits are overwritten.
+- `scripts/check-doc-links.py` fails CI on a relative link or heading anchor
+  that points at nothing.
+
+### Fixed
+- `docs/INTEGRATIONS.md` listed an MCP tool that does not exist
+  (`motive_clear_question_history`) and omitted four that do
+  (`motive_activity`, `motive_clear_activity`, `motive_pause`, `motive_resume`).
+- The README component table omitted `MotiveVoice` and both executables.
+- The SwiftPM version pin in `README.md` and `docs/EMBEDDING.md` still said
+  `0.3.0`.
+- `docs/FORMATS.md` did not document the `voice` block, which both runners have
+  decoded since 0.4.0.
+- `docs/EMBEDDING.md` named the durable history file `history/questions.jsonl`;
+  it is `history/activity.jsonl`.
+
+### Removed
+- `VOICEEXAMPLE/` — 62 files of an unrelated Zig project, checked in as
+  reference material while the voice work was in flight. It contradicted
+  Motive's own docs at every turn and misled anything reading the repository.
+  The design record it informed is preserved in `docs/proposals/`.
+
 ## [0.4.0] - 2026-07-26
 
 ### Added
