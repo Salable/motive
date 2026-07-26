@@ -156,3 +156,49 @@ final class SpeechOutputTests: XCTestCase {
         XCTAssertEqual(depth, 0, "the backstop releases it")
     }
 }
+
+extension SpeechOutputTests {
+    /// Regression: with audio installed the pet reads a question aloud, and the
+    /// utterance's completion must not resolve the question. Before this, every
+    /// question self-cancelled the moment it finished being spoken.
+    func testSpeakingAQuestionAloudDoesNotAnswerOrCancelIt() async throws {
+        let engine = makeEngine()
+        let output = FakeSpeechOutput()
+        await engine.setSpeechOutput(output)
+
+        let id = try await engine.ask(
+            "Ready to deploy?", respond: ResponseSpec(form: .confirm), now: t0
+        ).get().id
+        await engine.drainSpeechRequests()
+        XCTAssertEqual(output.spoken.map(\.text), ["Ready to deploy?"], "the pet reads it aloud")
+
+        await engine.speechDidStart(id: id, at: t0)
+        await engine.speechDidFinish(id: id, outcome: .finished, at: t0.addingTimeInterval(3))
+
+        let outstanding = await engine.outstandingQuestions()
+        XCTAssertEqual(outstanding.map(\.id), [id], "the question still waits on a human")
+        let record = await engine.question(id: id)
+        XCTAssertEqual(record?.status, .awaiting)
+        let depth = await engine.queueDepth
+        XCTAssertEqual(depth, 1, "the queue stays parked")
+    }
+
+    func testAnsweringAfterItWasSpokenStillWorks() async throws {
+        let engine = makeEngine()
+        let output = FakeSpeechOutput()
+        await engine.setSpeechOutput(output)
+        let id = try await engine.ask(
+            "Ready?", respond: ResponseSpec(form: .confirm), now: t0
+        ).get().id
+        await engine.drainSpeechRequests()
+        await engine.speechDidStart(id: id, at: t0)
+        await engine.speechDidFinish(id: id, outcome: .finished, at: t0.addingTimeInterval(2))
+
+        let record = try await engine.answerQuestion(
+            id: id, content: .confirm(true), now: t0.addingTimeInterval(9)
+        ).get()
+        XCTAssertEqual(record.status, .accepted)
+        let depth = await engine.queueDepth
+        XCTAssertEqual(depth, 0)
+    }
+}

@@ -514,6 +514,11 @@ public actor MotiveEngine: SpeechOutputSink {
 
     public func speechDidFinish(id: String, outcome: SpeechOutcome, at date: Date) {
         guard let observedStart = speaking.removeValue(forKey: id) else { return }
+        // Reading a question aloud finishing means exactly that: the pet has
+        // finished saying it. The question is still waiting on a human, and
+        // completing its queue item here would cancel it the instant it was
+        // spoken — the two features would silently destroy each other.
+        if questions[id] != nil { return }
         // Finishing without ever having started means the audio never played —
         // a broken route, not a spoken line. Reporting it as success would let
         // a silent queue masquerade as a spoken one.
