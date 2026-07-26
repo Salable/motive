@@ -1,5 +1,9 @@
 # REST Control Plane
 
+> **Audience:** anyone driving a running pet from outside the app — scripts, CLI agents, other machines.
+> **Prerequisites:** a running Motive app ([guides/QUICKSTART.md](guides/QUICKSTART.md)).
+> **Source of truth:** `Sources/MotiveHTTP/MotiveServer.swift`, `ControlSchema.standardVerbs` in `Sources/MotiveCore/MotiveControl.swift`.
+
 A loopback (`127.0.0.1`) HTTP server exposing the `MotiveControl` command
 surface, provided by the `MotiveHTTP` product. Every documented verb is
 honored by the renderer; nothing here is aspirational.

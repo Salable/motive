@@ -1,5 +1,9 @@
 # Releasing
 
+> **Audience:** maintainers.
+> **Prerequisites:** push access and the ability to tag.
+> **Source of truth:** `.github/workflows/release.yml`, `scripts/build-demo-app.sh`, `MotiveVersion.current`.
+
 Motive follows [Semantic Versioning](https://semver.org/) and keeps
 [CHANGELOG.md](../CHANGELOG.md) in [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 format. During `0.x`, minor versions may break API.

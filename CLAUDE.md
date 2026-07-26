@@ -2,8 +2,9 @@
 
 Composable Swift package (SwiftPM, macOS 13+, Swift 5.10+) for building desktop
 "pet" apps — animated sprite companions driven by AI agents over REST or MCP.
-Not one app: eight products consumers mix and match. `motive-demo` (Winston the
-labradoodle) is the reference composition of all of them.
+Not one app: seven library products consumers mix and match, plus two
+executables. `motive-demo` (Winston the labradoodle) is the reference
+composition of all of them; `motive-mcp` is the stdio MCP shim.
 
 ## Commands
 
@@ -15,6 +16,9 @@ MOTIVE_HOME=$(pwd)/.motive-home swift run motive-demo   # isolated runtime (side
 scripts/build-demo-app.sh  # dist/MotiveDemo.app bundle (--universal, --zip)
 scripts/demo-curl.sh       # drive a running demo through every REST verb
 scripts/worktree.sh new <name>   # feature branch + worktree in .worktrees/<name>
+scripts/check-doc-links.py       # every relative link in the docs resolves
+scripts/sync-wiki.py --out build/wiki   # preview the wiki mirror locally
+swift package generate-documentation --target MotiveCore   # DocC archive
 ```
 
 Drive a running pet (port and token live under `~/.motive/runtime/`, or
@@ -28,19 +32,49 @@ curl -H "Authorization: Bearer $TOKEN" -d '{"state":"jumping"}' "http://127.0.0.
 
 ## Answering questions about the framework
 
-Route by intent instead of re-deriving from source; the docs are current and
-CI-adjacent tests keep them honest:
+Route by intent instead of re-deriving from source. `docs/README.md` is the full
+map; `docs/DOCUMENTATION.md` explains how the tree is organised and what a new
+feature must document. Every page names its **Source of truth** in a blockquote
+at the top — go there to verify a claim rather than trusting the prose.
 
-- **"What does Motive offer?"** — the component table in `README.md`; per-product
-  ownership and key types in `docs/ARCHITECTURE.md`.
-- **"Help me build my own pet."** — `docs/EMBEDDING.md` is recipe-structured:
-  product selection, minimal pet, queue window, engine events, MCP, menu bar +
-  settings, agent-skill installers, custom sprite formats, headless use.
-  `Sources/MotiveDemo/main.swift` is the everything-at-once reference.
-- **"Author a sprite?"** — `docs/FORMATS.md` (`pet.json` codex/1, `motive.json`
-  motive/1). Test a package with `MOTIVE_SPRITE=path swift run motive-demo`.
-- **REST wire details** — `docs/API.md`. **Agent/MCP hookup** — `docs/INTEGRATIONS.md`.
-- **Cutting a release** — `docs/RELEASING.md`.
+| Question | Page |
+| --- | --- |
+| "What does Motive offer?" | `docs/components/OVERVIEW.md`; layering in `docs/ARCHITECTURE.md` |
+| "How do I run the demo?" / "What does this menu item do?" | `docs/guides/QUICKSTART.md`, `docs/guides/DEMO.md` |
+| "Help me build my own pet." | `docs/guides/FIRST-PET.md` (tutorial) or `docs/EMBEDDING.md` (recipes). `Sources/MotiveDemo/main.swift` is the everything-at-once reference. |
+| "What are the parameters of X?" | `docs/components/<PRODUCT>.md`, then the `///` comments |
+| "Why does it behave like that?" | `docs/concepts/` — QUEUE, STATES, QUESTIONS, VOICE, RUNTIME |
+| "Author a sprite?" | `docs/FORMATS.md`. Test with `MOTIVE_SPRITE=path swift run motive-demo`. |
+| REST wire details | `docs/API.md` |
+| Agent / MCP hookup | `docs/INTEGRATIONS.md` |
+| Env vars, files, limits | `docs/reference/ENVIRONMENT.md` |
+| Executables and scripts | `docs/reference/CLI.md` |
+| Something is broken | `docs/guides/TROUBLESHOOTING.md` |
+| Cutting a release | `docs/RELEASING.md` |
+
+`docs/proposals/` is design record, not current behavior — read it for reasoning
+and check the code before quoting it as fact.
+
+## Documenting a change
+
+`docs/DOCUMENTATION.md` is the contract. In short, before opening a PR ask which
+of the four modes your change touches:
+
+1. Changes the mental model → a `docs/concepts/` page
+2. Changes a product's public surface → the matching `docs/components/` page,
+   plus `///` comments so DocC picks it up
+3. Changes the wire or the disk → `docs/API.md`, `docs/FORMATS.md`,
+   `docs/INTEGRATIONS.md`, or `docs/reference/ENVIRONMENT.md`
+4. Lets someone do something new → a recipe in `docs/EMBEDDING.md` and a
+   `CHANGELOG.md` `[Unreleased]` line
+
+A new verb is three code edits *and* two table edits — `standardVerbs`, REST
+route, MCP tool, `docs/API.md`, `docs/INTEGRATIONS.md` — in one commit. The
+tables are how an agent learns the verb exists.
+
+New pages open with the metadata blockquote (audience, prerequisites, source of
+truth) and are picked up by the wiki mirror automatically. Run
+`scripts/check-doc-links.py` before pushing.
 
 ## Architecture invariants
 
@@ -78,8 +112,8 @@ Enforced in review; several are pinned by tests. Full rationale in
   commit subjects; body explains why (see `git log` for house style).
 - Behavior changes need tests, and user-visible ones need a `CHANGELOG.md`
   `[Unreleased]` entry (Keep a Changelog format).
-- Update the doc that describes what you changed: `docs/API.md` for
-  control-plane changes, `docs/FORMATS.md` for manifests, etc.
+- Documentation ships with the feature — see "Documenting a change" above and
+  `docs/DOCUMENTATION.md` for the contract.
 - Version bumps touch **both** `MotiveVersion.current` and
   `Resources/Info.plist` — `testBundlePlistMatchesVersionConstant` fails until
   they agree.
