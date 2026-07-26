@@ -7,6 +7,32 @@ All notable changes to Motive are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Questions — the pet can ask you something and wait.** `POST /v1/say` takes
+  an optional `respond` block (`confirm` yes/no, `choice` of 2–6 options, or
+  free `text`) that turns the bubble into a question and blocks the action queue
+  until a human resolves it. Buttons appear under the sprite; a second question
+  waits behind the first and can be answered out of order. Agents poll
+  `GET /v1/questions?id=…&wait=…` — a bounded long-poll that returns 200 with
+  `"status":"awaiting"` on timeout, so the caller's loop is a plain `while`.
+  Outcomes borrow MCP elicitation's vocabulary: `accepted` (including a
+  deliberate "no"), `declined`, `cancelled`, plus `expired` for an asker-declared
+  `timeout`. Motive imposes no deadline of its own.
+
+  **Answers originate only from UI input** — there is deliberately no verb, route,
+  or MCP tool that resolves a question as answered, because a local process
+  holding the token could otherwise forge a human's answer. Agents ask, read, and
+  withdraw. Full surface: `MotiveEngine.ask/answerQuestion/declineQuestion/
+  cancelQuestion`, `MotiveControl.say(respond:)`, the `questions`,
+  `cancel-question`, `question-history` and `clear-question-history` verbs with
+  their REST routes and `motive_*` MCP tools, a `question` SSE event, and
+  `SpriteHost.outstandingQuestions` / `headQuestion` driving the affordance.
+  Winston demonstrates it from the menu bar ("Ask me something").
+- **Queue items that complete on an external signal** (`QueueItem.Completion`).
+  `.hold` remains the default and behaves exactly as before; `.external` parks
+  until something outside the queue resolves it, which is what questions (and,
+  later, spoken output) need. Head-enqueued direct verbs now cut only a *hold* —
+  an interjection queues behind a parked item rather than voiding a commitment
+  the pet already made, so direct verbs are deferred, never dropped.
 - **Queue window** (`MotiveUI.QueueWindow`) — a standalone window listing the
   action queue live: the running item with its countdown, the pending items
   numbered behind it, and Skip / Clear controls with the depth against the cap.

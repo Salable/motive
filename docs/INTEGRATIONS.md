@@ -26,16 +26,33 @@ surface:
 | `motive_status` | — | Current state + speech bubble. |
 | `motive_set_state` | `state`, `duration?` (ms) | Change animation state (auto-revert with `duration`). |
 | `motive_trigger` | `name` | One-shot gesture, then return. |
-| `motive_say` | `text`, `ttl?` (ms) | Speech bubble (≤400 chars). |
+| `motive_say` | `text`, `ttl?` (ms), `respond?` | Speech bubble (≤400 chars). With `respond`, a question that blocks the queue until a human answers. |
 | `motive_dismiss_speech` | — | Dismiss the current bubble; the queue is untouched. |
 | `motive_enqueue` | `items` (array of `{type: say\|setState\|trigger\|pause, …}`) | Append to the action queue; plays in order after existing items. |
 | `motive_queue` | — | Inspect the queue: depth, current item + remaining hold, pending items. |
 | `motive_clear_queue` | — | Flush the queue and return to the default state. |
 | `motive_skip` | — | Skip the current queue item; pending preserved. |
 | `motive_play_script` | `steps` (same shape) | Replace the queue with this sequence. |
+| `motive_questions` | `id?` | Open questions, or one by id. Poll after a `motive_say` that carried `respond`. |
+| `motive_cancel_question` | `id?` | Withdraw a question (all open ones when `id` is omitted). |
+| `motive_question_history` | `limit?` | Past questions and answers, newest first. |
+| `motive_clear_question_history` | `keep?` | Cull stored history. |
 
 Direct tools (`motive_say`/`motive_set_state`/`motive_trigger`) play **next**, ahead
-of the queue; queued items continue afterwards.
+of the queue; queued items continue afterwards — except while a question is
+outstanding, where they are deferred behind it rather than cutting it short.
+
+### Asking the human
+
+`motive_say` with a `respond` block asks a question and blocks the pet's queue
+until a human resolves it. Poll `motive_questions` for the outcome: `awaiting`
+means keep polling, `accepted` carries the `answer`, and `declined` / `cancelled`
+/ `expired` all mean move on. For a `confirm`, both buttons are `accepted` —
+read `answer.confirmed`; "No" is an answer, not a refusal.
+
+**No tool answers a question.** That is the point: answers come from the human at
+the keyboard, so a local process holding the token cannot rubber-stamp its own
+check. Agents ask, read, and withdraw.
 
 The tool set is 1:1 with the canonical verb list (`ControlSchema.standardVerbs`),
 with two deliberate exceptions: `cancel-script` (an alias of `clear-queue` — MCP

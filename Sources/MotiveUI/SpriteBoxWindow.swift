@@ -139,7 +139,9 @@ public final class SpriteBoxWindow {
 
 struct SpriteBoxContent: View {
     /// Vertical points reserved around the sprite for bubble + controls.
-    static let chromeReserve: CGFloat = 148
+    /// Sized for the tallest arrangement: bubble, hover controls, and a
+    /// question's answer row plus its decline link.
+    static let chromeReserve: CGFloat = 188
 
     @ObservedObject var host: SpriteHost
     @ObservedObject var model: SpriteBoxWindow.Model
@@ -197,7 +199,25 @@ struct SpriteBoxContent: View {
                 }
             }
 
-            if model.chatEnabled {
+            // The answer affordance replaces the chat field while a question is
+            // up: one input at a time, and the question is the urgent one.
+            if let question = host.headQuestion {
+                QuestionAffordanceView(
+                    question: question,
+                    pendingCount: max(0, host.outstandingQuestions.count - 1),
+                    text: $chatText,
+                    onAnswer: { content in
+                        let id = question.id
+                        chatText = ""
+                        Task { await host.answer(id, with: content) }
+                    },
+                    onDecline: {
+                        let id = question.id
+                        chatText = ""
+                        Task { await host.decline(id) }
+                    }
+                )
+            } else if model.chatEnabled {
                 TextField("Say something…", text: $chatText)
                     .textFieldStyle(.roundedBorder)
                     .controlSize(.small)
@@ -214,6 +234,69 @@ struct SpriteBoxContent: View {
         .padding(8)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         .onHover { hovering = $0 }
+    }
+}
+
+/// How the human answers the question in the bubble.
+///
+/// Only the head question gets controls — the pet has one attention surface,
+/// and stacking affordances would make the urgent one harder to find, not
+/// easier. Anything waiting behind it shows as a quiet count that opens the
+/// queue window, which is where questions live.
+struct QuestionAffordanceView: View {
+    let question: QuestionRecord
+    let pendingCount: Int
+    @Binding var text: String
+    let onAnswer: (AnswerContent) -> Void
+    let onDecline: () -> Void
+
+    var body: some View {
+        VStack(spacing: 4) {
+            switch question.respond.form {
+            case .confirm:
+                HStack(spacing: 6) {
+                    Button(question.respond.yesLabel ?? "Yes") { onAnswer(.confirm(true)) }
+                        .keyboardShortcut(.defaultAction)
+                    Button(question.respond.noLabel ?? "No") { onAnswer(.confirm(false)) }
+                }
+            case .choice:
+                HStack(spacing: 6) {
+                    ForEach(Array((question.respond.choices ?? []).enumerated()), id: \.offset) { index, option in
+                        Button(option) { onAnswer(.choice(option, index: index)) }
+                    }
+                }
+            case .text:
+                HStack(spacing: 6) {
+                    TextField(question.respond.placeholder ?? "Your answer…", text: $text)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(maxWidth: 180)
+                        .onSubmit { submitText() }
+                    Button("Send") { submitText() }
+                        .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+
+            HStack(spacing: 8) {
+                // Declining is a real answer to record, distinct from dismissing
+                // the bubble and from answering "no".
+                Button("Not now", action: onDecline)
+                    .buttonStyle(.link)
+                    .controlSize(.small)
+                if pendingCount > 0 {
+                    Text("\(pendingCount) more waiting")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+    }
+
+    private func submitText() {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        onAnswer(.text(trimmed))
     }
 }
 

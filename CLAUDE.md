@@ -57,8 +57,16 @@ Enforced in review; several are pinned by tests. Full rationale in
 - **Every verb ships rendered:** no API surface for behavior the renderer
   doesn't honor.
 - **Queue-first:** every action is a queue item. Direct verbs head-enqueue
-  ("plays next", cuts the current hold); flows tail-enqueue; nothing is dropped
-  except by explicit flush. Don't add bypass paths around `ActionQueue`.
+  ("plays next", cuts the current *hold*); flows tail-enqueue; nothing is dropped
+  except by explicit flush. Don't add bypass paths around `ActionQueue`. An
+  item with `.external` completion (a question, later a spoken line) has no hold
+  to cut — direct verbs queue behind it and play once it resolves.
+- **Answers originate only from UI input.** No verb, REST route, or MCP tool may
+  resolve a question as answered; `MotiveEngine.answerQuestion` is reachable from
+  `MotiveUI` alone. We have token auth, so an endpoint would let any local
+  process forge a human's answer and the human-in-the-loop guarantee would be
+  theatre. Agents ask, read, and withdraw. Enforced by absence and pinned by
+  `testNoVerbAnswersAQuestion`.
 - **Sprites are data, never code.** Tolerant decode (unknown keys pass), loud
   validation (bad values fail naming the valid vocabulary).
 - **Timer-free logic:** engine and state machine take explicit `now:` clocks.

@@ -138,6 +138,18 @@ final class DemoDelegate: NSObject, NSApplicationDelegate {
             NotificationMenu.Item(title: "Hide \(name)") { [weak self] in self?.box?.close() },
             .separator,
             NotificationMenu.Item(title: "Queue…") { [weak self] in self?.queueWindow?.show() },
+            // Stands in for an agent asking: the same path a REST or MCP
+            // caller takes, so the affordance is exercised without one.
+            NotificationMenu.Item(title: "Ask me something") { [weak self] in
+                self?.box?.show()
+                Task {
+                    await host.engine.requestState("waiting")
+                    _ = await host.engine.ask(
+                        "Ready to deploy to production?",
+                        respond: ResponseSpec(form: .confirm, yesLabel: "Ship it", noLabel: "Hold off")
+                    )
+                }
+            },
             NotificationMenu.Item(title: "Replay onboarding") {
                 Task { await Self.playTour(on: host.engine, name: name) }
             },

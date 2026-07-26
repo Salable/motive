@@ -82,6 +82,15 @@ func onboardingScript(name: String) -> ScriptRun {
         say("And direct commands cut in politely: they play next, then the rest of the queue carries on. Nothing is dropped."),
     ]
 
+    // Questions — the one thing that stops the queue on purpose.
+    steps += [
+        state("waiting"),
+        say("There's one thing that does stop me: a question. An agent can ask you something and wait — really wait, for as long as it takes."),
+        say("Buttons appear under me, I hold everything behind them, and the agent polls until you answer. Try it: paw menu → “Ask me something”."),
+        say("It's the honest kind of human-in-the-loop: nothing but you clicking can answer, so an agent can't quietly rubber-stamp itself."),
+        state("idle"),
+    ]
+
     // Agents & the control plane
     steps += [
         say("Want an agent driving me right now? Menu bar → Settings → “Copy prompt”, and paste it into Claude, Codex, or any agent chat."),

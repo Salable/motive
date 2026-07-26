@@ -36,7 +36,7 @@ curl -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
 | `GET /v1/events` | Server-sent events stream (below). |
 | `POST /v1/state` | `{"state", "duration"?}` — change state; `duration` (ms) auto-reverts. |
 | `POST /v1/trigger` | `{"name"}` — one-shot gesture, then return to the prior state. |
-| `POST /v1/say` | `{"text", "ttl"?}` — speech bubble (≤ 400 chars; `ttl` ms). |
+| `POST /v1/say` | `{"text", "ttl"?, "respond"?}` — speech bubble (≤ 400 chars; `ttl` ms). With `respond`, a question (below). |
 | `DELETE /v1/speech` | Dismiss the current bubble. |
 | `POST /v1/queue` | `{"items": […]}` — append to the action queue (tail). |
 | `GET /v1/queue` | Inspect: depth, current item + remaining hold, pending items. |
@@ -44,6 +44,10 @@ curl -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
 | `DELETE /v1/queue/current` | Skip the current item: it ends now, the next pending item plays. Pending preserved. |
 | `POST /v1/script` | Compat sugar: **replace** the queue with these steps (v0.1.0 wire shape). |
 | `DELETE /v1/script` | Same as `DELETE /v1/queue`. |
+| `GET /v1/questions` | `?id`, `?wait` (ms, ≤ 30000) — open questions; long-poll for an answer. |
+| `DELETE /v1/questions` | `{"id"?}` — withdraw a question (all open ones when `id` is omitted). |
+| `GET /v1/questions/history` | `?limit` — past questions and answers, newest first. |
+| `DELETE /v1/questions/history` | `{"keep"?}` — cull stored history. |
 
 ## Queue semantics
 
@@ -51,6 +55,57 @@ Every action is a queue item processed in order. The direct verbs
 (`/v1/state`, `/v1/trigger`, `/v1/say`) **head-enqueue**: they play *next*,
 cutting the current item's remaining hold; everything already queued continues
 afterwards. Nothing is dropped except by an explicit flush.
+
+One exception: a **question** cannot have its hold cut, because it has no hold —
+it waits on a human. A direct verb issued while a question is outstanding is
+deferred behind it, not dropped, and plays as soon as the question resolves.
+
+## Questions
+
+`POST /v1/say` takes an optional `respond` object that turns the bubble into a
+question the pet blocks on:
+
+```json
+{"text": "Deploy to production?",
+ "respond": {"form": "confirm", "timeout": 300000}}
+```
+
+- `form` — `confirm` (yes/no), `choice` (`choices`: 2–6 options), `text`
+  (`placeholder`). Unknown forms return 400 with the valid list.
+- `timeout` — milliseconds until the question expires. Optional but strongly
+  recommended; clamped to one hour. We impose no deadline of our own: an
+  unanswered question waits indefinitely, so the asker owns its own patience.
+- `ttl` is ignored — the bubble lives until the question resolves.
+
+The receipt carries `questionID`. Poll it:
+
+```
+GET /v1/questions?id=<id>&wait=15000
+```
+
+`wait` parks the request until the question resolves or the budget elapses. A
+timed-out poll is a **200** with `"status": "awaiting"` — never an error — so
+the caller's loop is a plain `while status == "awaiting"`.
+
+| `status` | meaning |
+| --- | --- |
+| `awaiting` | not answered yet |
+| `accepted` | answered; `answer` holds it |
+| `declined` | the human explicitly refused to answer |
+| `cancelled` | dismissed by the human, or withdrawn by the asker |
+| `expired` | the asker's `timeout` elapsed |
+
+For `confirm`, both buttons are `accepted` — read `answer.confirmed`. "No" is an
+answer, not a refusal.
+
+**Answers originate only from UI input.** There is deliberately no endpoint that
+resolves a question as answered: a local process holding the token could
+otherwise forge a human's answer, and the human-in-the-loop guarantee would mean
+nothing. Agents can ask, read, and withdraw — not answer.
+
+Questions block at the head of the queue; a second question waits behind the
+first. A human may answer a *pending* question out of order, which resolves it
+in place without disturbing the one on screen.
 
 `POST /v1/queue` items look like:
 
