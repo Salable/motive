@@ -10,8 +10,7 @@ Consumers can register additional runners with `SpriteRunnerRegistry.register`.
 
 Drawing one rather than looking one up? This is the reference;
 [guides/SPRITE-DESIGN.md](guides/SPRITE-DESIGN.md) is the walkthrough, and it
-starts by copying a package out of
-[../Sprites/starter/](../Sprites/starter/).
+starts by copying a package out of [../Kit/](../Kit/).
 
 The format's posture: **tolerant decode, loud validation** — unknown keys pass
 (forward compatibility); invalid values fail with messages naming the valid

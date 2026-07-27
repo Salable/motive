@@ -12,7 +12,8 @@ want opposite things. Find your row.
 | get a companion on my desktop in five minutes | [guides/QUICKSTART.md](guides/QUICKSTART.md) |
 | know everything the demo app does | [guides/DEMO.md](guides/DEMO.md) |
 | build my own companion, start to finish | [guides/FIRST-APP.md](guides/FIRST-APP.md) |
-| draw the art for one | [guides/SPRITE-DESIGN.md](guides/SPRITE-DESIGN.md), starting from [../Sprites/starter/](../Sprites/starter/) |
+| combine existing materials into a new app | [guides/ASSEMBLE-AN-APP.md](guides/ASSEMBLE-AN-APP.md), from [../Kit/](../Kit/) |
+| draw the art for one | [guides/SPRITE-DESIGN.md](guides/SPRITE-DESIGN.md), starting from a pack in [../Kit/packs/](../Kit/packs/) |
 | know which states to draw for Claude Code, Codex, or my own app | [reference/STATE-PROFILES.md](reference/STATE-PROFILES.md) |
 | fix something that is broken | [guides/TROUBLESHOOTING.md](guides/TROUBLESHOOTING.md) |
 | understand *why* it behaves like that | [concepts/](#concepts) |
@@ -31,7 +32,9 @@ Read start to finish; each one has one happy path.
 - [QUICKSTART.md](guides/QUICKSTART.md) — run the demo, find the door, drive it
 - [DEMO.md](guides/DEMO.md) — every menu item and setting in `motive-demo`
 - [FIRST-APP.md](guides/FIRST-APP.md) — an empty directory to a working companion
-- [SPRITE-DESIGN.md](guides/SPRITE-DESIGN.md) — the starter kit to a companion of
+- [ASSEMBLE-AN-APP.md](guides/ASSEMBLE-AN-APP.md) — four choices and seven steps
+  from the kit to a running companion
+- [SPRITE-DESIGN.md](guides/SPRITE-DESIGN.md) — a kit pack to a companion of
   your own: grid, loops, timing, and the checks people skip
 - [TROUBLESHOOTING.md](guides/TROUBLESHOOTING.md) — symptom, cause, fix
 
@@ -95,7 +98,7 @@ DocC and published to
   then [FORMATS.md](FORMATS.md) for your own sprite, then
   [INTEGRATIONS.md](INTEGRATIONS.md) to let agents drive it.
 - **"I want to draw a new sprite"** — [guides/SPRITE-DESIGN.md](guides/SPRITE-DESIGN.md),
-  starting from a copy of [../Sprites/starter/](../Sprites/starter/);
+  starting from a copy of a pack in [../Kit/packs/](../Kit/packs/);
   [reference/STATE-PROFILES.md](reference/STATE-PROFILES.md) for which states your
   host can drive, and [FORMATS.md](FORMATS.md) for the manifest. Test it with
   `MOTIVE_SPRITE=path/to/package swift run motive-demo`.

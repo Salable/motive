@@ -49,6 +49,7 @@ docs/
     QUICKSTART.md          five minutes: run the demo, drive it from a terminal
     DEMO.md                the full motive-demo user guide
     FIRST-APP.md           build your own companion from an empty package
+    ASSEMBLE-AN-APP.md     combine kit materials into a running app
     SPRITE-DESIGN.md       draw the art: grid, loops, timing, the checks
     TROUBLESHOOTING.md     symptom → cause → fix
 
@@ -76,6 +77,11 @@ docs/
   RELEASING.md           cutting a release
   proposals/             design records; historical once shipped
 ```
+
+Two directories outside `docs/` are part of the same story and documented by
+their own READMEs: `Kit/` (the materials — packs and components, each pack's
+`pack.json` pinned by `KitTests`) and `Apps/` (where assembled companions land,
+gitignored). A change to either belongs in `guides/ASSEMBLE-AN-APP.md`.
 
 The six top-level guides predate this structure and keep their paths on purpose:
 they are linked from the README, from `CLAUDE.md`, from generated agent skills,

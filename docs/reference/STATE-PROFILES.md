@@ -2,7 +2,7 @@
 
 > **Audience:** sprite authors and anyone wiring a companion to an agent host.
 > **Prerequisites:** [../concepts/STATES.md](../concepts/STATES.md) for what a state *is*.
-> **Source of truth:** `ControlSchema.standardVerbs` and `SkillGenerator.markdownBody` (the lifecycle convention agents are taught); `Sprites/starter/*/motive.json` for a manifest that implements every profile here.
+> **Source of truth:** `ControlSchema.standardVerbs` and `SkillGenerator.markdownBody` (the lifecycle convention agents are taught); `Kit/packs/*/sprite/motive.json` for manifests that implement every profile here.
 
 Motive has no reserved state names. A sprite declares whatever vocabulary it
 likes and the control plane reports it verbatim, which is the right design and
@@ -51,9 +51,10 @@ Each profile is a superset of the one above it. `+` marks what it adds.
 | Conversational (Claude Desktop, ChatGPT Desktop) | + `thinking` | `wave`, `jump` |
 | Session (Claude Code, Codex CLI) | + `sleeping` | `wave`, `jump` |
 
-The starter kit implements the largest of these — nine rows, including
-`waving` and `jumping` as the states behind the two triggers. See
-[../../Sprites/starter/README.md](../../Sprites/starter/README.md).
+Both kit packs implement the largest of these — nine rows, including `waving`
+and `jumping` as the states behind the two triggers — and each declares in its
+`pack.json` which subset it promises to drive. See
+[../../Kit/README.md](../../Kit/README.md).
 
 ## General product lifecycle
 

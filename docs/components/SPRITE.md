@@ -132,10 +132,10 @@ for `motive.json`, so any loadable package in the lookup chain is found.
 which is worth copying: a test that loads your package catches a manifest typo at
 CI rather than at launch.
 
-`Tests/MotiveSpriteTests/StarterKitTests.swift` goes one step further for the
-starter kit: it asserts the vocabulary the docs promise, which is the shape to
-copy if your app depends on a package declaring particular states.
+`Tests/MotiveSpriteTests/KitTests.swift` goes one step further for the kit
+packs: it asserts the vocabulary the packs and docs promise, which is the shape
+to copy if your app depends on a package declaring particular states.
 
 Authoring the art rather than the manifest is
 [../guides/SPRITE-DESIGN.md](../guides/SPRITE-DESIGN.md), starting from the
-packages in [../../Sprites/starter/](../../Sprites/starter/).
+packs in [../../Kit/](../../Kit/).

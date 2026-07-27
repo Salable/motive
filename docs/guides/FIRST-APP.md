@@ -59,12 +59,14 @@ The fastest start is to copy one of the starter packages, which are drawn to be
 repainted:
 
 ```sh
-cp -R /path/to/motive/Sprites/starter/pip ./Sprites/mysprite
+cp -R /path/to/motive/Kit/packs/pip/sprite ./Sprites/mysprite
 ```
 
-`Sprites/starter/template` is the same grid with guides and labels instead of a
-character, and [SPRITE-DESIGN.md](SPRITE-DESIGN.md) walks through turning either
-one into your own art. `Sprites/winston` is the fuller worked example.
+`Kit/components/sprites/grid-template` is the same grid with guides and labels
+instead of a character, and [SPRITE-DESIGN.md](SPRITE-DESIGN.md) walks through
+turning either one into your own art. `Sprites/winston` is the fuller worked
+example. If you would rather combine finished materials than write the app by
+hand, [ASSEMBLE-AN-APP.md](ASSEMBLE-AN-APP.md) is the ten-minute path.
 
 To author your own from scratch, you need a sprite sheet — a grid of equally
 sized cells, one animation per row — and a `motive.json` beside it:

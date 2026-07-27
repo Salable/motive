@@ -20,7 +20,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SCAN = ["README.md", "CONTRIBUTING.md", "CLAUDE.md", "CHANGELOG.md",
-        "Sprites/starter/README.md"]
+        "Kit/README.md", "Kit/components/README.md",
+        "Kit/packs/pip/README.md", "Kit/packs/caret/README.md",
+        "Apps/README.md"]
 
 LINK = re.compile(r"!?\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 HEADING = re.compile(r"^#{1,6}\s+(.*?)\s*$", re.MULTILINE)

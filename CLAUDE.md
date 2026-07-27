@@ -17,7 +17,7 @@ scripts/build-demo-app.sh  # dist/MotiveDemo.app bundle (--universal, --zip)
 scripts/demo-curl.sh       # drive a running demo through every REST verb
 scripts/worktree.sh new <name>   # feature branch + worktree in .worktrees/<name>
 scripts/check-doc-links.py       # every relative link in the docs resolves
-scripts/make-starter-sprites.py  # redraw Sprites/starter/ (needs Pillow)
+scripts/make-kit-art.py          # redraw the Kit/ sprite sheets (needs Pillow)
 scripts/sync-wiki.py --out build/wiki   # preview the wiki mirror locally
 swift package generate-documentation --target MotiveCore   # DocC archive
 ```
@@ -43,9 +43,11 @@ at the top — go there to verify a claim rather than trusting the prose.
 | "What does Motive offer?" | `docs/components/OVERVIEW.md`; layering in `docs/ARCHITECTURE.md` |
 | "How do I run the demo?" / "What does this menu item do?" | `docs/guides/QUICKSTART.md`, `docs/guides/DEMO.md` |
 | "Help me build my own companion." | `docs/guides/FIRST-APP.md` (tutorial) or `docs/EMBEDDING.md` (recipes). `Sources/MotiveDemo/main.swift` is the everything-at-once reference. |
+| "Make me a companion app" / "combine these materials" | `docs/guides/ASSEMBLE-AN-APP.md`, from the packs in `Kit/`. See *Assembling a companion app* below — do not improvise a layout. |
+| "What materials are there?" | `Kit/README.md` — packs (character + purpose + vocabulary) and components |
 | "What are the parameters of X?" | `docs/components/<PRODUCT>.md`, then the `///` comments |
 | "Why does it behave like that?" | `docs/concepts/` — QUEUE, STATES, QUESTIONS, VOICE, RUNTIME |
-| "Author a sprite?" | `docs/guides/SPRITE-DESIGN.md` to draw one (start from `Sprites/starter/`), `docs/FORMATS.md` for the manifest. Test with `MOTIVE_SPRITE=path swift run motive-demo`. |
+| "Author a sprite?" | `docs/guides/SPRITE-DESIGN.md` to draw one (start from a pack in `Kit/packs/`), `docs/FORMATS.md` for the manifest. Test with `MOTIVE_SPRITE=path swift run motive-demo`. |
 | "Which states should my sprite have?" | `docs/reference/STATE-PROFILES.md` — per host: lifecycle, Claude Code, Codex CLI, Claude Desktop |
 | REST wire details | `docs/API.md` |
 | Agent / MCP hookup | `docs/INTEGRATIONS.md` |
@@ -56,6 +58,43 @@ at the top — go there to verify a claim rather than trusting the prose.
 
 `docs/proposals/` is design record, not current behavior — read it for reasoning
 and check the code before quoting it as fact.
+
+## Assembling a companion app
+
+The framework ships one app on purpose — `motive-demo`. Everything needed to
+build a *different* one is material in `Kit/`, and combining it is a documented
+procedure rather than a design exercise:
+`docs/guides/ASSEMBLE-AN-APP.md`. Follow it; do not invent a second layout.
+
+Four raw materials, four places to look:
+
+| Material | Where |
+| --- | --- |
+| the character | `Kit/packs/<id>/sprite/` |
+| the companion's purpose | `Kit/packs/<id>/pack.json` — `purpose`, `greeting`, `drives`, `voice` |
+| the state vocabulary the host can drive | `pack.json` → `profile`, defined in `docs/reference/STATE-PROFILES.md` |
+| the composition and the integration | `docs/EMBEDDING.md` recipes, `docs/INTEGRATIONS.md`, and `Sources/MotiveDemo/main.swift` as the worked version |
+
+Rules for anything you assemble, all of them load-bearing:
+
+- **It lands in `Apps/<Name>/`, which is gitignored.** Assembled apps are local
+  builds; never commit one, and never add one to the root `Package.swift`.
+- **It depends on the published release** —
+  `.package(url: "https://github.com/Salable/motive.git", from: "0.4.0")`, never
+  a path into this checkout. An app that only builds here proves nothing. Use
+  `swift package edit Motive --path <checkout>` when you need unreleased changes.
+- **It is self-contained.** Copy `Kit/packs/<id>/sprite` into the app; nothing at
+  runtime reads out of `Kit/`, and no path leaves the app directory.
+- **Copy a pack before changing it.** A pack serves every app; if one app needs
+  different art or a different greeting, it needs its own copy.
+- **Verify by running it, not by reading it.** `swift build && swift run <Name>`,
+  then `GET /v1/schema` and check that every name in the pack's `drives` is a
+  state or alias the app reports. Give it its own `MOTIVE_HOME` if the demo is
+  already running.
+
+Kit art is generated (`scripts/make-kit-art.py`, deterministic); a new pack is a
+`Figure` in that script plus a `pack.json`, not a second set of drawings.
+`KitTests` pins every pack against its sprite and its profile.
 
 ## Documenting a change
 

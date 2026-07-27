@@ -15,7 +15,7 @@ Your companion mirrors what your agent is up to — one REST or MCP call sets th
 
 …plus one-shot gestures (`wave`, `jump`, `dash-left`/`dash-right`) and speech bubbles to keep her feeling alive.
 
-Rather than shipping one bundled app, Motive is a component library: pick the pieces you need and compose your own companion — with your own character in it. [`Sprites/starter/`](Sprites/starter/) is a kit to draw over: a complete companion and a labelled grid template, both covering the whole lifecycle vocabulary. [Design a companion](docs/guides/SPRITE-DESIGN.md) walks through repainting one, and [state profiles](docs/reference/STATE-PROFILES.md) says which states Claude Code, Codex, Claude Desktop, and your own app can actually drive.
+Rather than shipping one bundled app, Motive is a component library: pick the pieces you need and compose your own companion — with your own character in it. [`Kit/`](Kit/) holds the materials: self-contained design starter packs (a character, its purpose, its state vocabulary) and a labelled grid to draw over. [Assemble a companion](docs/guides/ASSEMBLE-AN-APP.md) combines them into a runnable app in about ten minutes, [Design a companion](docs/guides/SPRITE-DESIGN.md) walks through repainting one, and [state profiles](docs/reference/STATE-PROFILES.md) says which states Claude Code, Codex, Claude Desktop, and your own app can actually drive.
 
 ## Components
 
@@ -93,7 +93,7 @@ The [docs index](docs/README.md) is the map. The short version:
 
 | | |
 | --- | --- |
-| **Start** | [Quickstart](docs/guides/QUICKSTART.md) · [The demo app](docs/guides/DEMO.md) · [Build your first companion](docs/guides/FIRST-APP.md) · [Design a companion](docs/guides/SPRITE-DESIGN.md) · [Troubleshooting](docs/guides/TROUBLESHOOTING.md) |
+| **Start** | [Quickstart](docs/guides/QUICKSTART.md) · [The demo app](docs/guides/DEMO.md) · [Build your first companion](docs/guides/FIRST-APP.md) · [Assemble one from the kit](docs/guides/ASSEMBLE-AN-APP.md) · [Design a companion](docs/guides/SPRITE-DESIGN.md) · [Troubleshooting](docs/guides/TROUBLESHOOTING.md) |
 | **Understand** | [Queue](docs/concepts/QUEUE.md) · [States](docs/concepts/STATES.md) · [Questions](docs/concepts/QUESTIONS.md) · [Voice](docs/concepts/VOICE.md) · [Runtime](docs/concepts/RUNTIME.md) · [Architecture](docs/ARCHITECTURE.md) |
 | **Look up** | [Components](docs/components/OVERVIEW.md) · [REST API](docs/API.md) · [Sprite formats](docs/FORMATS.md) · [State profiles](docs/reference/STATE-PROFILES.md) · [Environment](docs/reference/ENVIRONMENT.md) · [CLI](docs/reference/CLI.md) |
 | **Do** | [Embedding recipes](docs/EMBEDDING.md) · [Agent integrations](docs/INTEGRATIONS.md) · [Releasing](docs/RELEASING.md) |

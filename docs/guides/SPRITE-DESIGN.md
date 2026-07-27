@@ -2,7 +2,7 @@
 
 > **Audience:** anyone drawing the art for a Motive app — no Swift required.
 > **Prerequisites:** a checkout (to run the demo as your preview window) and any image editor that can export PNG with transparency.
-> **Source of truth:** `docs/FORMATS.md` for the manifest, `Sources/MotiveSprite/MotiveRunner.swift` for what the validator accepts, `scripts/make-starter-sprites.py` for the starter kit.
+> **Source of truth:** `docs/FORMATS.md` for the manifest, `Sources/MotiveSprite/MotiveRunner.swift` for what the validator accepts, `scripts/make-kit-art.py` for the kit art.
 
 A companion is a grid of pictures and a JSON file. That is genuinely all it is —
 sprites are data, never code — so the hard parts are not technical: choosing
@@ -17,7 +17,7 @@ table for which states a given host can actually drive.
 ## Step 1: steal the grid
 
 ```sh
-cp -R Sprites/starter/pip ~/sprites/mycompanion
+cp -R Kit/packs/pip/sprite ~/sprites/mycompanion
 MOTIVE_SPRITE=~/sprites/mycompanion swift run motive-demo
 ```
 
@@ -25,8 +25,8 @@ There is your companion, on the desktop, moving. Everything below is changing
 it into yours — which is a much better place to start than an empty canvas and
 a spec.
 
-The starter kit's grid is **8 columns × 9 rows of 128×128 cells**, one state per
-row. `Sprites/starter/template` is the same grid with the art replaced by
+The kit's grid is **8 columns × 9 rows of 128×128 cells**, one state per row.
+`Kit/components/sprites/grid-template` is the same grid with the art replaced by
 guides: safe area, centre line, ground line, and each cell's state name and
 frame number. Open it as a bottom layer in your editor and draw over it.
 
@@ -70,8 +70,8 @@ has to lead back into the first — a sine wave, not a ramp.
   vanish and shape survives. If two states have the same outline they are the
   same state to the person glancing at them.
 - **Squash and stretch beats displacement.** A body that swells and settles
-  reads as breathing; a body that slides up and down reads as broken. The
-  starter character's entire idle loop is a two-pixel change in height.
+  reads as breathing; a body that slides up and down reads as broken. Pip's
+  entire idle loop is a two-pixel change in height.
 - **One idea per state.** `working` leans forward and has one orbiting spark.
   Adding a second moving element does not double the information, it halves
   the legibility.
