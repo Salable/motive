@@ -1,0 +1,27 @@
+{
+  "id": "caret",
+  "title": "Caret",
+  "blurb": "A terminal caret for companions that sit beside a CLI agent session.",
+  "purpose": "Watches a Claude Code session from the corner of the screen: thinking while a turn is forming, working through tool calls, waiting when a permission prompt is up, review at the end of the turn, and asleep when the session closes.",
+  "sprite": "sprite",
+  "profile": "claude-code",
+  "drives": [
+    "idle",
+    "thinking",
+    "working",
+    "waiting",
+    "review",
+    "failed",
+    "sleeping"
+  ],
+  "voice": { "voice": "Daniel", "rate": 1.05 },
+  "greeting": "Caret here. Ready when you are.",
+  "capabilities": [
+    "sprite-box.scale",
+    "sprite-box.always-on-top",
+    "http.enabled",
+    "http.port"
+  ],
+  "integrations": ["rest", "claude-code", "codex-cli"],
+  "license": "MIT"
+}

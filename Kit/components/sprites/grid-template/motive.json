@@ -1,9 +1,9 @@
 {
   "format": "motive/1",
   "metadata": {
-    "id": "template",
-    "name": "Template",
-    "description": "The starter grid as guides and labels instead of a character: safe area, centre line, ground line, and each cell's address. Draw over it.",
+    "id": "grid-template",
+    "name": "Grid Template",
+    "description": "The kit grid as guides and labels instead of a character: safe area, centre line, ground line, and each cell's address. Draw over it.",
     "author": "Motive",
     "license": "MIT",
     "version": "1.0.0"

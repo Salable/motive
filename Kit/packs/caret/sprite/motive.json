@@ -1,0 +1,127 @@
+{
+  "format": "motive/1",
+  "metadata": {
+    "id": "caret",
+    "name": "Caret",
+    "description": "A terminal caret with the same vocabulary as Pip, drawn for companions that sit beside a CLI agent session.",
+    "author": "Motive",
+    "license": "MIT",
+    "version": "1.0.0"
+  },
+  "atlases": {
+    "sprite": {
+      "path": "spritesheet.png",
+      "cell": [
+        128,
+        128
+      ],
+      "grid": [
+        8,
+        9
+      ]
+    }
+  },
+  "states": {
+    "idle": {
+      "frames": {
+        "row": 0,
+        "count": 8
+      },
+      "ms": 130,
+      "purpose": "resting loop: a slow breath and an occasional blink"
+    },
+    "thinking": {
+      "frames": {
+        "row": 1,
+        "count": 8
+      },
+      "ms": 120,
+      "purpose": "considering something; nothing has happened yet"
+    },
+    "working": {
+      "frames": {
+        "row": 2,
+        "count": 8
+      },
+      "ms": 80,
+      "purpose": "actively working \u2014 the long-running state"
+    },
+    "waiting": {
+      "frames": {
+        "row": 3,
+        "count": 8
+      },
+      "ms": 140,
+      "purpose": "blocked on the human: a question is on screen"
+    },
+    "review": {
+      "frames": {
+        "row": 4,
+        "count": 8
+      },
+      "ms": 90,
+      "purpose": "finished successfully; the work is ready to look at"
+    },
+    "failed": {
+      "frames": {
+        "row": 5,
+        "count": 8
+      },
+      "ms": 110,
+      "purpose": "something went wrong and stayed wrong"
+    },
+    "waving": {
+      "frames": {
+        "row": 6,
+        "count": 8
+      },
+      "ms": 90,
+      "purpose": "friendly greeting wave",
+      "interrupt": "after-loop"
+    },
+    "jumping": {
+      "frames": {
+        "row": 7,
+        "count": 8
+      },
+      "ms": 70,
+      "purpose": "excited bounce",
+      "interrupt": "after-loop"
+    },
+    "sleeping": {
+      "frames": {
+        "row": 8,
+        "count": 8
+      },
+      "ms": 200,
+      "purpose": "idle for a long time; nothing is running"
+    }
+  },
+  "aliases": {
+    "running": "working",
+    "busy": "working",
+    "done": "review",
+    "error": "failed",
+    "blocked": "waiting",
+    "asleep": "sleeping"
+  },
+  "triggers": {
+    "wave": {
+      "state": "waving",
+      "once": true,
+      "purpose": "greet the human, then return to what you were doing"
+    },
+    "jump": {
+      "state": "jumping",
+      "once": true,
+      "purpose": "celebrate something small without claiming a mood"
+    }
+  },
+  "transitions": [
+    {
+      "from": "*",
+      "to": "*",
+      "ms": 180
+    }
+  ]
+}

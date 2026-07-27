@@ -1,0 +1,19 @@
+{
+  "id": "pip",
+  "title": "Pip",
+  "blurb": "A round companion covering the whole lifecycle vocabulary.",
+  "purpose": "Sits on the desktop and mirrors what a long-running job or an agent is doing, so a glance answers 'is it still going, does it need me, did it work?' without switching windows.",
+  "sprite": "sprite",
+  "profile": "general-product-lifecycle",
+  "drives": ["idle", "working", "waiting", "review", "failed"],
+  "voice": { "voice": "Samantha", "rate": 1.0 },
+  "greeting": "Hi, I'm Pip. I'll keep an eye on things.",
+  "capabilities": [
+    "sprite-box.scale",
+    "sprite-box.always-on-top",
+    "voice.output.enabled",
+    "http.enabled"
+  ],
+  "integrations": ["rest", "mcp"],
+  "license": "MIT"
+}

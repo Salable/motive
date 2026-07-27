@@ -12,6 +12,12 @@ xcuserdata/
 .swiftpm/
 Package.resolved
 
+# Companions assembled from Kit/ — local builds, deliberately not shared.
+# Each is a standalone package depending on the published release, so there is
+# nothing here another checkout needs (see Apps/README.md).
+Apps/*
+!Apps/README.md
+
 # Pre-rewrite reference material, not part of the published repo.
 FIRST_ATTEMPT/
 SPRITE_EXAMPLES/

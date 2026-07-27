@@ -1,19 +1,26 @@
 #!/usr/bin/env python3
-"""Generate the starter sprite kit in Sprites/starter/.
+"""Generate the art in Kit/ — the packs' sprite sheets and the tracing grid.
 
-Deterministic: every pixel comes from the state table below, so the kit is
+Deterministic: every pixel comes from the tables below, so the kit is
 regenerated after a vocabulary or palette change rather than retouched by hand.
-Two packages, same grid, same manifest vocabulary:
+Three packages, one grid, one vocabulary:
 
-  Sprites/starter/pip/       a complete companion covering the starter
-                             vocabulary — copy it and repaint cell for cell
-  Sprites/starter/template/  the same grid drawn as guides and labels instead
-                             of a character — tracing paper for your own art
+  Kit/packs/pip/sprite/                   a round companion for the general
+                                          product lifecycle
+  Kit/packs/caret/sprite/                 a terminal caret for CLI agent
+                                          sessions — same states, other silhouette
+  Kit/components/sprites/grid-template/   the same grid drawn as guides and
+                                          labels: tracing paper for your own art
 
-  python3 scripts/make-starter-sprites.py
+  python3 scripts/make-kit-art.py
 
-Needs Pillow. Run it only when the vocabulary or the palette below changes;
-nothing runs it automatically. See docs/guides/SPRITE-DESIGN.md.
+Needs Pillow. Run it only when the vocabulary or a palette below changes;
+nothing runs it automatically, and edits made straight to the committed PNGs are
+overwritten by the next run. See docs/guides/SPRITE-DESIGN.md.
+
+The two characters share every state drawing and differ only in their `Figure`
+— that is the point. A pack is a silhouette and a personality over one
+vocabulary, so the vocabulary lives in one place.
 """
 import json
 import math
@@ -23,7 +30,7 @@ import sys
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-OUT_DIR = ROOT / "Sprites/starter"
+KIT = ROOT / "Kit"
 
 CELL = 128           # one frame, in pixels
 COLUMNS = 8          # frames per state
@@ -33,8 +40,6 @@ GROUND = 114         # the y the character stands on, in every cell
 # Flat, high-contrast, and legible at 128px against both a light and a dark
 # desktop — the two constraints that actually matter for a companion.
 INK = (38, 34, 56, 255)
-BODY = (108, 124, 240, 255)
-BODY_SHADE = (86, 100, 214, 255)
 EYE_WHITE = (255, 255, 255, 255)
 AMBER = (247, 181, 56, 255)
 GREEN = (74, 187, 122, 255)
@@ -42,6 +47,11 @@ RED = (226, 96, 96, 255)
 GUIDE = (140, 150, 175, 90)
 GUIDE_STRONG = (140, 150, 175, 170)
 LABEL = (90, 98, 122, 255)
+
+PIP_BODY = (108, 124, 240, 255)
+PIP_SHADE = (86, 100, 214, 255)
+CARET_BODY = (86, 196, 140, 255)
+CARET_SHADE = (58, 158, 110, 255)
 
 FONT_CANDIDATES = [
     "/System/Library/Fonts/Supplemental/Arial Rounded Bold.ttf",
@@ -75,21 +85,59 @@ def load_font(size):
     return ImageFont.load_default()
 
 
-# ---------------------------------------------------------------- character
+# ------------------------------------------------------------------- bodies
 
-def blob(d, cx, feet, w, h, lean=0.0):
-    """The body: a rounded mass standing on `feet`, squashed and stretched by
-    the caller. `lean` shifts it sideways — leaning in reads as effort,
-    leaning back as hesitation, and it is most of the body language here."""
-    x = cx + lean
+def blob_body(d, x, feet, w, h, fill, shade):
+    """Pip: a rounded mass, squashed and stretched by the caller."""
     d.rounded_rectangle((x - w / 2, feet - h, x + w / 2, feet),
-                        radius=min(w, h) * 0.44, fill=BODY, outline=INK,
+                        radius=min(w, h) * 0.44, fill=fill, outline=INK,
                         width=3 * SS)
     # A darker sliver along the base so the shape has a bottom, not an edge.
     d.rounded_rectangle((x - w / 2 + 5 * SS, feet - 8 * SS,
                          x + w / 2 - 5 * SS, feet - 3 * SS),
-                        radius=3 * SS, fill=BODY_SHADE)
+                        radius=3 * SS, fill=shade)
 
+
+def caret_body(d, x, feet, w, h, fill, shade):
+    """Caret: the text cursor — a tall block standing on an underscore."""
+    d.rounded_rectangle((x - w / 2, feet - h, x + w / 2, feet - 9 * SS),
+                        radius=7 * SS, fill=fill, outline=INK, width=3 * SS)
+    d.rounded_rectangle((x - w / 2 - 7 * SS, feet - 10 * SS,
+                         x + w / 2 + 7 * SS, feet - 1 * SS),
+                        radius=4 * SS, fill=shade, outline=INK, width=3 * SS)
+
+
+class Figure:
+    """Everything a state drawing needs to know about one character.
+
+    Both characters run the same nine drawings; only these numbers differ, so a
+    new pack is a silhouette and a palette rather than a second animation set.
+    """
+
+    def __init__(self, body, width, height, eye_spread, eye_line, mouth_drop,
+                 arm_dx, accessory_dx, fill, shade):
+        self.body = body
+        self.width = width * SS
+        self.height = height * SS
+        self.eye_spread = eye_spread * SS
+        self.eye_line = eye_line          # fraction of the body height, from the feet
+        self.mouth_drop = mouth_drop * SS
+        self.arm_dx = arm_dx * SS
+        self.accessory_dx = accessory_dx * SS
+        self.fill = fill
+        self.shade = shade
+
+    def draw(self, d, cx, feet, w, h, lean=0.0):
+        self.body(d, cx + lean, feet, w, h, self.fill, self.shade)
+
+
+FIGURES = {
+    "pip": Figure(blob_body, 66, 64, 15, 0.62, 20, 28, 34, PIP_BODY, PIP_SHADE),
+    "caret": Figure(caret_body, 48, 80, 11, 0.66, 17, 22, 32, CARET_BODY, CARET_SHADE),
+}
+
+
+# --------------------------------------------------------------------- face
 
 def eyes(d, cx, cy, spread, style="open", look=(0.0, 0.0)):
     r = 9 * SS
@@ -128,21 +176,23 @@ def mouth(d, cx, cy, w, shape="flat"):
         d.line((cx - w * 0.5, cy, cx + w * 0.5, cy), fill=INK, width=3 * SS)
 
 
-def arm(d, cx, cy, angle_deg, length, thickness=7):
+def arm(d, cx, cy, angle_deg, length, figure, thickness=7):
     a = math.radians(angle_deg)
     ex, ey = cx + math.cos(a) * length, cy - math.sin(a) * length
-    d.line((cx, cy, ex, ey), fill=BODY_SHADE, width=thickness * SS)
+    d.line((cx, cy, ex, ey), fill=figure.shade, width=thickness * SS)
     d.line((cx, cy, ex, ey), fill=INK, width=max(1, thickness - 4) * SS)
     d.ellipse((ex - 6 * SS, ey - 6 * SS, ex + 6 * SS, ey + 6 * SS),
-              fill=BODY, outline=INK, width=2 * SS)
+              fill=figure.fill, outline=INK, width=2 * SS)
 
 
 def bubble_text(d, cx, cy, text, font, color):
     d.text((cx, cy), text, font=font, fill=color, anchor="mm")
 
 
-def character_frame(state, index, fonts):
-    """One 128×128 frame of the starter character, drawn at CELL * SS."""
+# ---------------------------------------------------------------- character
+
+def character_frame(state, index, fonts, figure):
+    """One 128×128 frame of a kit character, drawn at CELL * SS."""
     size = CELL * SS
     img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
@@ -151,20 +201,22 @@ def character_frame(state, index, fonts):
     phase = index / COLUMNS             # 0..1 around the loop
     wave = math.sin(phase * 2 * math.pi)
 
-    w, h = 66 * u, 64 * u
+    w, h = figure.width, figure.height
+    spread, drop = figure.eye_spread, figure.mouth_drop
+    acc = figure.accessory_dx
 
     if state == "idle":
         breath = wave * 2 * u
-        blob(d, cx, base, w, h + breath)
-        ey = base - (h + breath) * 0.62
-        eyes(d, cx, ey, 15 * u, "closed" if index == 5 else "open")
-        mouth(d, cx, ey + 20 * u, 9 * u, "flat")
+        figure.draw(d, cx, base, w, h + breath)
+        ey = base - (h + breath) * figure.eye_line
+        eyes(d, cx, ey, spread, "closed" if index == 5 else "open")
+        mouth(d, cx, ey + drop, 9 * u, "flat")
 
     elif state == "thinking":
-        blob(d, cx, base, w, h, lean=-2 * u)
-        ey = base - h * 0.62
-        eyes(d, cx, ey, 15 * u, "open", look=(0.4, -0.8))
-        mouth(d, cx, ey + 20 * u, 8 * u, "flat")
+        figure.draw(d, cx, base, w, h, lean=-2 * u)
+        ey = base - h * figure.eye_line
+        eyes(d, cx, ey, spread, "open", look=(0.4, -0.8))
+        mouth(d, cx, ey + drop, 8 * u, "flat")
         for dot in range(3):
             lit = (index // 2) % 3 == dot
             r = (5 if lit else 3.5) * u
@@ -175,12 +227,12 @@ def character_frame(state, index, fonts):
 
     elif state == "working":
         bob = abs(wave) * 4 * u
-        blob(d, cx, base - bob, w, h, lean=4 * u)
-        ey = base - h * 0.62 - bob
-        eyes(d, cx, ey, 15 * u, "open", look=(0.5, 0.2))
-        mouth(d, cx, ey + 20 * u, 9 * u, "flat")
-        arm(d, cx + 28 * u, base - h * 0.45 - bob,
-            -20 + wave * 35, 26 * u)
+        figure.draw(d, cx, base - bob, w, h, lean=4 * u)
+        ey = base - h * figure.eye_line - bob
+        eyes(d, cx, ey, spread, "open", look=(0.5, 0.2))
+        mouth(d, cx, ey + drop, 9 * u, "flat")
+        arm(d, cx + figure.arm_dx, base - h * 0.45 - bob,
+            -20 + wave * 35, 26 * u, figure)
         # An orbiting spark: motion that is legible even at one frame a second.
         a = phase * 2 * math.pi
         sx, sy = cx + math.cos(a) * 40 * u, 34 * u + math.sin(a) * 10 * u
@@ -188,41 +240,42 @@ def character_frame(state, index, fonts):
 
     elif state == "waiting":
         tilt = wave * 3 * u
-        blob(d, cx, base, w, h, lean=tilt)
-        ey = base - h * 0.62
-        eyes(d, cx + tilt * 0.5, ey, 15 * u, "wide", look=(0.0, -0.2))
-        mouth(d, cx + tilt * 0.5, ey + 20 * u, 8 * u, "o")
-        bubble_text(d, cx + 34 * u, 30 * u - abs(wave) * 4 * u, "?",
+        figure.draw(d, cx, base, w, h, lean=tilt)
+        ey = base - h * figure.eye_line
+        eyes(d, cx + tilt * 0.5, ey, spread, "wide", look=(0.0, -0.2))
+        mouth(d, cx + tilt * 0.5, ey + drop, 8 * u, "o")
+        bubble_text(d, cx + acc, 30 * u - abs(wave) * 4 * u, "?",
                     fonts["glyph"], AMBER)
 
     elif state == "review":
         hop = max(0.0, wave) * 8 * u
-        blob(d, cx, base - hop, w * 1.02, h)
-        ey = base - h * 0.62 - hop
-        eyes(d, cx, ey, 15 * u, "happy")
-        mouth(d, cx, ey + 20 * u, 11 * u, "smile")
+        figure.draw(d, cx, base - hop, w * 1.02, h)
+        ey = base - h * figure.eye_line - hop
+        eyes(d, cx, ey, spread, "happy")
+        mouth(d, cx, ey + drop, 11 * u, "smile")
         rise = 34 * u - phase * 8 * u
-        d.line((cx + 26 * u, rise, cx + 33 * u, rise + 8 * u),
+        d.line((cx + acc - 8 * u, rise, cx + acc - u, rise + 8 * u),
                fill=GREEN, width=5 * u)
-        d.line((cx + 33 * u, rise + 8 * u, cx + 46 * u, rise - 10 * u),
+        d.line((cx + acc - u, rise + 8 * u, cx + acc + 12 * u, rise - 10 * u),
                fill=GREEN, width=5 * u)
 
     elif state == "failed":
         droop = min(index, 3) * 2 * u + abs(wave) * u
-        blob(d, cx, base, w + droop, h - droop, lean=0)
-        ey = base - (h - droop) * 0.58
-        eyes(d, cx, ey, 15 * u, "sad")
-        mouth(d, cx, ey + 20 * u, 10 * u, "frown")
+        figure.draw(d, cx, base, w + droop, h - droop)
+        ey = base - (h - droop) * (figure.eye_line - 0.04)
+        eyes(d, cx, ey, spread, "sad")
+        mouth(d, cx, ey + drop, 10 * u, "frown")
         if index < 4:
-            bubble_text(d, cx + 34 * u, 32 * u, "!", fonts["glyph"], RED)
+            bubble_text(d, cx + acc, 32 * u, "!", fonts["glyph"], RED)
 
     elif state == "waving":
         lean = wave * 2 * u
-        blob(d, cx, base, w, h, lean=lean)
-        ey = base - h * 0.62
-        eyes(d, cx + lean * 0.5, ey, 15 * u, "happy")
-        mouth(d, cx + lean * 0.5, ey + 20 * u, 11 * u, "smile")
-        arm(d, cx + 26 * u, base - h * 0.55, 55 + wave * 35, 34 * u)
+        figure.draw(d, cx, base, w, h, lean=lean)
+        ey = base - h * figure.eye_line
+        eyes(d, cx + lean * 0.5, ey, spread, "happy")
+        mouth(d, cx + lean * 0.5, ey + drop, 11 * u, "smile")
+        arm(d, cx + figure.arm_dx - 2 * u, base - h * 0.55,
+            55 + wave * 35, 34 * u, figure)
 
     elif state == "jumping":
         # A single arc across the row: up, hang, down, land squashed.
@@ -233,21 +286,21 @@ def character_frame(state, index, fonts):
             squash = 6 * u
         if index == COLUMNS - 1:
             squash = 8 * u
-        blob(d, cx, base - lift, w + squash, h - squash)
-        ey = base - lift - (h - squash) * 0.62
-        eyes(d, cx, ey, 15 * u, "happy" if lift > 6 * u else "open")
-        mouth(d, cx, ey + 20 * u, 11 * u, "smile")
+        figure.draw(d, cx, base - lift, w + squash, h - squash)
+        ey = base - lift - (h - squash) * figure.eye_line
+        eyes(d, cx, ey, spread, "happy" if lift > 6 * u else "open")
+        mouth(d, cx, ey + drop, 11 * u, "smile")
         if lift > 6 * u:
-            arm(d, cx - 28 * u, base - lift - h * 0.5, 130, 24 * u)
-            arm(d, cx + 28 * u, base - lift - h * 0.5, 50, 24 * u)
+            arm(d, cx - figure.arm_dx, base - lift - h * 0.5, 130, 24 * u, figure)
+            arm(d, cx + figure.arm_dx, base - lift - h * 0.5, 50, 24 * u, figure)
 
     elif state == "sleeping":
         breath = wave * 3 * u
         settled = h * 0.72 + breath
-        blob(d, cx, base, w + 6 * u, settled)
-        ey = base - settled * 0.58
-        eyes(d, cx, ey, 15 * u, "closed")
-        mouth(d, cx, ey + 18 * u, 7 * u, "flat")
+        figure.draw(d, cx, base, w + 6 * u, settled)
+        ey = base - settled * (figure.eye_line - 0.04)
+        eyes(d, cx, ey, spread, "closed")
+        mouth(d, cx, ey + drop - 2 * u, 7 * u, "flat")
         for i in range(3):
             step = (index + i * 3) % COLUMNS
             zy = 46 * u - step * 5 * u
@@ -262,7 +315,7 @@ def character_frame(state, index, fonts):
 
 # ----------------------------------------------------------------- template
 
-def template_frame(state, index, fonts):
+def template_frame(state, index, fonts, _figure=None):
     """One guide cell: safe area, centre line, ground line, and its address."""
     img = Image.new("RGBA", (CELL, CELL), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
@@ -283,11 +336,11 @@ def template_frame(state, index, fonts):
 
 # ------------------------------------------------------------------ packages
 
-def sheet(draw_frame, fonts):
+def sheet(draw_frame, fonts, figure=None):
     image = Image.new("RGBA", (COLUMNS * CELL, len(STATES) * CELL), (0, 0, 0, 0))
     for name, row, _ms, _purpose in STATES:
         for column in range(COLUMNS):
-            image.alpha_composite(draw_frame(name, column, fonts),
+            image.alpha_composite(draw_frame(name, column, fonts, figure),
                                   (column * CELL, row * CELL))
     return image
 
@@ -354,19 +407,26 @@ def main():
     }
 
     write_package(
-        OUT_DIR / "pip",
-        sheet(character_frame, fonts),
+        KIT / "packs/pip/sprite",
+        sheet(character_frame, fonts, FIGURES["pip"]),
         manifest("pip", "Pip",
-                 "A round starter companion covering the whole lifecycle "
-                 "vocabulary. Copy the package and repaint it cell for cell."))
+                 "A round companion covering the whole lifecycle vocabulary. "
+                 "Copy the package and repaint it cell for cell."))
 
     write_package(
-        OUT_DIR / "template",
+        KIT / "packs/caret/sprite",
+        sheet(character_frame, fonts, FIGURES["caret"]),
+        manifest("caret", "Caret",
+                 "A terminal caret with the same vocabulary as Pip, drawn for "
+                 "companions that sit beside a CLI agent session."))
+
+    write_package(
+        KIT / "components/sprites/grid-template",
         sheet(template_frame, fonts),
-        manifest("template", "Template",
-                 "The starter grid as guides and labels instead of a "
-                 "character: safe area, centre line, ground line, and each "
-                 "cell's address. Draw over it."))
+        manifest("grid-template", "Grid Template",
+                 "The kit grid as guides and labels instead of a character: "
+                 "safe area, centre line, ground line, and each cell's "
+                 "address. Draw over it."))
 
 
 if __name__ == "__main__":
